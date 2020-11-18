@@ -86,6 +86,13 @@ typedef struct triangleio_t {
 	/* An array of edge markers; one int per edge. Output only. */
 	int *edgemarkerlist;
 
+  /*  An array of normal vectors, used for infinite rays in                    */
+  /*    Voronoi diagrams.  The first normal vector's x and y magnitudes are    */
+  /*    at indices [0] and [1], followed by the remaining vectors.  For each   */
+  /*    finite edge in a Voronoi diagram, the normal vector written is the     */
+  /*    zero vector.  Two REALs per edge.  Output only.                        */
+  REAL *normlist;
+
 	int numberofedges;
 } triangleio;
 
@@ -403,6 +410,9 @@ typedef struct behavior_t {
 
   /* Number all items starting from zero or one (0 for -z switch). */
   int firstnumber;
+
+  /* Voronoi */
+  int voronoi;
 
   /* Generate a list of triangle neighbors (-n switch). */
   int neighbors;
