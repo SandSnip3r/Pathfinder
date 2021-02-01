@@ -16,16 +16,28 @@ void finishFunnel(std::deque<QPointF> &funnel, QPointF &apex, std::vector<QPoint
 
 Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {}
 
-std::pair<std::vector<int>, std::vector<QPointF>> Pathfinder::findShortestPath(const QPointF &startPoint, const QPointF &goalPoint) {
+PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const QPointF &goalPoint) {
   int startTriangle = findTriangleForPoint(startPoint);
   int goalTriangle = findTriangleForPoint(goalPoint);
+  PathfindingResult result;
   if (startTriangle == goalTriangle) {
     // Only one triangle involved
-    return std::pair<std::vector<int>, std::vector<QPointF>>{startTriangle, std::vector<QPointF>{startPoint, goalPoint}};
+    // Shortest path is a straight line between start and goal
+    result.shortestPath = std::vector<QPointF>{startPoint, goalPoint};
+    // Only one triangle in corridor
+    result.aStarInfo.triangleCorridor.emplace_back(startTriangle);
+    // Only one triangle looked at
+    result.aStarInfo.trianglesDiscovered.emplace(startTriangle);
+    // Only one triangle evaluated completely
+    result.aStarInfo.trianglesSearched.emplace(startTriangle);
+    return result;
   }
-  const auto triangleCorridor = triangleAStar(startPoint, startTriangle, goalPoint, goalTriangle);
-  const auto shortestPath = funnel(triangleCorridor, startPoint, goalPoint);
-  return {triangleCorridor, shortestPath};
+  result.aStarInfo = triangleAStar(startPoint, startTriangle, goalPoint, goalTriangle);
+  if (!result.aStarInfo.triangleCorridor.empty()) {
+    // A path was found
+    result.shortestPath = funnel(result.aStarInfo.triangleCorridor, startPoint, goalPoint);
+  }
+  return result;
 }
 
 std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
@@ -375,7 +387,8 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
   return result;
 }
 
-std::vector<int> Pathfinder::triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const {
+PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const {
+  PathfindingAStarInfo result;
   // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
   // std::cout << "Trying to find shortest path from triangle " << startTriangle << " to triangle " << goalTriangle << std::endl; //DEBUGPRINTS
   // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
@@ -393,6 +406,9 @@ std::vector<int> Pathfinder::triangleAStar(const QPointF &startPoint, int startT
   startState.entryEdge = -1; // There is no entry edge for the start state
   startState.triangleNum = startTriangle;
   openSet.push_back(startState);
+
+  // Initialize the result as having touched the start state
+  result.trianglesDiscovered.emplace(startState.triangleNum);
 
   // Set g score for start state
   gScores.emplace(startState, 0);
@@ -420,11 +436,12 @@ std::vector<int> Pathfinder::triangleAStar(const QPointF &startPoint, int startT
     
     // Copy state, since we will delete it from the open set
     const State currentState = *minElementIt;
-
+    
     if (currentState.isGoal) {
       // Done!
       // std::cout << "Best option is the goal, we are done" << std::endl;
-      return rebuildPath(currentState, previous);
+      result.triangleCorridor = rebuildPath(currentState, previous);
+      return result;
     }
 
     // std::cout << "We chose " << currentState << " as our next candidate" << std::endl;
@@ -433,6 +450,9 @@ std::vector<int> Pathfinder::triangleAStar(const QPointF &startPoint, int startT
     // Look at successors
     auto successors = getSuccessors(currentState, goalTriangle);
     for (const auto &successor : successors) {
+      // Touched this successor
+      result.trianglesDiscovered.emplace(successor.triangleNum);
+
       // std::cout << "  Evaluatating successor " << successor << std::endl;
       if (gScores.find(successor) == gScores.end()) {
         // No gScore yet for this state, initialize
@@ -471,10 +491,13 @@ std::vector<int> Pathfinder::triangleAStar(const QPointF &startPoint, int startT
       }
     }
     // std::cout << std::endl;
+
+    // Completely evaluated this state
+    result.trianglesSearched.emplace(currentState.triangleNum);
   }
 
   // Open set is empty, but no path was found
-  throw std::runtime_error("No path found");
+  return result;
 }
 
 /* ========================================================================== **
@@ -609,4 +632,11 @@ std::ostream& operator<<(std::ostream& stream, const State &state) {
     stream << '(' << state.triangleNum << ',' << state.entryEdge << ')';
   }
   return stream;
+}
+
+void PathfindingResult::clear() {
+  shortestPath.clear();
+  aStarInfo.triangleCorridor.clear();
+  aStarInfo.trianglesSearched.clear();
+  aStarInfo.trianglesDiscovered.clear();
 }

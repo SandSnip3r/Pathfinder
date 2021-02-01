@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <set>
 #include <vector>
 
 struct State {
@@ -18,10 +19,22 @@ bool operator==(const State &s1, const State &s2);
 bool operator<(const State &s1, const State &s2);
 std::ostream& operator<<(std::ostream& stream, const State &state);
 
+struct PathfindingAStarInfo {
+  std::vector<int> triangleCorridor;
+  std::set<int> trianglesSearched;
+  std::set<int> trianglesDiscovered;
+};
+
+struct PathfindingResult {
+  std::vector<QPointF> shortestPath;
+  PathfindingAStarInfo aStarInfo;
+  void clear();
+};
+
 class Pathfinder {
 public:
   Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData);
-  std::pair<std::vector<int>, std::vector<QPointF>> findShortestPath(const QPointF &startPoint, const QPointF &goalPoint);
+  PathfindingResult findShortestPath(const QPointF &startPoint, const QPointF &goalPoint);
   void setCharacterRadius(double value);
   int pointToIndex(const QPointF &point) const;
 private:
@@ -34,7 +47,7 @@ private:
   double calculateArcLength(const int edge1, const int edge2) const;
   double calculateHValue(const State &state, const QPointF &goalPoint) const;
   double calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const;
-  std::vector<int> triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const;
+  PathfindingAStarInfo triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const;
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
 
   std::vector<std::pair<QPointF,QPointF>> buildCorridor(const std::vector<int> &trianglesInCorridor) const;
