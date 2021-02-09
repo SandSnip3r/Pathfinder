@@ -9,10 +9,25 @@
 #include <set>
 #include <string>
 
+struct Apex {
+  QPointF apexPoint;
+  AngleDirection apexType;
+};
+
 std::vector<int> rebuildPath(State state, const std::map<State, State> &previous);
-void addToLeftOfFunnel(std::deque<QPointF> &funnel, QPointF &apex, const QPointF &point, std::vector<QPointF> &path);
-void addToRightOfFunnel(std::deque<QPointF> &funnel, QPointF &apex, const QPointF &point, std::vector<QPointF> &path);
-void finishFunnel(std::deque<QPointF> &funnel, QPointF &apex, std::vector<QPointF> &path);
+void addToLeftOfFunnel(std::deque<QPointF> &funnel, Apex &apex, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
+void addToRightOfFunnel(std::deque<QPointF> &funnel, Apex &apex, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString, const bool isGoal = false);
+void finishFunnel(std::deque<QPointF> &funnel, Apex &apex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
+bool counterclockwiseTo(const double theta, const double phi);
+bool clockwiseTo(const double theta, const double phi);
+double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
+double angle(const QPointF &point1, const AngleDirection point1Direction, const QPointF &point2, const AngleDirection point2Direction, const double circleRadius);
+std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
+void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
+std::pair<QPointF, QPointF> createCircleConciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius);
+double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr);
+
+PathSegment::~PathSegment() {}
 
 Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {}
 
@@ -23,7 +38,7 @@ PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const 
   if (startTriangle == goalTriangle) {
     // Only one triangle involved
     // Shortest path is a straight line between start and goal
-    result.shortestPath = std::vector<QPointF>{startPoint, goalPoint};
+    result.shortestPath.emplace_back(std::unique_ptr<StraightPathSegment>(new StraightPathSegment(startPoint, goalPoint)));
     // Only one triangle in corridor
     result.aStarInfo.triangleCorridor.emplace_back(startTriangle);
     // Only one triangle looked at
@@ -41,6 +56,7 @@ PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const 
 }
 
 std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
+  // TODO: Maybe start this entire pathfinding process with these checks so that we know we're safe and dont need to check them all the time
   if (triangleData_.trianglelist == nullptr) {
     throw std::runtime_error("Cannot build corridor when trianglelist is null");
   }
@@ -104,26 +120,66 @@ int Pathfinder::pointToIndex(const QPointF &point) const {
   throw std::runtime_error("Unknown point");
 }
 
-std::vector<QPointF> Pathfinder::funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const QPointF &goalPoint) const {
+std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const QPointF &goalPoint) const {
+  std::function<std::string(const QPointF&)> pointToStringFunc = [this, &startPoint, &goalPoint](const QPointF &point) -> std::string {
+    if (point == startPoint) {
+      return "[START]";
+    } else if (point == goalPoint) {
+      return "[GOAL]";
+    } else {
+      try {
+        return std::to_string(pointToIndex(point));
+      } catch(...) {
+        std::string result = "(";
+        result += std::to_string(point.x());
+        result += ",";
+        result += std::to_string(point.y());
+        result += ")";
+        return result;
+      }
+    }
+  };
+  auto apexToString = [&pointToStringFunc](const Apex &apex) {
+    std::string result = "(" + pointToStringFunc(apex.apexPoint);
+    if (apex.apexType == AngleDirection::kClockwise) {
+      result += ",cw";
+    } else if (apex.apexType == AngleDirection::kCounterclockwise) {
+      result += ",ccw";
+    }
+    result += ")";
+    return result;
+  };
+  auto printFunnelAndApex = [&pointToStringFunc, &apexToString](const std::deque<QPointF> &funnel, const Apex &apex) {
+    std::cout << "[";
+    for (const auto &i : funnel) {
+      std::cout << pointToStringFunc(i) << ',';
+    }
+    std::cout << "], apex = " << apexToString(apex) << std::endl;
+  };
+
+  if (trianglesInCorridor.empty()) {
+    throw std::runtime_error("Trying to funnel for an empty corridor");
+  }
   if (trianglesInCorridor.size() == 1) {
     // Start and goal are in the same triangle, the path is a straight line from start to goal
-    return {startPoint, goalPoint};
+    std::vector<std::unique_ptr<PathSegment>> path;
+    path.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(startPoint, goalPoint)));
+    std::cout << "Single segment!" << std::endl;
+    return path;
   }
   // Build a list of "edges" that we'll need to pass through in this corridor
   using CorridorType = std::vector<std::pair<QPointF,QPointF>>;
-  using PathType = std::vector<QPointF>;
+  using PathType = std::vector<std::unique_ptr<PathSegment>>;
   CorridorType corridor = buildCorridor(trianglesInCorridor);
   PathType path;
-  QPointF currentApex;
-  
-  // Start with the start point on the path
-  path.emplace_back(startPoint);
+  Apex currentApex;
 
   std::deque<QPointF> funnel;
   // Initialize funnel with start point
   funnel.push_front(startPoint);
   // Initialize apex as start point
-  currentApex = startPoint;
+  currentApex.apexPoint = startPoint;
+  currentApex.apexType = AngleDirection::kPoint;
 
   // Start by adding
   QPointF left, right;
@@ -134,8 +190,17 @@ std::vector<QPointF> Pathfinder::funnel(const std::vector<int> &trianglesInCorri
     // incorrect order (left is actually right), swap
     std::swap(left, right);
   }
-  addToLeftOfFunnel(funnel, currentApex, left, path);
-  addToRightOfFunnel(funnel, currentApex, right, path);
+  std::cout << "=============================================" << std::endl;
+  std::cout << "Starting funnel: ";
+  printFunnelAndApex(funnel, currentApex);
+
+  addToLeftOfFunnel(funnel, currentApex, left, path, characterRadius_, pointToStringFunc);
+  std::cout << "Funnel after adding left: ";
+  printFunnelAndApex(funnel, currentApex);
+
+  addToRightOfFunnel(funnel, currentApex, right, path, characterRadius_, pointToStringFunc);
+  std::cout << "Funnel before loop (after adding right): ";
+  printFunnelAndApex(funnel, currentApex);
 
   for (int i=1; i<corridor.size(); ++i) {
     QPointF newPoint1, newPoint2;
@@ -143,26 +208,31 @@ std::vector<QPointF> Pathfinder::funnel(const std::vector<int> &trianglesInCorri
     if (newPoint1 == right) {
       // newPoint2 will be left
       left = newPoint2;
-      addToLeftOfFunnel(funnel, currentApex, left, path);
+      addToLeftOfFunnel(funnel, currentApex, left, path, characterRadius_, pointToStringFunc);
     } else if (newPoint1 == left) {
       // newPoint2 will be right
       right = newPoint2;
-      addToRightOfFunnel(funnel, currentApex, right, path);
+      addToRightOfFunnel(funnel, currentApex, right, path, characterRadius_, pointToStringFunc);
     } else if (newPoint2 == right) {
       // newPoint1 will be left
       left = newPoint1;
-      addToLeftOfFunnel(funnel, currentApex, left, path);
+      addToLeftOfFunnel(funnel, currentApex, left, path, characterRadius_, pointToStringFunc);
     } else {
       // newPoint1 will be right
       right = newPoint1;
-      addToRightOfFunnel(funnel, currentApex, right, path);
+      addToRightOfFunnel(funnel, currentApex, right, path, characterRadius_, pointToStringFunc);
     }
+    std::cout << "Funnel : ";
+    printFunnelAndApex(funnel, currentApex);
   }
 
   // Finally, add the goal to the right of the funnel
-  addToRightOfFunnel(funnel, currentApex, goalPoint, path);
+  addToRightOfFunnel(funnel, currentApex, goalPoint, path, characterRadius_, pointToStringFunc, true);
+  std::cout << "Funnel after loop : ";
+  printFunnelAndApex(funnel, currentApex);
   // And finish the algorithm, closing out the funnel
-  finishFunnel(funnel, currentApex, path);
+  finishFunnel(funnel, currentApex, path, characterRadius_, pointToStringFunc);
+  std::cout << "Multiple segments! (" << path.size() << ")" << std::endl;
   return path;
 }
 
@@ -225,9 +295,11 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
   const QPointF edge1VertexB{triangleData_.pointlist[edge1VertexBIndex*2], triangleData_.pointlist[edge1VertexBIndex*2+1]};
   const QPointF edge2VertexA{triangleData_.pointlist[edge2VertexAIndex*2], triangleData_.pointlist[edge2VertexAIndex*2+1]};
   const QPointF edge2VertexB{triangleData_.pointlist[edge2VertexBIndex*2], triangleData_.pointlist[edge2VertexBIndex*2+1]};
-  const double dotProduct = math::dotProduct(edge1VertexA, edge1VertexB, edge2VertexA, edge2VertexB);
-  const double lengthsMultiplied = math::distance(edge1VertexA, edge1VertexB) * math::distance(edge2VertexA, edge2VertexB);
-  return characterRadius_ * std::acos(dotProduct/lengthsMultiplied);
+  const double angle = math::angleBetweenVectors(edge1VertexA, edge1VertexB, edge2VertexA, edge2VertexB);
+  // TODO: Sometimes this arclength causes weird paths
+  return 0;
+  // return 0.1 * characterRadius_ * angle;
+  // return characterRadius_ * angle; // Original from paper
 }
 
 double Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const {
@@ -287,9 +359,7 @@ double Pathfinder::lengthOfEdge(int edgeNum) const {
   }
   const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
   const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
-  const double dx = vertexB.x()-vertexA.x();
-  const double dy = vertexB.y()-vertexA.y();
-  return sqrt(dx*dx+dy*dy);
+  return math::distance(vertexA, vertexB);
 }
 
 double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation) const {
@@ -307,19 +377,8 @@ double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point
   }
   const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
   const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
-  const double dx = vertexB.x()-vertexA.x();
-  const double dy = vertexB.y()-vertexA.y();
-  const double lengthSquared = dx*dx+dy*dy;
-  if (lengthSquared == 0.0) {
-    // Line segment is just a point
-    return math::distance(vertexA, point);
-  }
-  const double t = std::clamp(static_cast<double>(((point.x()-vertexA.x())*dx + (point.y()-vertexA.y())*dy) / lengthSquared), 0.0, 1.0);
-  QPointF closestPoint{vertexA.x() + t*dx, vertexA.y() + t*dy};
-  if (pointUsedForDistanceCalculation != nullptr) {
-    *pointUsedForDistanceCalculation = closestPoint;
-  }
-  return math::distance(point, closestPoint);
+
+  return ::distanceBetweenEdgeAndPoint(vertexA, vertexB, point, pointUsedForDistanceCalculation);
 }
 
 double Pathfinder::calculateHValue(const State &state, const QPointF &goalPoint) const {
@@ -353,6 +412,63 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
   std::vector<State> result;
   constexpr const bool kAvoidObstacles = true;
   constexpr const bool kCareAboutCharacterRadius = true;
+  auto characterFitsThroughTriangle = [this, &kCareAboutCharacterRadius](const int entryEdge, const int exitEdge) -> bool {
+    // TODO: Need to improve
+    //  Some of these edges might not be constrained
+    //  See C:\Users\Victor\Documents\ShareX\Screenshots\2021-02\drawPolygon_lYhSzArwEG.png
+    //  Every point is on a constraint, but not necessarily every edge is
+    if (!kCareAboutCharacterRadius || characterRadius_ == 0.0) {
+      return true;
+    }
+    if (entryEdge < 0 || exitEdge < 0) {
+      throw std::runtime_error("Invalid edge given");
+    }
+    if (entryEdge >= triangleData_.numberofedges || exitEdge >= triangleData_.numberofedges) {
+      throw std::runtime_error("Edge number is not within the triangle data");
+    }
+    const auto entryEdgeVertexAIndex = triangleData_.edgelist[entryEdge*2];
+    const auto entryEdgeVertexBIndex = triangleData_.edgelist[entryEdge*2+1];
+    if (entryEdgeVertexAIndex >= triangleData_.numberofpoints || entryEdgeVertexBIndex >= triangleData_.numberofpoints) {
+      throw std::runtime_error("Entry edge references points which do not exist");
+    }
+    const auto exitEdgeVertexAIndex = triangleData_.edgelist[exitEdge*2];
+    const auto exitEdgeVertexBIndex = triangleData_.edgelist[exitEdge*2+1];
+    if (exitEdgeVertexAIndex >= triangleData_.numberofpoints || exitEdgeVertexBIndex >= triangleData_.numberofpoints) {
+      throw std::runtime_error("Exit edge references points which do not exist");
+    }
+    
+    const QPointF entryEdgeVertexA{triangleData_.pointlist[entryEdgeVertexAIndex*2], triangleData_.pointlist[entryEdgeVertexAIndex*2+1]};
+    const QPointF entryEdgeVertexB{triangleData_.pointlist[entryEdgeVertexBIndex*2], triangleData_.pointlist[entryEdgeVertexBIndex*2+1]};
+    const QPointF exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
+    const QPointF exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
+
+    return ((math::distance(entryEdgeVertexA, entryEdgeVertexB) >= (characterRadius_*2)) && math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2));
+    // TODO: This is a better approximation until the below code handles unconstrained edges
+
+    QPointF sharedPoint, oppositeEdgeStart, oppositeEdgeEnd;
+
+    if (entryEdgeVertexAIndex == exitEdgeVertexAIndex) {
+      sharedPoint = entryEdgeVertexA;
+      oppositeEdgeStart = entryEdgeVertexB;
+      oppositeEdgeEnd = exitEdgeVertexB;
+    } else if (entryEdgeVertexAIndex == exitEdgeVertexBIndex) {
+      sharedPoint = entryEdgeVertexA;
+      oppositeEdgeStart = entryEdgeVertexB;
+      oppositeEdgeEnd = exitEdgeVertexA;
+    } else if (entryEdgeVertexBIndex == exitEdgeVertexAIndex) {
+      sharedPoint = entryEdgeVertexB;
+      oppositeEdgeStart = entryEdgeVertexA;
+      oppositeEdgeEnd = exitEdgeVertexB;
+    } else if (entryEdgeVertexBIndex == exitEdgeVertexBIndex) {
+      sharedPoint = entryEdgeVertexB;
+      oppositeEdgeStart = entryEdgeVertexA;
+      oppositeEdgeEnd = exitEdgeVertexA;
+    } else {
+      throw std::runtime_error("No shared point between these two edges");
+    }
+
+    return (::distanceBetweenEdgeAndPoint(oppositeEdgeStart, oppositeEdgeEnd, sharedPoint) >= (characterRadius_*2));
+  };
   
   // For each neighboring triangle index
   for (int neighborNum=state.triangleNum*3; neighborNum<state.triangleNum*3+3; ++neighborNum) {
@@ -361,10 +477,11 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
       // Neighbor exists
       // Find out which edge is shared between this neighbor and the original triangle
       // TODO: Optimize, probably shouldnt need to loop through all edges
+      //  Might be worth building a neighbor list
       for (int edgeNum=0; edgeNum<triangleVoronoiData_.numberofedges; ++edgeNum) {
         const int triangle1Number = triangleVoronoiData_.edgelist[edgeNum*2];
         const int triangle2Number = triangleVoronoiData_.edgelist[edgeNum*2+1];
-        if (!((kCareAboutCharacterRadius && characterRadius_ != 0.0) && lengthOfEdge(edgeNum) < characterRadius_*2) && !(kAvoidObstacles && triangleData_.edgemarkerlist[edgeNum] != 0)) {
+        if (!(kAvoidObstacles && triangleData_.edgemarkerlist[edgeNum] != 0)) {
           // Non-constraint edge
           if ((triangle1Number == state.triangleNum &&
               triangle2Number == neighborTriangleNum) ||
@@ -373,11 +490,13 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
             // Found the shared edge
             if (edgeNum != state.entryEdge) {
               // Only add a successor if it isnt the previous triangle
-              State successor;
-              successor.entryEdge = edgeNum;
-              successor.triangleNum = neighborTriangleNum;
-              result.push_back(successor);
-              break;
+              if (state.entryEdge < 0 || characterFitsThroughTriangle(state.entryEdge, edgeNum)) {
+                State successor;
+                successor.entryEdge = edgeNum;
+                successor.triangleNum = neighborTriangleNum;
+                result.push_back(successor);
+                break;
+              }
             }
           }
         }
@@ -441,6 +560,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
       // Done!
       // std::cout << "Best option is the goal, we are done" << std::endl;
       result.triangleCorridor = rebuildPath(currentState, previous);
+      std::cout << std::endl; // TODO: Remove
       return result;
     }
 
@@ -497,6 +617,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
   }
 
   // Open set is empty, but no path was found
+  std::cout << std::endl; // TODO: Remove
   return result;
 }
 
@@ -517,83 +638,371 @@ std::vector<int> rebuildPath(State state, const std::map<State, State> &previous
   return result;
 }
 
-void addToLeftOfFunnel(std::deque<QPointF> &funnel, QPointF &apex, const QPointF &point, std::vector<QPointF> &path) {
-  while (true) {
-    bool isCounterClockwise = false;
-    if (funnel.size() <= 1) {
-      funnel.push_front(point);
-      break;
-    } else if (funnel.front() == apex) {
-      // Compare angle of first right wedge (from apex) to this potential new left wedge
-      const auto &firstRightWedgePoint1 = funnel.front();
-      const auto &firstRightWedgePoint2 = funnel.at(1);
-      const auto &newLeftWedgePoint1 = funnel.front();
-      const auto &newLeftWedgePoint2 = point;
-      isCounterClockwise = (math::crossProduct(firstRightWedgePoint1, firstRightWedgePoint2, newLeftWedgePoint1, newLeftWedgePoint2) > 0);
+bool counterclockwiseTo(const double theta, const double phi) {
+  // Checking if rotating from theta to phi is counterclockwise
+  return !clockwiseTo(theta, phi);
+}
+
+bool clockwiseTo(const double theta, const double phi) {
+  const double kPi = 3.14159;
+  // Checking if rotating from theta to phi is clockwise
+  // Move theta to 0 and move phi by same angle (-theta)
+  double newPhi = phi - theta;
+  if (newPhi < 0) {
+    newPhi += 2*kPi;
+  }
+  return (newPhi >= kPi);
+}
+
+double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius) {
+  // Find the two lines that are tangent to the circle and intersect with the given point
+  double distanceToCircle = math::distance(point,centerOfCircle);
+  double lengthOfTangentLine = sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
+  double angleOfTangentLine = asin(circleRadius/distanceToCircle);
+  return angleOfTangentLine;
+}
+
+std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius) {
+  // Find the two lines that are tangent to the circle and intersect with the given point
+  double distanceToCircle = math::distance(point,centerOfCircle);
+  double lengthOfTangentLine = sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
+  double angleOfTangentLine = asin(circleRadius/distanceToCircle);
+
+  // Calculate angle for center of circle
+  double angleOfCenterOfCircle = math::angle(point, centerOfCircle);
+
+  // First point is counterclockwise to circle
+  // Second point is clockwise to circle
+  double x1 = point.x() + lengthOfTangentLine * cos(angleOfCenterOfCircle+angleOfTangentLine);
+  double y1 = point.y() + lengthOfTangentLine * sin(angleOfCenterOfCircle+angleOfTangentLine);
+
+  double x2 = point.x() + lengthOfTangentLine * cos(angleOfCenterOfCircle-angleOfTangentLine);
+  double y2 = point.y() + lengthOfTangentLine * sin(angleOfCenterOfCircle-angleOfTangentLine);
+  return {QPointF(x1, y1), QPointF(x2, y2)};
+}
+
+double angle(const QPointF &point1, const AngleDirection point1Direction, const QPointF &point2, const AngleDirection point2Direction, const double circleRadius) {
+  double angleBetweenPoints = math::angle(point1, point2);
+  
+  if (point1Direction == AngleDirection::kPoint && point2Direction != AngleDirection::kPoint) {
+    // Point to circle
+    const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(point1, point2, circleRadius);
+    if (point2Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the left point
+      angleBetweenPoints += angleToTangent;
     } else {
-      // Compare the angle of the most recent left wedge to this potential new left wedge
-      const auto &mostRecentLeftWedgePoint1 = funnel.at(1);
-      const auto &mostRecentLeftWedgePoint2 = funnel.front();
-      const auto &newLeftWedgePoint1 = funnel.front();
-      const auto &newLeftWedgePoint2 = point;
-      isCounterClockwise = (math::crossProduct(mostRecentLeftWedgePoint1, mostRecentLeftWedgePoint2, newLeftWedgePoint1, newLeftWedgePoint2) > 0);
+      // Agent will be turning counterclockwise around this point, get the angle of the right point
+      angleBetweenPoints -= angleToTangent;
     }
-    if (isCounterClockwise) {
-      funnel.push_front(point);
-      break;
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction == AngleDirection::kPoint) {
+    // Circle to point
+    const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(point2, point1, circleRadius);
+    if (point1Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the right point (from the perspective of point2)
+      angleBetweenPoints -= angleToTangent;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the left point (from the perspective of point2)
+      angleBetweenPoints += angleToTangent;
     }
-    if (funnel.front() == apex) {
-      // Crosses over old apex, time to move apex one to the right
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction != AngleDirection::kPoint && point1Direction != point2Direction) {
+    // Circle to circle and inner tangent
+    // Find the point between these two circles
+    QPointF midpoint;
+    midpoint.setX(point1.x() + (point2.x()-point1.x())/2);
+    midpoint.setY(point1.y() + (point2.y()-point1.y())/2);
+    const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(midpoint, point2, circleRadius);
+    if (point1Direction == AngleDirection::kCounterclockwise) {
+      angleBetweenPoints += angleToTangent;
+    } else {
+      angleBetweenPoints -= angleToTangent;
+    }
+  } else {
+    // Point to point or circle to circle and outer tangent
+  }
+
+  return angleBetweenPoints;
+}
+
+void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString) {
+  // First, finish an arc if there is an open one
+  if (previousApex.apexType != AngleDirection::kPoint && circleRadius > 0.0) {
+    // Finish previously created arc
+    //  We know that there must be at least one arc in the path
+    PathSegment *mostRecentSegment = path.back().get();
+    ArcPathSegment *arc = dynamic_cast<ArcPathSegment*>(mostRecentSegment);
+    if (arc == nullptr) {
+      throw std::runtime_error("Last element of path isnt an ArcPathSegment?");
+    }
+    // A couple sanity checks, TODO: Remove after
+    if (arc->circleCenter != previousApex.apexPoint) {
+      throw std::runtime_error("arc->circleCenter != previousApex.apexPoint");
+    } else if (arc->angleDirection != previousApex.apexType) {
+      throw std::runtime_error("arc->angleDirection != previousApex.apexType");
+    }
+    arc->endAngle = math::angle(previousApex.apexPoint, edge.first);
+  }
+
+  // Second, add a straight segment between the apexes
+  path.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(edge.first, edge.second)));
+
+  if (newApex.apexType != AngleDirection::kPoint && circleRadius > 0.0) {
+    // Finally, since this isn't the end, start a new arc
+    path.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(newApex.apexPoint, circleRadius, newApex.apexType)));
+    PathSegment *mostRecentSegment = path.back().get();
+    ArcPathSegment *arc = dynamic_cast<ArcPathSegment*>(mostRecentSegment);
+    if (arc == nullptr) {
+      throw std::runtime_error("Last element of path isnt an ArcPathSegment?");
+    }
+    arc->startAngle = math::angle(newApex.apexPoint, edge.second);
+  }
+}
+
+std::pair<QPointF, QPointF> createCircleConciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius) {
+  if (circleRadius < 0.001) {
+    return {point1, point2};
+  }
+  QPointF lineStart, lineEnd;
+  
+  if (point1Direction == AngleDirection::kPoint) {
+    lineStart = point1;
+  }
+  if (point2Direction == AngleDirection::kPoint) {
+    lineEnd = point2;
+  }
+  
+  if (point1Direction == AngleDirection::kPoint && point2Direction != AngleDirection::kPoint) {
+    // Point to circle
+    const auto intersectionPoints = intersectionsPointsOfTangentLinesToCircle(point1, point2, circleRadius);
+    if (point2Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the left point
+      lineEnd = intersectionPoints.first;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the right point
+      lineEnd = intersectionPoints.second;
+    }
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction == AngleDirection::kPoint) {
+    // Circle to point
+    const auto intersectionPoints = intersectionsPointsOfTangentLinesToCircle(point2, point1, circleRadius);
+    if (point1Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the right point (from the perspective of point2)
+      lineStart = intersectionPoints.second;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the left point (from the perspective of point2)
+      lineStart = intersectionPoints.first;
+    }
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction != AngleDirection::kPoint) {
+    // Circle to circle
+    if (point1Direction == point2Direction) {
+      // Outer tangents
+      double distanceBetweenCircles = math::distance(point1, point2);
+      double absoluteAngleToCircle2 = math::angle(point1, point2);
+      double distanceToNewPoint = sqrt(distanceBetweenCircles*distanceBetweenCircles + circleRadius*circleRadius);
+      double angleFromCircle2ToNewPoint = asin(circleRadius / distanceToNewPoint);
+      double newAngle = absoluteAngleToCircle2 + angleFromCircle2ToNewPoint;
+
+      double dxFromPoint1 = distanceToNewPoint * cos(newAngle);
+      double dyFromPoint1 = distanceToNewPoint * sin(newAngle);
+
+      QPointF newPoint{point1.x() + dxFromPoint1, point1.y() + dyFromPoint1};
+      double circleXOffset = newPoint.x() - point2.x();
+      double circleYOffset = newPoint.y() - point2.y();
+
+      if (point1Direction == AngleDirection::kClockwise) {
+        // Both clockwise
+        lineStart = QPointF{point1.x() + circleXOffset, point1.y() + circleYOffset};
+        lineEnd = QPointF{point2.x() + circleXOffset, point2.y() + circleYOffset};
+      } else {
+        // Both counterclockwise
+        lineStart = QPointF{point1.x() - circleXOffset, point1.y() - circleYOffset};
+        lineEnd = QPointF{point2.x() - circleXOffset, point2.y() - circleYOffset};
+      }
+    } else {
+      // Inner tangents
+      // Find the point between these two circles
+      QPointF midpoint;
+      midpoint.setX(point1.x() + (point2.x()-point1.x())/2);
+      midpoint.setY(point1.y() + (point2.y()-point1.y())/2);
+      const auto intersectionPointsWithFirstCircle = intersectionsPointsOfTangentLinesToCircle(midpoint, point1, circleRadius);
+      const auto intersectionPointsWithSecondCircle = intersectionsPointsOfTangentLinesToCircle(midpoint, point2, circleRadius);
+      if (point1Direction == AngleDirection::kCounterclockwise) {
+        // point2 must be clockwise
+        lineStart = intersectionPointsWithFirstCircle.first;
+        lineEnd = intersectionPointsWithSecondCircle.first;
+      } else {
+        // point1 is clockwise
+        // point2 must be counterclockwise
+        lineStart = intersectionPointsWithFirstCircle.second;
+        lineEnd = intersectionPointsWithSecondCircle.second;
+      }
+    }
+  }
+
+  return {lineStart, lineEnd};
+}
+
+void addToLeftOfFunnel(std::deque<QPointF> &funnel, Apex &apex, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString) {
+  auto newWedgeIsClockwiseToLeftmostWedge = [&funnel, &apex, &point, &circleRadius]() {
+    if (funnel.size() < 2) {
+      throw std::runtime_error("This function requires a funnel with at least two items");
+    }
+    if (funnel.front() == apex.apexPoint) {
+      throw std::runtime_error("Assumption that the front of the funnel is not the apex was broken");
+    }
+
+    const QPointF leftmostEdgePoint1 = funnel.at(1);
+    const QPointF leftmostEdgePoint2 = funnel.front();
+    AngleDirection leftmostEdgePoint1Direction;
+    const AngleDirection leftmostEdgePoint2Direction = AngleDirection::kCounterclockwise;
+
+    // We know that funnel.front() is not the apex, but funnel.at(1) could be
+    if (funnel.at(1) == apex.apexPoint) {
+      leftmostEdgePoint1Direction = apex.apexType;
+    } else {
+      // Neither points are the apex
+      leftmostEdgePoint1Direction = AngleDirection::kCounterclockwise;
+    }
+
+    const QPointF newEdgePoint1 = funnel.front();
+    const QPointF newEdgePoint2 = point;
+    const AngleDirection newEdgePoint1Direction = AngleDirection::kCounterclockwise;
+    const AngleDirection newEdgePoint2Direction = AngleDirection::kCounterclockwise;
+
+    const double theta = angle(leftmostEdgePoint1, leftmostEdgePoint1Direction, leftmostEdgePoint2, leftmostEdgePoint2Direction, circleRadius);
+    const double phi = angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, circleRadius);
+    return clockwiseTo(theta, phi); // Rotating from theta to phi is clockwise
+  };
+
+  // Make sure there is at least one edge in the funnel
+  if (funnel.size() >= 2) {
+    // Remove edges that are counterclockwise to this new potential edges
+    while (funnel.front() != apex.apexPoint && newWedgeIsClockwiseToLeftmostWedge()) {
       funnel.pop_front();
-      apex = funnel.front();
-      path.emplace_back(apex);
-      funnel.push_front(point);
     }
-    funnel.pop_front();
+
+    // Need to check if this new left edge would cross over the apex
+
+    while (funnel.front() == apex.apexPoint && funnel.size() >= 2) {
+      std::pair<QPointF, QPointF> newWedge = createCircleConciousLine(funnel.front(), apex.apexType, point, AngleDirection::kCounterclockwise, circleRadius);
+      std::pair<QPointF, QPointF> firstRightEdge = createCircleConciousLine(funnel.front(), apex.apexType, funnel.at(1), AngleDirection::kClockwise, circleRadius);
+      if (math::crossProduct(newWedge.first, newWedge.second, firstRightEdge.first, firstRightEdge.second) > 0) {
+        // New point crosses over apex
+        if (math::distance(newWedge.first, newWedge.second) < math::distance(firstRightEdge.first, firstRightEdge.second)) {
+          // New point is closer and should instead be the apex
+          const Apex newApex{point, AngleDirection::kCounterclockwise};
+          
+          addSegmentToPath(apex, newWedge, newApex, path, circleRadius, pointToString);
+
+          // Need to update left to be the apex
+          funnel.pop_front();
+
+          // Set new point as apex
+          apex = newApex;
+        } else {
+          // Add the apex to the path
+          const Apex newApex{funnel.at(1), AngleDirection::kClockwise};
+
+          addSegmentToPath(apex, firstRightEdge, newApex, path, circleRadius, pointToString);
+
+          // Remove apex from funnel
+          funnel.pop_front();
+
+          // Set end of right edge as current apex
+          apex = newApex;
+        }
+      } else {
+        // Done
+        break;
+      }
+    }
   }
+  // Finally, add point to left of funnel
+  funnel.push_front(point);
 }
 
-void addToRightOfFunnel(std::deque<QPointF> &funnel, QPointF &apex, const QPointF &point, std::vector<QPointF> &path) {
-  while (true) {
-    bool isClockwise = false;
-    if (funnel.size() <= 1) {
-      funnel.push_back(point);
-      break;
-    } else if (funnel.back() == apex) {
-      // Compare angle of first left wedge (from apex) to this potential new right wedge
-      const auto &firstLeftWedgePoint1 = funnel.back();
-      const auto &firstLeftWedgePoint2 = funnel.at(funnel.size()-2);
-      const auto &newRightWedgePoint1 = funnel.back();
-      const auto &newRightWedgePoint2 = point;
-      isClockwise = (math::crossProduct(firstLeftWedgePoint1, firstLeftWedgePoint2, newRightWedgePoint1, newRightWedgePoint2) < 0);
+void addToRightOfFunnel(std::deque<QPointF> &funnel, Apex &apex, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString, const bool isGoal) {
+  auto newWedgeIsCounterclockwiseToRightmostWedge = [&funnel, &apex, &point, &circleRadius, &isGoal]() {
+    if (funnel.size() < 2) {
+      throw std::runtime_error("This function requires a funnel with at least two items");
+    }
+    if (funnel.back() == apex.apexPoint) {
+      throw std::runtime_error("Assumption that the back of the funnel is not the apex was broken");
+    }
+
+    const QPointF rightmostEdgePoint1 = funnel.at(funnel.size()-2);
+    const QPointF rightmostEdgePoint2 = funnel.back();
+    AngleDirection rightmostEdgePoint1Direction;
+    const AngleDirection rightmostEdgePoint2Direction = AngleDirection::kClockwise;
+
+    // We know that funnel.back() is not the apex, but funnel.at(funnel.size()-2) could be
+    if (funnel.at(funnel.size()-2) == apex.apexPoint) {
+      rightmostEdgePoint1Direction = apex.apexType;
     } else {
-      // Compare the angle of the most recent right wedge to this potential new right wedge
-      const auto &mostRecentRightWedgePoint1 = funnel.at(funnel.size()-2);
-      const auto &mostRecentRightWedgePoint2 = funnel.back();
-      const auto &newRightWedgePoint1 = funnel.back();
-      const auto &newRightWedgePoint2 = point;
-      isClockwise = (math::crossProduct(mostRecentRightWedgePoint1, mostRecentRightWedgePoint2, newRightWedgePoint1, newRightWedgePoint2) < 0);
+      // Neither points are the apex
+      rightmostEdgePoint1Direction = AngleDirection::kClockwise;
     }
-    if (isClockwise) {
-      funnel.push_back(point);
-      break;
-    }
-    if (funnel.back() == apex) {
-      // Crosses over old apex, time to move apex one to the left
+
+    const QPointF newEdgePoint1 = funnel.back();
+    const QPointF newEdgePoint2 = point;
+    const AngleDirection newEdgePoint1Direction = AngleDirection::kClockwise;
+    const AngleDirection newEdgePoint2Direction = (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise);
+
+    const double theta = angle(rightmostEdgePoint1, rightmostEdgePoint1Direction, rightmostEdgePoint2, rightmostEdgePoint2Direction, circleRadius);
+    const double phi = angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, circleRadius);
+    return counterclockwiseTo(theta, phi); // Rotating from theta to phi is counterclockwise
+  };
+
+  // Make sure there is at least one edge in the funnel
+  if (funnel.size() >= 2) {
+    // Remove edges that are clockwise to this new potential edges
+    while (funnel.back() != apex.apexPoint && newWedgeIsCounterclockwiseToRightmostWedge()) {
       funnel.pop_back();
-      apex = funnel.back();
-      path.emplace_back(apex);
-      funnel.push_back(point);
     }
-    funnel.pop_back();
+
+    // Need to check if this new right edge would cross over the apex
+    while (funnel.back() == apex.apexPoint && funnel.size() >= 2) {
+      std::pair<QPointF, QPointF> newWedge = createCircleConciousLine(funnel.back(), apex.apexType, point, (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise), circleRadius);
+      std::pair<QPointF, QPointF> firstLeftEdge = createCircleConciousLine(funnel.back(), apex.apexType, funnel.at(funnel.size()-2), AngleDirection::kCounterclockwise, circleRadius);
+      if (math::crossProduct(newWedge.first, newWedge.second, firstLeftEdge.first, firstLeftEdge.second) <= 0) {
+        // New point crosses over apex
+        if (math::distance(newWedge.first, newWedge.second) < math::distance(firstLeftEdge.first, firstLeftEdge.second)) {
+          // New point is closer and should instead be the apex
+
+          const Apex newApex{point, (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise)};
+          
+          addSegmentToPath(apex, newWedge, newApex, path, circleRadius, pointToString);
+
+          // Need to update right to be the apex
+          funnel.pop_back();
+
+          // Set new point as apex
+          apex = newApex;
+        } else {
+          // Add the apex to the path
+          const Apex newApex{funnel.at(funnel.size()-2), AngleDirection::kCounterclockwise};
+
+          addSegmentToPath(apex, firstLeftEdge, newApex, path, circleRadius, pointToString);
+
+          // Remove apex from funnel
+          funnel.pop_back();
+          
+          // Set end of left edge as current apex
+          apex = newApex;
+        }
+      } else {
+        // Done
+        break;
+      }
+    }
   }
+  // Finally, add point to right of funnel
+  funnel.push_back(point);
 }
 
-void finishFunnel(std::deque<QPointF> &funnel, QPointF &apex, std::vector<QPointF> &path) {
+void finishFunnel(std::deque<QPointF> &funnel, Apex &apex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString) {
   // find index of apex
   int apexIndex=-1;
   for (int i=0; i<funnel.size(); ++i) {
-    if (funnel.at(i) == apex) {
+    if (funnel.at(i) == apex.apexPoint) {
       apexIndex = i;
       break;
     }
@@ -601,10 +1010,35 @@ void finishFunnel(std::deque<QPointF> &funnel, QPointF &apex, std::vector<QPoint
   if (apexIndex == -1) {
     throw std::runtime_error("Unable to find apex when adding goal");
   }
-  for (int i=apexIndex; i<funnel.size() && funnel.at(i)!=funnel.back();) {
+  AngleDirection t1 = apex.apexType;
+  AngleDirection t2 = AngleDirection::kClockwise;
+  for (int i=apexIndex; i<funnel.size()-1;) { // TODO: Think about this -1 in the condition
+    if (i+1 == funnel.size()-1) {
+      // Next point is the end of the last right edge
+      t2 = AngleDirection::kPoint;
+    }
+    std::pair<QPointF, QPointF> newEdge = createCircleConciousLine(funnel.at(i), t1, funnel.at(i+1), t2, circleRadius);
+    addSegmentToPath(Apex{funnel.at(i), t1}, newEdge, Apex{funnel.at(i+1), t2}, path, circleRadius, pointToString);
+    t1 = AngleDirection::kClockwise;
     i += 1;
-    path.emplace_back(funnel.at(i));
   }
+}
+
+double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation) {
+  // TODO: Move to ::math
+  const double dx = edgeEndPoint.x()-edgeStartPoint.x();
+  const double dy = edgeEndPoint.y()-edgeStartPoint.y();
+  const double lengthSquared = dx*dx+dy*dy;
+  if (lengthSquared == 0.0) {
+    // Line segment is just a point
+    return math::distance(edgeStartPoint, point);
+  }
+  const double t = std::clamp(static_cast<double>(((point.x()-edgeStartPoint.x())*dx + (point.y()-edgeStartPoint.y())*dy) / lengthSquared), 0.0, 1.0);
+  QPointF closestPoint{edgeStartPoint.x() + t*dx, edgeStartPoint.y() + t*dy};
+  if (pointUsedForDistanceCalculation != nullptr) {
+    *pointUsedForDistanceCalculation = closestPoint;
+  }
+  return math::distance(point, closestPoint);
 }
 
 bool operator==(const State &s1, const State &s2) {

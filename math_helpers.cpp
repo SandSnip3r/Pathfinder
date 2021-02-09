@@ -1,6 +1,9 @@
 #include "math_helpers.h"
 
 namespace math {
+  
+const double kPi = 3.141592653589793;
+const double k2Pi = 6.283185307179586;
 
 double distance(const QPointF &p1, const QPointF &p2) {
   const double dx = p2.x() - p1.x();
@@ -34,6 +37,43 @@ bool isPointInTriangle(const QPointF &point, const QPointF &triangleVertex1, con
 
 bool lessThan(const double d1, const double d2) {
   return (d2-d1 > 0.000001);
+}
+
+double angle(const QPointF &point1, const QPointF &point2) {
+  const double dx = point2.x()-point1.x();
+  const double dy = point2.y()-point1.y();
+  double angle = atan(dy/dx);
+  if (dx < 0) {
+    angle += kPi;
+  } else if (dy < 0) {
+    angle += k2Pi;
+  }
+  return angle;
+}
+
+double angleBetweenVectors(const QPointF &v1Start, const QPointF &v1End, const QPointF &v2Start, const QPointF &v2End) {
+  const double dotProductOfVectors = dotProduct(v1Start, v1End, v2Start, v2End);
+  const double lengthsMultiplied = distance(v1Start, v1End) * distance(v2Start, v2End);
+  return std::acos(dotProductOfVectors/lengthsMultiplied);
+}
+
+double arcAngle(const double startAngle, const double endAngle, bool isCounterclockwise) {
+  // Counterclockwise is positive
+  double spanAngle;
+  if (isCounterclockwise) {
+    spanAngle = endAngle - startAngle;
+  } else {
+    spanAngle = startAngle - endAngle;
+  }
+  if (spanAngle < 0) {
+    // Make sure it's within the range [0-2*pi)
+    spanAngle += k2Pi;
+  }
+  if (!isCounterclockwise) {
+    // Flip so that clockwise is negative
+    spanAngle *= -1;
+  }
+  return spanAngle;
 }
 
 } // namespace math

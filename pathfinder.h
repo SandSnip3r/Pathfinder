@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <map>
 #include <set>
 #include <vector>
@@ -19,6 +20,29 @@ bool operator==(const State &s1, const State &s2);
 bool operator<(const State &s1, const State &s2);
 std::ostream& operator<<(std::ostream& stream, const State &state);
 
+struct PathSegment {
+  virtual ~PathSegment();
+};
+
+struct StraightPathSegment : public PathSegment {
+  StraightPathSegment(const QPointF &start, const QPointF &end) : startPoint(start), endPoint(end) {}
+  QPointF startPoint, endPoint;
+};
+
+enum class AngleDirection {
+  kPoint,
+  kCounterclockwise,
+  kClockwise
+};
+
+struct ArcPathSegment : public PathSegment {
+  ArcPathSegment(const QPointF &center, const double radius, const AngleDirection direction) : circleCenter(center), circleRadius(radius), angleDirection(direction) {}
+  QPointF circleCenter;
+  double circleRadius;
+  AngleDirection angleDirection;
+  double startAngle, endAngle;
+};
+
 struct PathfindingAStarInfo {
   std::vector<int> triangleCorridor;
   std::set<int> trianglesSearched;
@@ -26,7 +50,7 @@ struct PathfindingAStarInfo {
 };
 
 struct PathfindingResult {
-  std::vector<QPointF> shortestPath;
+  std::vector<std::unique_ptr<PathSegment>> shortestPath;
   PathfindingAStarInfo aStarInfo;
   void clear();
 };
@@ -51,7 +75,7 @@ private:
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
 
   std::vector<std::pair<QPointF,QPointF>> buildCorridor(const std::vector<int> &trianglesInCorridor) const;
-  std::vector<QPointF> funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const QPointF &goalPoint) const;
+  std::vector<std::unique_ptr<PathSegment>> funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const QPointF &goalPoint) const;
 };
 
 #endif // FILE_H_
