@@ -297,9 +297,9 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
   const QPointF edge2VertexB{triangleData_.pointlist[edge2VertexBIndex*2], triangleData_.pointlist[edge2VertexBIndex*2+1]};
   const double angle = math::angleBetweenVectors(edge1VertexA, edge1VertexB, edge2VertexA, edge2VertexB);
   // TODO: Sometimes this arclength causes weird paths
-  return 0;
+  // return 0;
   // return 0.1 * characterRadius_ * angle;
-  // return characterRadius_ * angle; // Original from paper
+  return characterRadius_ * angle; // Original from paper
 }
 
 double Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const {
