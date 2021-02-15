@@ -25,7 +25,6 @@ double angle(const QPointF &point1, const AngleDirection point1Direction, const 
 std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
 void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
 std::pair<QPointF, QPointF> createCircleConciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius);
-double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr);
 
 PathSegment::~PathSegment() {}
 
@@ -120,12 +119,12 @@ int Pathfinder::pointToIndex(const QPointF &point) const {
   throw std::runtime_error("Unknown point");
 }
 
-std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const QPointF &goalPoint) const {
+std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const std::optional<QPointF> &goalPoint) const {
   std::function<std::string(const QPointF&)> pointToStringFunc = [this, &startPoint, &goalPoint](const QPointF &point) -> std::string {
     if (point == startPoint) {
-      return "[START]";
-    } else if (point == goalPoint) {
-      return "[GOAL]";
+      return "[FUNNEL START]";
+    } else if (goalPoint && point == *goalPoint) {
+      return "[FUNNEL GOAL]";
     } else {
       try {
         return std::to_string(pointToIndex(point));
@@ -161,10 +160,12 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
     throw std::runtime_error("Trying to funnel for an empty corridor");
   }
   if (trianglesInCorridor.size() == 1) {
+    if (!goalPoint) {
+      throw std::runtime_error("No goal given and only one triangle!! wtf?");
+    }
     // Start and goal are in the same triangle, the path is a straight line from start to goal
     std::vector<std::unique_ptr<PathSegment>> path;
-    path.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(startPoint, goalPoint)));
-    std::cout << "Single segment!" << std::endl;
+    path.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(startPoint, *goalPoint)));
     return path;
   }
   // Build a list of "edges" that we'll need to pass through in this corridor
@@ -226,13 +227,52 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
     printFunnelAndApex(funnel, currentApex);
   }
 
-  // Finally, add the goal to the right of the funnel
-  addToRightOfFunnel(funnel, currentApex, goalPoint, path, characterRadius_, pointToStringFunc, true);
+  QPointF goalPointToUse;
+
+  if (!goalPoint) {
+    // No goal given, this must mean we're funneling inside of the A* algorithm
+    // Define the goal as the point that is closest from the current apex to the last edge of the corridor (TODO: plus some distance from it's nearest vertex if too close)
+    // using CorridorType = std::vector<std::pair<QPointF,QPointF>>;
+    // CorridorType corridor = buildCorridor(trianglesInCorridor);
+    QPointF edgeStart, edgeEnd;
+    std::tie(edgeStart, edgeEnd) = corridor.back();
+    math::distanceBetweenEdgeAndPoint(edgeStart, edgeEnd, currentApex.apexPoint, &goalPointToUse);
+    std::cout << "Funnel ends with a segment from apex " << pointToStringFunc(currentApex.apexPoint) << " to " << pointToStringFunc(goalPointToUse) << std::endl;
+  } else {
+    goalPointToUse = *goalPoint;
+  }
+
+  if (std::find(funnel.begin(), funnel.end(), goalPointToUse) == funnel.end()) {
+    // Finally, add the goal to the right of the funnel
+    addToRightOfFunnel(funnel, currentApex, goalPointToUse, path, characterRadius_, pointToStringFunc, true);
+  } else {
+    std::cout << "Goal already in funnel" << std::endl;
+    if (funnel.front() == goalPointToUse) {
+      // Goal is on the left, lets pop it and put it on the right
+      // TODO: I dont think this logic is generic enough to catch all cases
+      std::cout << "Goal is on the left of the funnel, removing it and putting it on the right" << std::endl;
+      funnel.pop_front();
+      addToRightOfFunnel(funnel, currentApex, goalPointToUse, path, characterRadius_, pointToStringFunc, true);
+    }
+  }
   std::cout << "Funnel after loop : ";
   printFunnelAndApex(funnel, currentApex);
   // And finish the algorithm, closing out the funnel
   finishFunnel(funnel, currentApex, path, characterRadius_, pointToStringFunc);
-  std::cout << "Multiple segments! (" << path.size() << ")" << std::endl;
+
+  std::cout << "Final path: [";
+  bool first = true;
+  for (const auto &i : path) {
+    const StraightPathSegment *segment = dynamic_cast<const StraightPathSegment *>(i.get());
+    if (segment != nullptr) {
+      if (first) {
+        std::cout << pointToStringFunc(segment->startPoint) << ',';
+        first = false;
+      }
+      std::cout << pointToStringFunc(segment->endPoint) << ',';
+    }
+  }
+  std::cout << ']' << std::endl;
   return path;
 }
 
@@ -297,16 +337,25 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
   const QPointF edge2VertexB{triangleData_.pointlist[edge2VertexBIndex*2], triangleData_.pointlist[edge2VertexBIndex*2+1]};
   const double angle = math::angleBetweenVectors(edge1VertexA, edge1VertexB, edge2VertexA, edge2VertexB);
   // TODO: Sometimes this arclength causes weird paths
-  // return 0;
+  return 0;
   // return 0.1 * characterRadius_ * angle;
-  return characterRadius_ * angle; // Original from paper
+  // return characterRadius_ * angle; // Original from paper
 }
 
-double Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const {
+double Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores, const std::map<State, State> &previous) const {
+  // =================================================================================
+  // =================================BEGIN OLD LOGIC=================================
+  // =================================================================================
   // The common edge between triangles `state` and `parentState`
   const int commonEdge = state.entryEdge;
   const double parentGValue = gScores.at(parentState);
   const double hValue = calculateHValue(state, goalPoint);
+
+  enum class SourceOfGValue {
+    k1, k2, k3
+  };
+
+  SourceOfGValue gValueSource;
 
   // Max of {
   // 1. Distance between start and closest point on edge `commonEdge`
@@ -342,7 +391,92 @@ double Pathfinder::calculateGValue(const State &state, const State &parentState,
   // std::cout << "  Potential g values for state " << state; //DEBUGPRINTS
   // printf(" are [%.9f,%.9f,%.9f]\n",val1,val2,val3); //DEBUGPRINTS
   // std::cout << std::flush; //DEBUGPRINTS
-  return std::max({val1, val2, val3});
+  double oldLogicValue = std::max({val1, val2, val3});
+  if (val1 > val2 && val1 > val3) {
+    gValueSource = SourceOfGValue::k1;
+  } else {
+    if (val2 > val3) {
+      gValueSource = SourceOfGValue::k2;
+    } else {
+      gValueSource = SourceOfGValue::k3;
+    }
+  }
+  // =================================================================================
+  // ==================================END OLD LOGIC==================================
+  // =================================================================================
+
+  if (state.isGoal) {
+    // Find length of actual path from start to goal
+    std::vector<int> triangleCorridor = rebuildPath(state, previous);
+    if (triangleCorridor.size() == 1) {
+      // Only one triangle in corridor
+      double result = math::distance(startPoint, goalPoint);
+      std::cout << "  [G Value] (" << result << ") Straight line from start to goal" << std::endl;
+      return result;
+    }
+    // Do normal funnel algorithm
+    std::cout << "  Funneling for g(x) from start to goal" << std::endl;
+    std::vector<std::unique_ptr<PathSegment>> shortestPath = funnel(triangleCorridor, startPoint, goalPoint);
+    double result = calculatePathLength(shortestPath);
+    std::cout << "  [G Value] (" << result << "), " << shortestPath.size() << "-segment path from start to goal" << std::endl;
+    return result;
+  }
+
+  std::vector<int> triangleCorridor = rebuildPath(parentState, previous);
+  triangleCorridor.emplace_back(state.triangleNum);
+  double funnelResult = 0;
+  if (triangleCorridor.size() == 1) {
+    // // Only one triangle in corridor
+    // double result = oldLogicValue;
+    // std::cout << "  [G Value] (" << result << ") Using old logic" << std::endl;
+    // return result;
+    std::cout << "  Corridor is currently only 1 triangle long. Not doing anything" << std::endl;
+  } else {
+    // funnel from startPoint to point that minimizes g-value and h-value
+    std::cout << "  Funneling for g(x) from start to edge " << commonEdge << std::endl;
+    std::vector<std::unique_ptr<PathSegment>> shortestPath = funnel(triangleCorridor, startPoint); // No goal given
+    funnelResult = calculatePathLength(shortestPath);
+  }
+
+  if (funnelResult > oldLogicValue) {
+    // Use funnel instead
+    std::cout << "  [G Value] (" << funnelResult << ") Funneling" << std::endl;
+    return funnelResult;
+  }
+
+  std::cout << "  [G Value] (" << oldLogicValue << ") Using old logic value, source: ";
+  switch (gValueSource) {
+    case SourceOfGValue::k1:
+      std::cout << "1";
+      break;
+    case SourceOfGValue::k2:
+      std::cout << "2";
+      break;
+    case SourceOfGValue::k3:
+      std::cout << "3";
+      break;
+  }
+  std::cout << std::endl;
+  return oldLogicValue;
+}
+
+QPointF Pathfinder::midpointOfEdge(int edgeNum) const {
+  if (edgeNum < 0) {
+    throw std::runtime_error("Invalid edge");
+  }
+  if (edgeNum >= triangleData_.numberofedges) {
+    throw std::runtime_error("Edge number is not within the triangle data");
+  }
+  const auto vertexAIndex = triangleData_.edgelist[edgeNum*2];
+  const auto vertexBIndex = triangleData_.edgelist[edgeNum*2+1];
+  if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
+    throw std::runtime_error("Edge references points which do not exist");
+  }
+  const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
+  const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
+  const auto dx = vertexB.x()-vertexA.x();
+  const auto dy = vertexB.y()-vertexA.y();
+  return QPointF{vertexA.x()+dx/2, vertexB.y()+dy/2};
 }
 
 double Pathfinder::lengthOfEdge(int edgeNum) const {
@@ -378,7 +512,7 @@ double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point
   const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
   const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
 
-  return ::distanceBetweenEdgeAndPoint(vertexA, vertexB, point, pointUsedForDistanceCalculation);
+  return math::distanceBetweenEdgeAndPoint(vertexA, vertexB, point, pointUsedForDistanceCalculation);
 }
 
 double Pathfinder::calculateHValue(const State &state, const QPointF &goalPoint) const {
@@ -467,7 +601,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
       throw std::runtime_error("No shared point between these two edges");
     }
 
-    return (::distanceBetweenEdgeAndPoint(oppositeEdgeStart, oppositeEdgeEnd, sharedPoint) >= (characterRadius_*2));
+    return (math::distanceBetweenEdgeAndPoint(oppositeEdgeStart, oppositeEdgeEnd, sharedPoint) >= (characterRadius_*2));
   };
   
   // For each neighboring triangle index
@@ -508,9 +642,9 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
 
 PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const {
   PathfindingAStarInfo result;
-  // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
-  // std::cout << "Trying to find shortest path from triangle " << startTriangle << " to triangle " << goalTriangle << std::endl; //DEBUGPRINTS
-  // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
+  std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
+  std::cout << "Trying to find shortest path from triangle " << startTriangle << " to triangle " << goalTriangle << std::endl; //DEBUGPRINTS
+  std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
   std::vector<State> openSet; // "open set"
 
   std::map<State, State> previous;
@@ -564,7 +698,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
       return result;
     }
 
-    // std::cout << "We chose " << currentState << " as our next candidate" << std::endl;
+    std::cout << "We chose " << currentState << " as our next candidate" << std::endl;
     openSet.erase(minElementIt);
 
     // Look at successors
@@ -573,7 +707,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
       // Touched this successor
       result.trianglesDiscovered.emplace(successor.triangleNum);
 
-      // std::cout << "  Evaluatating successor " << successor << std::endl;
+      std::cout << "  -Evaluatating successor- " << successor << std::endl;
       if (gScores.find(successor) == gScores.end()) {
         // No gScore yet for this state, initialize
         gScores.emplace(successor, std::numeric_limits<double>::max());
@@ -583,8 +717,10 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
         fScores.emplace(successor, std::numeric_limits<double>::max());
       }
       
-      const double gValueOfSuccessor = calculateGValue(successor, currentState, startPoint, goalPoint, gScores);
+      const double gValueOfSuccessor = calculateGValue(successor, currentState, startPoint, goalPoint, gScores, previous);
+      std::cout << "    A* g(x) of successor across edge " << successor.entryEdge << " is " << gValueOfSuccessor << std::endl;
       if (math::lessThan(gValueOfSuccessor, gScores.at(successor))) {
+        std::cout << "    Better gvalue" << std::endl;
         // TODO: This comparison was suffering from a floating point issue
         // This path is better than any previous one
         // if (gScores.at(successor) != std::numeric_limits<double>::max()) { //DEBUGPRINTS
@@ -600,17 +736,19 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
         // Update fScore
         const double hValueOfSuccessor = calculateHValue(successor, goalPoint);
         const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
-        // printf("    Resulting heuristic: %.9f, and fScore: %.9f\n", hValueOfSuccessor, fValueOfSuccessor); //DEBUGPRINTS
-        // std::cout << std::flush; //DEBUGPRINTS
+        printf("    Resulting heuristic: %.9f, and fScore: %.9f\n", hValueOfSuccessor, fValueOfSuccessor); //DEBUGPRINTS
+        std::cout << std::flush; //DEBUGPRINTS
         fScores.at(successor) = fValueOfSuccessor;
 
         // Add to open set
         if (std::find(openSet.begin(), openSet.end(), successor) == openSet.end()) {
           openSet.push_back(successor);
         }
+      } else {
+        std::cout << "  Gvalue isnt better, heuristic was " << calculateHValue(successor, goalPoint) << std::endl;
       }
     }
-    // std::cout << std::endl;
+    std::cout << std::endl;
 
     // Completely evaluated this state
     result.trianglesSearched.emplace(currentState.triangleNum);
@@ -624,6 +762,22 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
 /* ========================================================================== **
 ** ============================= Free functions ============================= **
 ** ========================================================================== */
+
+double calculatePathLength(const std::vector<std::unique_ptr<PathSegment>> &path) {
+  double totalDistance=0;
+  for (int i=0; i<path.size(); ++i) {
+    const PathSegment *segment = path.at(i).get();
+    const StraightPathSegment *straightSegment = dynamic_cast<const StraightPathSegment*>(segment);
+    const ArcPathSegment *arcSegment = dynamic_cast<const ArcPathSegment*>(segment);
+    if (straightSegment != nullptr) {
+      totalDistance += math::distance(straightSegment->startPoint, straightSegment->endPoint);
+    } else if (arcSegment != nullptr) {
+      double angle = math::arcAngle(arcSegment->startAngle, arcSegment->endAngle, (arcSegment->angleDirection == AngleDirection::kCounterclockwise));
+      totalDistance += arcSegment->circleRadius * (angle < 0 ? -angle : angle);
+    }
+  }
+  return totalDistance;
+}
 
 std::vector<int> rebuildPath(State state, const std::map<State, State> &previous) {
   std::vector<int> result;
@@ -1022,23 +1176,6 @@ void finishFunnel(std::deque<QPointF> &funnel, Apex &apex, std::vector<std::uniq
     t1 = AngleDirection::kClockwise;
     i += 1;
   }
-}
-
-double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation) {
-  // TODO: Move to ::math
-  const double dx = edgeEndPoint.x()-edgeStartPoint.x();
-  const double dy = edgeEndPoint.y()-edgeStartPoint.y();
-  const double lengthSquared = dx*dx+dy*dy;
-  if (lengthSquared == 0.0) {
-    // Line segment is just a point
-    return math::distance(edgeStartPoint, point);
-  }
-  const double t = std::clamp(static_cast<double>(((point.x()-edgeStartPoint.x())*dx + (point.y()-edgeStartPoint.y())*dy) / lengthSquared), 0.0, 1.0);
-  QPointF closestPoint{edgeStartPoint.x() + t*dx, edgeStartPoint.y() + t*dy};
-  if (pointUsedForDistanceCalculation != nullptr) {
-    *pointUsedForDistanceCalculation = closestPoint;
-  }
-  return math::distance(point, closestPoint);
 }
 
 bool operator==(const State &s1, const State &s2) {

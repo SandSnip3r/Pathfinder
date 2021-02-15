@@ -9,6 +9,7 @@
 #include <limits>
 #include <memory>
 #include <map>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -43,6 +44,8 @@ struct ArcPathSegment : public PathSegment {
   double startAngle, endAngle;
 };
 
+double calculatePathLength(const std::vector<std::unique_ptr<PathSegment>> &path);
+
 struct PathfindingAStarInfo {
   std::vector<int> triangleCorridor;
   std::set<int> trianglesSearched;
@@ -66,16 +69,17 @@ private:
   triangleio triangleData_, triangleVoronoiData_;
 
   int findTriangleForPoint(const QPointF &point) const;
+  QPointF midpointOfEdge(int edgeNum) const;
   double lengthOfEdge(int edgeNum) const;
   double distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr) const;
   double calculateArcLength(const int edge1, const int edge2) const;
   double calculateHValue(const State &state, const QPointF &goalPoint) const;
-  double calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const;
+  double calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores, const std::map<State, State> &previous) const;
   PathfindingAStarInfo triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const;
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
 
   std::vector<std::pair<QPointF,QPointF>> buildCorridor(const std::vector<int> &trianglesInCorridor) const;
-  std::vector<std::unique_ptr<PathSegment>> funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const QPointF &goalPoint) const;
+  std::vector<std::unique_ptr<PathSegment>> funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, const std::optional<QPointF> &goalPoint={}) const;
 };
 
 #endif // FILE_H_
