@@ -16,7 +16,7 @@ bool lessThan(const double d1, const double d2);
 double angle(const QPointF &point1, const QPointF &point2);
 double angleBetweenVectors(const QPointF &v1Start, const QPointF &v1End, const QPointF &v2Start, const QPointF &v2End);
 double arcAngle(const double startAngle, const double endAngle, bool isCounterclockwise);
-
+double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr);
 
 } // namespace math
 

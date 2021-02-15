@@ -76,4 +76,20 @@ double arcAngle(const double startAngle, const double endAngle, bool isCountercl
   return spanAngle;
 }
 
+double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation) {
+  const double dx = edgeEndPoint.x()-edgeStartPoint.x();
+  const double dy = edgeEndPoint.y()-edgeStartPoint.y();
+  const double lengthSquared = dx*dx+dy*dy;
+  if (lengthSquared == 0.0) {
+    // Line segment is just a point
+    return math::distance(edgeStartPoint, point);
+  }
+  const double t = std::clamp(static_cast<double>(((point.x()-edgeStartPoint.x())*dx + (point.y()-edgeStartPoint.y())*dy) / lengthSquared), 0.0, 1.0);
+  QPointF closestPoint{edgeStartPoint.x() + t*dx, edgeStartPoint.y() + t*dy};
+  if (pointUsedForDistanceCalculation != nullptr) {
+    *pointUsedForDistanceCalculation = closestPoint;
+  }
+  return math::distance(point, closestPoint);
+}
+
 } // namespace math
