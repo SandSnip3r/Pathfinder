@@ -3,6 +3,12 @@
 
 #include <QPoint>
 
+enum class AngleDirection {
+  kPoint,
+  kCounterclockwise,
+  kClockwise
+};
+
 namespace math {
 
 extern const double kPi;
@@ -13,10 +19,12 @@ double crossProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p
 double dotProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p1, const QPointF &v2p2);
 bool isPointInTriangle(const QPointF &point, const QPointF &triangleVertex1, const QPointF &triangleVertex2, const QPointF &triangleVertex3);
 bool lessThan(const double d1, const double d2);
+bool equal(const double d1, const double d2);
 double angle(const QPointF &point1, const QPointF &point2);
 double angleBetweenVectors(const QPointF &v1Start, const QPointF &v1End, const QPointF &v2Start, const QPointF &v2End);
 double arcAngle(const double startAngle, const double endAngle, bool isCounterclockwise);
 double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr);
+double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &circleCenter, const double circleRadius, const AngleDirection &circleRotationDirection, QPointF *pointUsedForDistanceCalculation=nullptr);
 
 } // namespace math
 

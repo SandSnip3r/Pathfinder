@@ -39,6 +39,10 @@ bool lessThan(const double d1, const double d2) {
   return (d2-d1 > 0.000001);
 }
 
+bool equal(const double d1, const double d2) {
+  return std::abs(d2-d1) < 0.000001;
+}
+
 double angle(const QPointF &point1, const QPointF &point2) {
   const double dx = point2.x()-point1.x();
   const double dy = point2.y()-point1.y();
@@ -90,6 +94,75 @@ double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF 
     *pointUsedForDistanceCalculation = closestPoint;
   }
   return math::distance(point, closestPoint);
+}
+
+double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &circleCenter, const double circleRadius, const AngleDirection &circleRotationDirection, QPointF *pointUsedForDistanceCalculation) {
+  if (circleRotationDirection == AngleDirection::kPoint) {
+    return distanceBetweenEdgeAndPoint(edgeStartPoint, edgeEndPoint, circleCenter, pointUsedForDistanceCalculation);
+  }
+  const double edgeDx = edgeEndPoint.x()-edgeStartPoint.x();
+  const double edgeDy = edgeEndPoint.y()-edgeStartPoint.y();
+  const double edgeLength = sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
+  const double ratio = circleRadius/edgeLength;
+  const QPointF circleTangentIntersectionPoint1{circleCenter.x()+edgeDx*ratio, circleCenter.y()+edgeDy*ratio};
+  const QPointF circleTangentIntersectionPoint2{circleCenter.x()-edgeDx*ratio, circleCenter.y()-edgeDy*ratio};
+  QPointF edgePoint1, edgePoint2;
+  double dist1 = distanceBetweenEdgeAndPoint(edgeStartPoint, edgeEndPoint, circleTangentIntersectionPoint1, &edgePoint1);
+  double dist2 = distanceBetweenEdgeAndPoint(edgeStartPoint, edgeEndPoint, circleTangentIntersectionPoint2, &edgePoint2);
+  double distanceResult;
+  if (edgePoint1 == edgePoint2) {
+    // Circle is beyond the extent of the line
+    // Decide which distance to use
+    if (crossProduct(edgePoint1, circleTangentIntersectionPoint1, edgePoint1, circleTangentIntersectionPoint2) > 0) {
+      // edgePoint1->circleTangentIntersectionPoint1 is clockwise to edgePoint1->circleTangentIntersectionPoint2
+      if (circleRotationDirection == AngleDirection::kCounterclockwise) {
+        distanceResult = dist2;
+      } else {
+        distanceResult = dist1;
+      }
+    } else {
+      // edgePoint1->circleTangentIntersectionPoint1 is counterclockwise to edgePoint1->circleTangentIntersectionPoint2
+      if (circleRotationDirection == AngleDirection::kCounterclockwise) {
+        distanceResult = dist1;
+      } else {
+        distanceResult = dist2;
+      }
+    }
+    // Use this point no matter what
+    if (pointUsedForDistanceCalculation != nullptr) {
+      *pointUsedForDistanceCalculation = edgePoint1;
+    }
+  } else {
+    // Circle is at least partially within the extent of the line
+    if (crossProduct(circleCenter, edgePoint1, circleCenter, edgePoint2) > 0) {
+      // circleCenter->edgePoint1 is clockwise to circleCenter->edgePoint2
+      if (circleRotationDirection == AngleDirection::kCounterclockwise) {
+        distanceResult = dist1;
+        if (pointUsedForDistanceCalculation != nullptr) {
+          *pointUsedForDistanceCalculation = edgePoint1;
+        }
+      } else {
+        distanceResult = dist2;
+        if (pointUsedForDistanceCalculation != nullptr) {
+          *pointUsedForDistanceCalculation = edgePoint2;
+        }
+      }
+    } else {
+      // circleCenter->edgePoint1 is counterclockwise to circleCenter->edgePoint2
+      if (circleRotationDirection == AngleDirection::kCounterclockwise) {
+        distanceResult = dist2;
+        if (pointUsedForDistanceCalculation != nullptr) {
+          *pointUsedForDistanceCalculation = edgePoint2;
+        }
+      } else {
+        distanceResult = dist1;
+        if (pointUsedForDistanceCalculation != nullptr) {
+          *pointUsedForDistanceCalculation = edgePoint1;
+        }
+      }
+    }
+  }
+  return distanceResult;
 }
 
 } // namespace math
