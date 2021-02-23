@@ -816,18 +816,6 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
       // Found the goal
       result.triangleCorridor = rebuildPath(currentState, previous);
       return result;
-      
-      // found = true;
-      // std::cout << "Found the goal" << std::endl;
-      // auto triangleCorridor = rebuildPath(currentState, previous);
-      // std::optional<QPointF> goalPointOptional = goalPoint;
-      // std::vector<std::unique_ptr<PathSegment>> shortestPath = funnel(triangleCorridor, startPoint, goalPointOptional);
-      // double pathLength = calculatePathLength(shortestPath);
-      // if (pathLength < shortestPathLength) {
-      //   shortestPathLength = pathLength;
-      //   finalGoalState = currentState;
-      // }
-      // continue;
     }
 
     // Look at successors
@@ -878,10 +866,6 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
     visited.insert(currentState);
     result.trianglesSearched.emplace(currentState.triangleNum);
   }
-
-  // if (found) {
-  //   result.triangleCorridor = rebuildPath(finalGoalState, previous);
-  // }
 
   // Open set is empty, but no path was found
   // std::cout << std::endl; // TODO: Remove //DEBUGPRINTS
@@ -1062,7 +1046,7 @@ std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, con
     const auto distanceBetweenPoints = math::distance(point1, point2);
     if (math::lessThan(distanceBetweenPoints, circleRadius)) {
       // TODO: point2 is inside point1's circle. Handle
-      std::cout << "point2 is inside point1's circle" << std::endl;
+      // std::cout << "point2 is inside point1's circle" << std::endl;
     } else if (math::equal(distanceBetweenPoints, circleRadius)) {
       // point2 on the circumference of point1's circle
       // the line is really not a line
@@ -1077,7 +1061,7 @@ std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, con
     const auto distanceBetweenPoints = math::distance(point1, point2);
     if (math::lessThan(distanceBetweenPoints, circleRadius)) {
       // TODO: point1 is inside point2's circle. Handle
-      std::cout << "point1 is inside point2's circle" << std::endl;
+      // std::cout << "point1 is inside point2's circle" << std::endl;
     } else if (math::equal(distanceBetweenPoints, circleRadius)) {
       // point1 on the circumference of point2's circle
       // the line is really not a line

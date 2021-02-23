@@ -5,6 +5,10 @@ namespace math {
 const double kPi = 3.141592653589793;
 const double k2Pi = 6.283185307179586;
 
+QPointF polarToVector(const double r, const double theta) {
+  return {r*cos(theta), r*sin(theta)};
+}
+
 double distance(const QPointF &p1, const QPointF &p2) {
   const double dx = p2.x() - p1.x();
   const double dy = p2.y() - p1.y();
