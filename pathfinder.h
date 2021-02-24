@@ -6,6 +6,7 @@
 
 #include <QPointF>
 
+#include <array>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -63,7 +64,11 @@ public:
   int pointToIndex(const QPointF &point) const;
 private:
   double characterRadius_{0};
+  // Triangle data
   triangleio triangleData_, triangleVoronoiData_;
+
+  // Pre-computed data from triangle data
+  std::vector<std::array<int,3>> triangleEdges_;
 
   int findTriangleForPoint(const QPointF &point) const;
   QPointF midpointOfEdge(int edgeNum) const;
@@ -76,6 +81,7 @@ private:
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
 
   bool pathCanExist(int startTriangle, int goalTriangle);
+  int getSharedEdge(const int triangle1Num, const int triangle2Num) const;
   std::vector<std::pair<QPointF,QPointF>> buildCorridor(const std::vector<int> &trianglesInCorridor) const;
   std::vector<std::unique_ptr<PathSegment>> funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, std::optional<QPointF> &goalPoint) const;
 };

@@ -27,7 +27,49 @@ std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, con
 
 PathSegment::~PathSegment() {}
 
-Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {}
+Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {
+  // TODO: Start by checking that the triangle data is consistent
+  if (triangleData_.trianglelist == nullptr) {
+    throw std::runtime_error("Cannot build corridor when trianglelist is null");
+  }
+  if (triangleData_.pointlist == nullptr) {
+    throw std::runtime_error("Cannot build corridor when pointlist is null");
+  }
+  if (triangleData_.edgelist == nullptr) {
+    throw std::runtime_error("Cannot build corridor when edgelist is null");
+  }
+  if (triangleVoronoiData_.edgelist == nullptr) {
+    throw std::runtime_error("Cannot build corridor when voronoi edgelist is null");
+  }
+
+  // Given the triangle data, we will pre-compute the edges of each triangle
+  triangleEdges_.resize(triangleData_.numberoftriangles);
+  // Initialize all edges as -1
+  std::for_each(triangleEdges_.begin(), triangleEdges_.end(), [](auto &arr) {
+    arr[0] = -1;
+    arr[1] = -1;
+    arr[2] = -1;
+  });
+  auto addEdgeForTriangle = [](auto &edgeArray, const int edgeNumber) {
+    if (edgeArray[0] == -1) {
+      edgeArray[0] = edgeNumber;
+    } else if (edgeArray[1] == -1) {
+      edgeArray[1] = edgeNumber;
+    } else if (edgeArray[2] == -1) {
+      edgeArray[2] = edgeNumber;
+    }
+  };
+  for (int voronoiEdgeNum=0;voronoiEdgeNum<triangleVoronoiData_.numberofedges; ++voronoiEdgeNum) {
+    const int triangle1Number = triangleVoronoiData_.edgelist[voronoiEdgeNum*2];
+    const int triangle2Number = triangleVoronoiData_.edgelist[voronoiEdgeNum*2+1];
+    if (triangle1Number != -1) {
+      addEdgeForTriangle(triangleEdges_.at(triangle1Number), voronoiEdgeNum);
+    }
+    if (triangle2Number != -1) {
+      addEdgeForTriangle(triangleEdges_.at(triangle2Number), voronoiEdgeNum);
+    }
+  }
+}
 
 PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const QPointF &goalPoint) {
   int startTriangle = findTriangleForPoint(startPoint);
@@ -58,6 +100,7 @@ PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const 
 
     // A path was found
     std::optional<QPointF> goalPointOptional = goalPoint;
+    // TODO: calculateGValue (called from triangleAStar) has already calculated this funnel
     result.shortestPath = funnel(result.aStarInfo.triangleCorridor, startPoint, goalPointOptional);
   }
 
@@ -106,21 +149,28 @@ bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) {
   return false;
 }
 
-std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
-  // TODO: Maybe start this entire pathfinding process with these checks so that we know we're safe and dont need to check them all the time
-  if (triangleData_.trianglelist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when trianglelist is null");
+int Pathfinder::getSharedEdge(const int triangle1Num, const int triangle2Num) const {
+  if (triangle1Num == -1 || triangle2Num == -1) {
+    throw std::runtime_error("Trying to get shared edge for non-existent triangle");
   }
-  if (triangleData_.pointlist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when pointlist is null");
+  const auto &triangle1Edges = triangleEdges_.at(triangle1Num);
+  const auto &triangle2Edges = triangleEdges_.at(triangle2Num);
+  for (const int triangle1EdgeNum : triangle1Edges) {
+    if (triangle1EdgeNum != -1) {
+      for (const int triangle2EdgeNum : triangle2Edges) {
+        if (triangle2EdgeNum != -1) {
+          if (triangle1EdgeNum == triangle2EdgeNum) {
+            // Found the shared edge
+            return triangle1EdgeNum;
+          }
+        }
+      }
+    }
   }
-  if (triangleData_.edgelist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when edgelist is null");
-  }
-  if (triangleVoronoiData_.edgelist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when voronoi edgelist is null");
-  }
+  return -1;
+}
 
+std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
   std::vector<std::pair<QPointF,QPointF>> corridorSegments;
   for (int i=1; i<trianglesInCorridor.size(); ++i) {
     // find common edge between triangle i,i-1
@@ -129,19 +179,7 @@ std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vec
     if (triangleANum >= triangleData_.numberoftriangles || triangleBNum >= triangleData_.numberoftriangles) {
       throw std::runtime_error("Invalid triangle number while building corridor");
     }
-    int sharedEdge = -1;
-    for (int edgeNum=0; edgeNum<triangleVoronoiData_.numberofedges; ++edgeNum) {
-      const int triangle1Number = triangleVoronoiData_.edgelist[edgeNum*2];
-      const int triangle2Number = triangleVoronoiData_.edgelist[edgeNum*2+1];
-      if ((triangle1Number == triangleANum &&
-          triangle2Number == triangleBNum) ||
-          (triangle1Number == triangleBNum &&
-          triangle2Number == triangleANum)) {
-        // Found the shared edge
-        sharedEdge = edgeNum;
-        break;
-      }
-    }
+    int sharedEdge = getSharedEdge(triangleANum, triangleBNum);
     if (sharedEdge == -1) {
       throw std::runtime_error("Unabled to find shared edge between two triangles");
     }
@@ -722,29 +760,16 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
     const auto neighborTriangleNum = triangleData_.neighborlist[neighborNum];
     if (neighborTriangleNum != -1) {
       // Neighbor exists
-      // Find out which edge is shared between this neighbor and the original triangle
-      // TODO: Optimize, probably shouldnt need to loop through all edges
-      //  Might be worth building a neighbor list
-      for (int edgeNum=0; edgeNum<triangleVoronoiData_.numberofedges; ++edgeNum) {
-        const int triangle1Number = triangleVoronoiData_.edgelist[edgeNum*2];
-        const int triangle2Number = triangleVoronoiData_.edgelist[edgeNum*2+1];
-        if (!(kAvoidObstacles && triangleData_.edgemarkerlist[edgeNum] != 0)) {
+      int sharedEdge = getSharedEdge(state.triangleNum, neighborTriangleNum);
+      if (sharedEdge != -1 && sharedEdge != state.entryEdge) {
+        // Is a valid edge and isn't the entry edge
+        if (!(kAvoidObstacles && triangleData_.edgemarkerlist[sharedEdge] != 0)) {
           // Non-constraint edge
-          if ((triangle1Number == state.triangleNum &&
-              triangle2Number == neighborTriangleNum) ||
-              (triangle1Number == neighborTriangleNum &&
-              triangle2Number == state.triangleNum)) {
-            // Found the shared edge
-            if (edgeNum != state.entryEdge) {
-              // Only add a successor if it isnt the previous triangle
-              if (state.entryEdge < 0 || characterFitsThroughTriangle(state.entryEdge, edgeNum)) {
-                State successor;
-                successor.entryEdge = edgeNum;
-                successor.triangleNum = neighborTriangleNum;
-                result.push_back(successor);
-                break;
-              }
-            }
+          if (state.entryEdge < 0 || characterFitsThroughTriangle(state.entryEdge, sharedEdge)) {
+            State successor;
+            successor.entryEdge = sharedEdge;
+            successor.triangleNum = neighborTriangleNum;
+            result.push_back(successor);
           }
         }
       }
@@ -752,6 +777,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
   }
   return result;
 }
+
 
 PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const {
   PathfindingAStarInfo result;
