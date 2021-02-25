@@ -331,35 +331,35 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
       throw std::runtime_error("Funnel is empty");
     }
 
-    auto funnelLength = [this, &pointToStringFunc, &printFunnelAndApex](const std::deque<QPointF> &funnel, const Apex &apex, const PathType &path, const QPointF &goalPoint) -> double {
+    // Save the length of the current path
+    const double currentPathLength = calculatePathLength(path);
+
+    auto funnelLength = [this, &pointToStringFunc, &printFunnelAndApex](const std::deque<QPointF> &funnel, const Apex &apex, const std::vector<std::unique_ptr<PathSegment>> &existingPath, const QPointF &goalPoint) -> double {
       // Copy all data, since this is only a test
       auto funnelCopy = funnel;
       auto apexCopy = apex;
-      PathType pathCopy;
-      pathCopy.reserve(path.size());
-      for (const auto &i : path) {
-        const StraightPathSegment *straightSegment = dynamic_cast<const StraightPathSegment*>(i.get());
-        const ArcPathSegment *arcSegment = dynamic_cast<const ArcPathSegment*>(i.get());
-        if (straightSegment != nullptr) {
-          pathCopy.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(*straightSegment)));
-        } else if (arcSegment != nullptr) {
-          pathCopy.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(*arcSegment)));
-        } else {
-          throw std::runtime_error("Unknown segment type");
+      PathType path;
+      if (apex.apexType != AngleDirection::kPoint) {
+        // Need to copy last point of path
+        ArcPathSegment *arc = dynamic_cast<ArcPathSegment*>(existingPath.back().get());
+        // StraightPathSegment *straight = dynamic_cast<StraightPathSegment*>(lastPointOfExistingPath.get());
+        if (arc == nullptr) {
+          throw std::runtime_error("Last element of path isnt an ArcPathSegment?");
         }
+        path.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(*arc)));
       }
 
       // std::cout << "  ::Checking funnel length from potential apex" << std::endl; //DEBUGPRINTS
       
       if (std::find(funnelCopy.begin(), funnelCopy.end(), goalPoint) == funnelCopy.end()) {
         // Finally, add the goal to the right of the funnel
-        addToRightOfFunnel(funnelCopy, apexCopy, goalPoint, pathCopy, characterRadius_, pointToStringFunc, true);
+        addToRightOfFunnel(funnelCopy, apexCopy, goalPoint, path, characterRadius_, pointToStringFunc, true);
       } else {
         if (funnelCopy.front() == goalPoint) {
           // Goal is on the left, lets pop it and put it on the right
           // TODO: I dont think this logic is generic enough to catch all cases
           funnelCopy.pop_front();
-          addToRightOfFunnel(funnelCopy, apexCopy, goalPoint, pathCopy, characterRadius_, pointToStringFunc, true);
+          addToRightOfFunnel(funnelCopy, apexCopy, goalPoint, path, characterRadius_, pointToStringFunc, true);
         } else if (funnelCopy.back() == goalPoint) {
           // std::cout << "    ::Goal point is already in the right spot in the funnel" << std::endl; //DEBUGPRINTS
         } else {
@@ -367,20 +367,19 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
         }
       }
       // And finish the algorithm, closing out the funnel
-      finishFunnel(funnelCopy, apexCopy, pathCopy, characterRadius_, pointToStringFunc);
+      finishFunnel(funnelCopy, apexCopy, path, characterRadius_, pointToStringFunc);
 
       // std::cout << "    ::Completed funnel : "; //DEBUGPRINTS
       // printFunnelAndApex(funnelCopy, apexCopy); //DEBUGPRINTS
 
-      return calculatePathLength(pathCopy);
+      return calculatePathLength(path);
     };
 
     // Track the best option
     double shortestPathLength = std::numeric_limits<double>::max();
 
     // Save the final edge, we will reference it many times
-    QPointF edgeStart, edgeEnd;
-    std::tie(edgeStart, edgeEnd) = corridor.back();
+    const auto [edgeStart, edgeEnd] = corridor.back();
 
     // For each point in the funnel, find the closest point on the target edge, then check what the overall funnel length is
     AngleDirection funnelApexAngleDirection = AngleDirection::kCounterclockwise;
@@ -429,7 +428,9 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
         // std::cout << "  Moved point result: " << pointToStringFunc(potentialGoal) << std::endl; //DEBUGPRINTS
       }
 
-      const double pathLength = funnelLength(funnel, currentApex, path, potentialGoal);
+      // TODO: Cant we just use the existing path length up to this point and then recursively funnel from current apex to the potential goal?
+      const double remainingPathLength = funnelLength(funnel, currentApex, path, potentialGoal);
+      const double pathLength = currentPathLength + remainingPathLength;
       if (pathLength < shortestPathLength) {
         shortestPathLength = pathLength;
         goalPointToUse = potentialGoal;
@@ -488,6 +489,23 @@ void Pathfinder::setCharacterRadius(double value) {
   characterRadius_ = value;
 }
 
+bool Pathfinder::pointIsInTriangle(const QPointF &point, const int triangleNum) const {
+  const int vertexIndexA = triangleData_.trianglelist[triangleNum*3];
+  const int vertexIndexB = triangleData_.trianglelist[triangleNum*3+1];
+  const int vertexIndexC = triangleData_.trianglelist[triangleNum*3+2];
+  if (vertexIndexA >= triangleData_.numberofpoints ||
+      vertexIndexB >= triangleData_.numberofpoints ||
+      vertexIndexC >= triangleData_.numberofpoints) {
+    throw std::runtime_error("Triangle references vertex which does not exist");
+  }
+  const QPointF vertexA{triangleData_.pointlist[vertexIndexA*2], triangleData_.pointlist[vertexIndexA*2+1]};
+  const QPointF vertexB{triangleData_.pointlist[vertexIndexB*2], triangleData_.pointlist[vertexIndexB*2+1]};
+  const QPointF vertexC{triangleData_.pointlist[vertexIndexC*2], triangleData_.pointlist[vertexIndexC*2+1]};
+
+  // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
+  return math::isPointInTriangle(point, vertexA, vertexB, vertexC);
+}
+
 int Pathfinder::findTriangleForPoint(const QPointF &point) const {
   if (triangleData_.trianglelist == nullptr) {
     throw std::runtime_error("Triangle list is null!");
@@ -499,21 +517,7 @@ int Pathfinder::findTriangleForPoint(const QPointF &point) const {
 
   // Loop over all triangles
   for (int triangleNumber=0; triangleNumber<triangleData_.numberoftriangles; ++triangleNumber) {
-    const int vertexIndexA = triangleData_.trianglelist[triangleNumber*3];
-    const int vertexIndexB = triangleData_.trianglelist[triangleNumber*3+1];
-    const int vertexIndexC = triangleData_.trianglelist[triangleNumber*3+2];
-    if (vertexIndexA >= triangleData_.numberofpoints ||
-        vertexIndexB >= triangleData_.numberofpoints ||
-        vertexIndexC >= triangleData_.numberofpoints) {
-      // TODO: Maybe it's excessive to throw? Maybe just skip this triangle
-      throw std::runtime_error("Triangle references vertex which does not exist");
-    }
-    const QPointF vertexA{triangleData_.pointlist[vertexIndexA*2], triangleData_.pointlist[vertexIndexA*2+1]};
-    const QPointF vertexB{triangleData_.pointlist[vertexIndexB*2], triangleData_.pointlist[vertexIndexB*2+1]};
-    const QPointF vertexC{triangleData_.pointlist[vertexIndexC*2], triangleData_.pointlist[vertexIndexC*2+1]};
-
-    // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
-    if (math::isPointInTriangle(point, vertexA, vertexB, vertexC)) {
+    if (pointIsInTriangle(point, triangleNumber)) {
       return triangleNumber;
     }
   }
@@ -589,6 +593,13 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
     // Funnel from startPoint to a point that minimizes g-value
     std::optional<QPointF> pointUsedResult;
     // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
+    // TODO: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    // We want to have the result of this funnel so we can cache it
+    //  In fact, this will (probably?) end up being the result of the pathfinding algorithm
+    // Using the cached funnel, there might be an apex that is not the startPoint
+    //  In this case, the funnel we build will be smaller.
+    // We also need to save the pathlength of that cached funnel up to that apex
+    // TODO: <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     std::vector<std::unique_ptr<PathSegment>> shortestPath = funnel(triangleCorridor, startPoint, pointUsedResult); // No goal given (empty optional)
     if (!pointUsedResult) {
       throw std::runtime_error("Dont know point used in funnel");

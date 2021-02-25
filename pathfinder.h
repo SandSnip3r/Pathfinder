@@ -66,10 +66,17 @@ private:
   double characterRadius_{0};
   // Triangle data
   triangleio triangleData_, triangleVoronoiData_;
-
+  
   // Pre-computed data from triangle data
   std::vector<std::array<int,3>> triangleEdges_;
 
+  // TODO: Remove
+  // Funnel cache
+  // Apex funnelApex;
+  // std::deque<QPointF> funnel;
+
+
+  bool pointIsInTriangle(const QPointF &point, const int triangleNum) const;
   int findTriangleForPoint(const QPointF &point) const;
   QPointF midpointOfEdge(int edgeNum) const;
   double lengthOfEdge(int edgeNum) const;
