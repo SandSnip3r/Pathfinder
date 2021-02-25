@@ -1,6 +1,7 @@
 #ifndef FILE_H_
 #define FILE_H_
 
+#include "funnel.h"
 #include "math_helpers.h"
 #include "triangle/triangle_api.h"
 
@@ -74,7 +75,6 @@ private:
   // Funnel cache
   // Apex funnelApex;
   // std::deque<QPointF> funnel;
-
 
   bool pointIsInTriangle(const QPointF &point, const int triangleNum) const;
   int findTriangleForPoint(const QPointF &point) const;
