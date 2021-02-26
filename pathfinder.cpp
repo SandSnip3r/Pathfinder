@@ -923,9 +923,12 @@ double calculatePathLength(const std::vector<std::unique_ptr<PathSegment>> &path
       totalDistance += math::distance(straightSegment->startPoint, straightSegment->endPoint);
       // std::cout << "+straight [" << totalDistance << "], "; //DEBUGPRINTS
     } else if (arcSegment != nullptr) {
-      double angle = math::arcAngle(arcSegment->startAngle, arcSegment->endAngle, (arcSegment->angleDirection == AngleDirection::kCounterclockwise));
-      totalDistance += arcSegment->circleRadius * (angle < 0 ? -angle : angle);
-      // std::cout << "+arc (angle start:" << arcSegment->startAngle << ", angle end: " << arcSegment->endAngle << ", angle: " << angle << ", radius:" << arcSegment->circleRadius << ") [" << totalDistance << "], "; //DEBUGPRINTS
+      if (i != path.size()-1) {
+        // If the last segment is an arc, i think its probably an unfinished path and we shouldnt add this segment
+        double angle = math::arcAngle(arcSegment->startAngle, arcSegment->endAngle, (arcSegment->angleDirection == AngleDirection::kCounterclockwise));
+        totalDistance += arcSegment->circleRadius * abs(angle);
+        // std::cout << "+arc (angle start:" << arcSegment->startAngle << ", angle end: " << arcSegment->endAngle << ", angle: " << angle << ", radius:" << arcSegment->circleRadius << ") [" << totalDistance << "], "; //DEBUGPRINTS
+      }
     }
   }
   // std::cout << std::endl; //DEBUGPRINTS
