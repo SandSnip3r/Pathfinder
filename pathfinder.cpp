@@ -1,3 +1,4 @@
+#include "debuglogger.h"
 #include "pathfinder.h"
 
 #include <algorithm>
@@ -9,20 +10,23 @@
 #include <string>
 
 std::vector<int> rebuildPath(State state, const std::map<State, State> &previous);
-void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
-void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString, const bool isGoal = false);
-void finishFunnel(Funnel &funnel, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
+void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius);
+void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, const bool isGoal = false);
+void finishFunnel(Funnel &funnel, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius);
 bool counterclockwiseTo(const double theta, const double phi);
 bool clockwiseTo(const double theta, const double phi);
 double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
 double angle(const QPointF &point1, const AngleDirection point1Direction, const QPointF &point2, const AngleDirection point2Direction, const double circleRadius);
 std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
-void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString);
+void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius);
 std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius);
 
 PathSegment::~PathSegment() {}
 
 Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {
+  // Initialize debug logger
+  DebugLogger::instance().setPointToIndexFunction(std::bind(&Pathfinder::pointToIndex, std::cref(*this), std::placeholders::_1));
+
   // TODO: Start by checking that the triangle data is consistent
   if (triangleData_.trianglelist == nullptr) {
     throw std::runtime_error("Cannot build corridor when trianglelist is null");
@@ -205,47 +209,12 @@ int Pathfinder::pointToIndex(const QPointF &point) const {
 }
 
 std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<int> &trianglesInCorridor, const QPointF &startPoint, std::optional<QPointF> &goalPoint) const {
-  std::function<std::string(const QPointF&)> pointToStringFunc = [this, &startPoint, &goalPoint](const QPointF &point) -> std::string {
-    if (point == startPoint) {
-      return "[FUNNEL START]";
-    } else if (goalPoint && point == *goalPoint) {
-      return "[FUNNEL GOAL]";
-    } else {
-      try {
-        return std::to_string(pointToIndex(point));
-      } catch(...) {
-        std::string result = "(";
-        result += std::to_string(point.x());
-        result += ",";
-        result += std::to_string(point.y());
-        result += ")";
-        return result;
-      }
-    }
-  };
-  auto apexToString = [&pointToStringFunc](const Apex &apex) {
-    std::string result = "(" + pointToStringFunc(apex.apexPoint);
-    if (apex.apexType == AngleDirection::kClockwise) {
-      result += ",cw";
-    } else if (apex.apexType == AngleDirection::kCounterclockwise) {
-      result += ",ccw";
-    }
-    result += ")";
-    return result;
-  };
-  auto printFunnel = [&pointToStringFunc, &apexToString](const Funnel &funnel) {
-    std::cout << "[";
-    for (int i=0; i<funnel.size(); ++i) {
-      if (i == funnel.apex_index()) {
-        std::cout << apexToString(funnel.funnel_apex());
-      } else {
-        std::cout << pointToStringFunc(funnel.at(i));
-      }
-      std::cout << ',';
-    }
-    std::cout << "]" << std::endl;
-  };
-
+  // Set up DebugLogger with some data
+  DebugLogger::instance().setStartPoint(startPoint);
+  if (goalPoint) {
+    DebugLogger::instance().setGoalPoint(*goalPoint);
+  }
+  
   if (trianglesInCorridor.empty()) {
     throw std::runtime_error("Trying to funnel for an empty corridor");
   }
@@ -276,41 +245,41 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
   }
   // std::cout << "=============================================" << std::endl; //DEBUGPRINTS
   // std::cout << "Starting funnel: "; //DEBUGPRINTS
-  // printFunnel(funnel); //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel); //DEBUGPRINTS
 
-  addToLeftOfFunnel(funnel, left, path, characterRadius_, pointToStringFunc);
+  addToLeftOfFunnel(funnel, left, path, characterRadius_);
   // std::cout << "Funnel after adding left: "; //DEBUGPRINTS
-  // printFunnel(funnel); //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel); //DEBUGPRINTS
 
-  addToRightOfFunnel(funnel, right, path, characterRadius_, pointToStringFunc);
+  addToRightOfFunnel(funnel, right, path, characterRadius_);
   // std::cout << "Funnel before loop (after adding right): "; //DEBUGPRINTS
-  // printFunnel(funnel); //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel); //DEBUGPRINTS
 
   for (int i=1; i<corridor.size(); ++i) {
     const auto [newPoint1, newPoint2] = corridor.at(i);
     if (newPoint1 == right) {
       // newPoint2 will be left
       left = newPoint2;
-      addToLeftOfFunnel(funnel, left, path, characterRadius_, pointToStringFunc);
+      addToLeftOfFunnel(funnel, left, path, characterRadius_);
     } else if (newPoint1 == left) {
       // newPoint2 will be right
       right = newPoint2;
-      addToRightOfFunnel(funnel, right, path, characterRadius_, pointToStringFunc);
+      addToRightOfFunnel(funnel, right, path, characterRadius_);
     } else if (newPoint2 == right) {
       // newPoint1 will be left
       left = newPoint1;
-      addToLeftOfFunnel(funnel, left, path, characterRadius_, pointToStringFunc);
+      addToLeftOfFunnel(funnel, left, path, characterRadius_);
     } else {
       // newPoint1 will be right
       right = newPoint1;
-      addToRightOfFunnel(funnel, right, path, characterRadius_, pointToStringFunc);
+      addToRightOfFunnel(funnel, right, path, characterRadius_);
     }
     // std::cout << "Funnel : "; //DEBUGPRINTS
-    // printFunnel(funnel); //DEBUGPRINTS
+    // DebugLogger::instance().printFunnel(funnel); //DEBUGPRINTS
   }
 
   // std::cout << "Funnel after loop : "; //DEBUGPRINTS
-  // printFunnel(funnel); //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel); //DEBUGPRINTS
 
   QPointF goalPointToUse;
   if (!goalPoint) {
@@ -327,7 +296,7 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
     // Save the length of the current path
     const double currentPathLength = calculatePathLength(path);
 
-    auto funnelLength = [this, &pointToStringFunc, &printFunnel](const Funnel &funnel, const std::vector<std::unique_ptr<PathSegment>> &existingPath, const QPointF &goalPoint) -> double {
+    auto funnelLength = [this](const Funnel &funnel, const std::vector<std::unique_ptr<PathSegment>> &existingPath, const QPointF &goalPoint) -> double {
       // Copy all data, since this is only a test
       auto funnelCopy = funnel;
       PathType path;
@@ -350,7 +319,7 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
             std::cout << "    ::Whoa! About to pop apex from left of funnel" << std::endl;
           }
           funnelCopy.pop_front();
-          addToRightOfFunnel(funnelCopy, goalPoint, path, characterRadius_, pointToStringFunc, true);
+          addToRightOfFunnel(funnelCopy, goalPoint, path, characterRadius_, true);
         } else if (funnelCopy.back() == goalPoint) {
           // std::cout << "    ::Goal point is already in the right spot in the funnel" << std::endl; //DEBUGPRINTS
         } else {
@@ -358,13 +327,13 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
         }
       } else {
         // Finally, add the goal to the right of the funnel
-        addToRightOfFunnel(funnelCopy, goalPoint, path, characterRadius_, pointToStringFunc, true);
+        addToRightOfFunnel(funnelCopy, goalPoint, path, characterRadius_, true);
       }
       // And finish the algorithm, closing out the funnel
-      finishFunnel(funnelCopy, path, characterRadius_, pointToStringFunc);
+      finishFunnel(funnelCopy, path, characterRadius_);
 
       // std::cout << "    ::Completed funnel : "; //DEBUGPRINTS
-      // printFunnel(funnelCopy); //DEBUGPRINTS
+      // DebugLogger::instance().printFunnel(funnelCopy); //DEBUGPRINTS
 
       return calculatePathLength(path);
     };
@@ -387,15 +356,15 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
       QPointF potentialGoal;
       if (currentFunnelPoint == edgeStart) {
         // This point of the funnel is the start of the edge, need to move it over by the character radius
-        // std::cout << "  This point of the funnel (" << pointToStringFunc(currentFunnelPoint) << ") is the start of the edge. Need to move" << std::endl; //DEBUGPRINTS
+        // std::cout << "  This point of the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") is the start of the edge. Need to move" << std::endl; //DEBUGPRINTS
         potentialGoal = edgeStart;
       } else if (currentFunnelPoint == edgeEnd) {
         // This point of the funnel is the end of the edge, need to move it over by the character radius
-        // std::cout << "  This point of the funnel (" << pointToStringFunc(currentFunnelPoint) << ") is the end of the edge. Need to move" << std::endl; //DEBUGPRINTS
+        // std::cout << "  This point of the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") is the end of the edge. Need to move" << std::endl; //DEBUGPRINTS
         potentialGoal = edgeEnd;
       } else {
         // This point of the funnel is not one of the ends of the edge
-        // std::cout << "  Checking distance from a point on the funnel (" << pointToStringFunc(currentFunnelPoint) << ") to the target edge (" << pointToStringFunc(edgeStart) << "->" << pointToStringFunc(edgeEnd) << ")" << std::endl; //DEBUGPRINTS
+        // std::cout << "  Checking distance from a point on the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") to the target edge (" << DebugLogger::instance().pointToString(edgeStart) << "->" << DebugLogger::instance().pointToString(edgeEnd) << ")" << std::endl; //DEBUGPRINTS
         math::distanceBetweenEdgeAndCircleTangentIntersectionPoint(edgeStart, edgeEnd, currentFunnelPoint, characterRadius_, funnelApexAngleDirection, &potentialGoal);
       }
       bool moved = false;
@@ -419,7 +388,7 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
         moved = true;
       }
       if (moved) {
-        // std::cout << "  Moved point result: " << pointToStringFunc(potentialGoal) << std::endl; //DEBUGPRINTS
+        // std::cout << "  Moved point result: " << DebugLogger::instance().pointToString(potentialGoal) << std::endl; //DEBUGPRINTS
       }
 
       // TODO: Cant we just use the existing path length up to this point and then recursively funnel from current apex to the potential goal?
@@ -436,12 +405,12 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
         funnelApexAngleDirection = AngleDirection::kClockwise;
       }
     }
-    // std::cout << "Funnel ends with a segment from apex " << pointToStringFunc(funnel.apex_point()) << " to " << pointToStringFunc(goalPointToUse) << std::endl; //DEBUGPRINTS
+    // std::cout << "Funnel ends with a segment from apex " << DebugLogger::instance().pointToString(funnel.apex_point()) << " to " << DebugLogger::instance().pointToString(goalPointToUse) << std::endl; //DEBUGPRINTS
   } else {
     goalPointToUse = *goalPoint;
-    // std::cout << "  Already know goal for funnel: " << pointToStringFunc(goalPointToUse) << std::endl; //DEBUGPRINTS
+    // std::cout << "  Already know goal for funnel: " << DebugLogger::instance().pointToString(goalPointToUse) << std::endl; //DEBUGPRINTS
   }
-  // std::cout << "Adding goal (" << pointToStringFunc(goalPointToUse) << ") to funnel" << std::endl; //DEBUGPRINTS
+  // std::cout << "Adding goal (" << DebugLogger::instance().pointToString(goalPointToUse) << ") to funnel" << std::endl; //DEBUGPRINTS
 
   if (funnel.point_in_funnel(goalPointToUse)) {
     // std::cout << "Goal already in funnel" << std::endl; //DEBUGPRINTS
@@ -453,26 +422,26 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
         std::cout << "Whoa! About to pop the apex off the front of the funnel" << std::endl;
       }
       funnel.pop_front();
-      addToRightOfFunnel(funnel, goalPointToUse, path, characterRadius_, pointToStringFunc, true);
+      addToRightOfFunnel(funnel, goalPointToUse, path, characterRadius_, true);
     }
   } else {
     // Finally, add the goal to the right of the funnel
     // std::cout << "Goal not in funnel. Adding to the right" << std::endl; //DEBUGPRINTS
-    addToRightOfFunnel(funnel, goalPointToUse, path, characterRadius_, pointToStringFunc, true);
+    addToRightOfFunnel(funnel, goalPointToUse, path, characterRadius_, true);
   }
   // std::cout << "Funnel after adding goal : "; //DEBUGPRINTS
-  // printFunnel(funnel); //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel); //DEBUGPRINTS
   // And finish the algorithm, closing out the funnel
-  finishFunnel(funnel, path, characterRadius_, pointToStringFunc);
+  finishFunnel(funnel, path, characterRadius_);
 
   // std::cout << "Final path: ["; //DEBUGPRINTS
   // for (const auto &i : path) { //DEBUGPRINTS
     // const StraightPathSegment *segment = dynamic_cast<const StraightPathSegment *>(i.get()); //DEBUGPRINTS
     // const ArcPathSegment *arcSegment = dynamic_cast<const ArcPathSegment*>(i.get()); //DEBUGPRINTS
     // if (segment != nullptr) { //DEBUGPRINTS
-      // std::cout << pointToStringFunc(segment->startPoint) << '-' << pointToStringFunc(segment->endPoint) << ','; //DEBUGPRINTS
+      // std::cout << DebugLogger::instance().pointToString(segment->startPoint) << '-' << DebugLogger::instance().pointToString(segment->endPoint) << ','; //DEBUGPRINTS
     // } else if (arcSegment != nullptr) { //DEBUGPRINTS
-      // std::cout << "arc " << pointToStringFunc(arcSegment->circleCenter) << "(" << arcSegment->startAngle << "->" << arcSegment->endAngle << "),"; //DEBUGPRINTS
+      // std::cout << "arc " << DebugLogger::instance().pointToString(arcSegment->circleCenter) << "(" << arcSegment->startAngle << "->" << arcSegment->endAngle << "),"; //DEBUGPRINTS
     // } //DEBUGPRINTS
   // } //DEBUGPRINTS
   // std::cout << ']' << std::endl; //DEBUGPRINTS
@@ -1032,7 +1001,7 @@ double angle(const QPointF &point1, const AngleDirection point1Direction, const 
   return angleBetweenPoints;
 }
 
-void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString) {
+void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius) {
   // std::cout << "  ~Adding segment to path" << std::endl; //DEBUGPRINTS
   // First, finish an arc if there is an open one
   if (previousApex.apexType != AngleDirection::kPoint && circleRadius > 0.0) {
@@ -1054,7 +1023,7 @@ void addSegmentToPath(const Apex &previousApex, const std::pair<QPointF,QPointF>
   }
 
   // Second, add a straight segment between the apexes
-  // std::cout << "    ~Adding straight segment from " << pointToString(edge.first) << " to " << pointToString(edge.second) << std::endl; //DEBUGPRINTS
+  // std::cout << "    ~Adding straight segment from " << DebugLogger::instance().pointToString(edge.first) << " to " << DebugLogger::instance().pointToString(edge.second) << std::endl; //DEBUGPRINTS
   path.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(edge.first, edge.second)));
 
   if (newApex.apexType != AngleDirection::kPoint && circleRadius > 0.0) {
@@ -1177,7 +1146,7 @@ std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, con
   return {lineStart, lineEnd};
 }
 
-void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString) {
+void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius) {
   auto newWedgeIsClockwiseToLeftmostWedge = [&funnel, &point, &circleRadius]() {
     if (funnel.size() < 2) {
       throw std::runtime_error("This function requires a funnel with at least two items");
@@ -1208,7 +1177,7 @@ void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::un
     const double phi = angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, circleRadius);
     return clockwiseTo(theta, phi); // Rotating from theta to phi is clockwise
   };
-  // std::cout << "  >> Adding " << pointToString(point) << " to left of funnel" << std::endl; //DEBUGPRINTS
+  // std::cout << "  >> Adding " << DebugLogger::instance().pointToString(point) << " to left of funnel" << std::endl; //DEBUGPRINTS
 
   std::optional<Apex> newApex;
   // Make sure there is at least one edge in the funnel
@@ -1231,7 +1200,7 @@ void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::un
           // std::cout << "      >> New point is closer and should instead be the apex" << std::endl; //DEBUGPRINTS
           newApex = Apex{point, AngleDirection::kCounterclockwise};
           
-          addSegmentToPath(funnel.funnel_apex(), newWedge, *newApex, path, circleRadius, pointToString);
+          addSegmentToPath(funnel.funnel_apex(), newWedge, *newApex, path, circleRadius);
 
           // Remove old apex
           funnel.pop_front();
@@ -1243,7 +1212,7 @@ void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::un
           // std::cout << "      >> Normal add of apex to path" << std::endl; //DEBUGPRINTS
           Apex updatedApex{funnel.at(1), AngleDirection::kClockwise};
 
-          addSegmentToPath(funnel.funnel_apex(), firstRightEdge, updatedApex, path, circleRadius, pointToString);
+          addSegmentToPath(funnel.funnel_apex(), firstRightEdge, updatedApex, path, circleRadius);
 
           // Remove old apex
           funnel.pop_front();
@@ -1269,7 +1238,7 @@ void addToLeftOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::un
   }
 }
 
-void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString, const bool isGoal) {
+void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, const bool isGoal) {
   auto newWedgeIsCounterclockwiseToRightmostWedge = [&funnel, &point, &circleRadius, &isGoal]() {
     if (funnel.size() < 2) {
       throw std::runtime_error("This function requires a funnel with at least two items");
@@ -1300,7 +1269,7 @@ void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::u
     const double phi = angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, circleRadius);
     return counterclockwiseTo(theta, phi); // Rotating from theta to phi is counterclockwise
   };
-  // std::cout << "  << Adding " << pointToString(point) << " to right of funnel" << std::endl; //DEBUGPRINTS
+  // std::cout << "  << Adding " << DebugLogger::instance().pointToString(point) << " to right of funnel" << std::endl; //DEBUGPRINTS
 
   std::optional<Apex> newApex;
   // Make sure there is at least one edge in the funnel
@@ -1325,7 +1294,7 @@ void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::u
 
           newApex = Apex{point, (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise)};
           
-          addSegmentToPath(funnel.funnel_apex(), newWedge, *newApex, path, circleRadius, pointToString);
+          addSegmentToPath(funnel.funnel_apex(), newWedge, *newApex, path, circleRadius);
 
           // Remove old apex
           funnel.pop_back();
@@ -1337,7 +1306,7 @@ void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::u
           // Add the apex to the path
           Apex updatedApex{funnel.at(funnel.size()-2), AngleDirection::kCounterclockwise};
 
-          addSegmentToPath(funnel.funnel_apex(), firstLeftEdge, updatedApex, path, circleRadius, pointToString);
+          addSegmentToPath(funnel.funnel_apex(), firstLeftEdge, updatedApex, path, circleRadius);
 
           // Remove old apex
           funnel.pop_back();
@@ -1365,7 +1334,7 @@ void addToRightOfFunnel(Funnel &funnel, const QPointF &point, std::vector<std::u
   }
 }
 
-void finishFunnel(Funnel &funnel, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius, std::function<std::string(const QPointF&)> pointToString) {
+void finishFunnel(Funnel &funnel, std::vector<std::unique_ptr<PathSegment>> &path, const double circleRadius) {
   AngleDirection t1 = funnel.apex_type();
   AngleDirection t2 = AngleDirection::kClockwise;
   for (int i=funnel.apex_index(); i<funnel.size()-1;) {
@@ -1374,7 +1343,7 @@ void finishFunnel(Funnel &funnel, std::vector<std::unique_ptr<PathSegment>> &pat
       t2 = AngleDirection::kPoint;
     }
     std::pair<QPointF, QPointF> newEdge = createCircleConsciousLine(funnel.at(i), t1, funnel.at(i+1), t2, circleRadius);
-    addSegmentToPath(Apex{funnel.at(i), t1}, newEdge, Apex{funnel.at(i+1), t2}, path, circleRadius, pointToString);
+    addSegmentToPath(Apex{funnel.at(i), t1}, newEdge, Apex{funnel.at(i+1), t2}, path, circleRadius);
     t1 = AngleDirection::kClockwise;
     i += 1;
   }
