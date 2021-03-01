@@ -25,18 +25,21 @@ bool operator<(const State &s1, const State &s2);
 std::ostream& operator<<(std::ostream& stream, const State &state);
 
 struct PathSegment {
+  virtual std::unique_ptr<PathSegment> clone() const = 0;
   virtual ~PathSegment();
 };
 
 struct StraightPathSegment : public PathSegment {
   StraightPathSegment(const QPointF &start, const QPointF &end) : startPoint(start), endPoint(end) {}
   StraightPathSegment(const StraightPathSegment &other) : startPoint(other.startPoint), endPoint(other.endPoint) {}
+  virtual std::unique_ptr<PathSegment> clone() const override { return std::unique_ptr<PathSegment>(new StraightPathSegment(*this)); }
   QPointF startPoint, endPoint;
 };
 
 struct ArcPathSegment : public PathSegment {
   ArcPathSegment(const QPointF &center, const double radius, const AngleDirection direction) : circleCenter(center), circleRadius(radius), angleDirection(direction) {}
   ArcPathSegment(const ArcPathSegment &other) : circleCenter(other.circleCenter), circleRadius(other.circleRadius), angleDirection(other.angleDirection), startAngle(other.startAngle), endAngle(other.endAngle) {}
+  virtual std::unique_ptr<PathSegment> clone() const override { return std::unique_ptr<PathSegment>(new ArcPathSegment(*this)); }
   QPointF circleCenter;
   double circleRadius;
   AngleDirection angleDirection;

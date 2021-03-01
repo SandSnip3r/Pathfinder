@@ -333,12 +333,11 @@ std::vector<std::unique_ptr<PathSegment>> Pathfinder::funnel(const std::vector<i
       PathType path;
       if (funnelCopy.apex_type() != AngleDirection::kPoint) {
         // Need to copy last point of path
-        ArcPathSegment *arc = dynamic_cast<ArcPathSegment*>(existingPath.back().get());
-        // StraightPathSegment *straight = dynamic_cast<StraightPathSegment*>(lastPointOfExistingPath.get());
-        if (arc == nullptr) {
-          throw std::runtime_error("Last element of path isnt an ArcPathSegment?");
+        if (existingPath.empty()) {
+          throw std::runtime_error("Expecting the path to end with an arc segment, but the path is empty");
         }
-        path.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(*arc)));
+        // TODO: Might be worth verifying that the last segment is an arc segment
+        path.emplace_back(existingPath.back()->clone());
       }
 
       // std::cout << "  ::Checking funnel length from potential apex" << std::endl; //DEBUGPRINTS
