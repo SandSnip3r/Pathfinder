@@ -65,10 +65,15 @@ double angleBetweenVectors(const QPointF &v1Start, const QPointF &v1End, const Q
   return std::acos(dotProductOfVectors/lengthsMultiplied);
 }
 
-double arcAngle(const double startAngle, const double endAngle, bool isCounterclockwise) {
+double arcAngle(const double startAngle, const double endAngle, AngleDirection direction) {
+  if (direction == AngleDirection::kPoint) {
+    // A point has no angle
+    // TODO: Maybe even throw here since we probably shouldnt be calling this function in that case
+    return 0;
+  }
   // Counterclockwise is positive
   double spanAngle;
-  if (isCounterclockwise) {
+  if (direction == AngleDirection::kCounterclockwise) {
     spanAngle = endAngle - startAngle;
   } else {
     spanAngle = startAngle - endAngle;
@@ -77,7 +82,7 @@ double arcAngle(const double startAngle, const double endAngle, bool isCountercl
     // Make sure it's within the range [0-2*pi)
     spanAngle += k2Pi;
   }
-  if (!isCounterclockwise) {
+  if (direction == AngleDirection::kClockwise) {
     // Flip so that clockwise is negative
     spanAngle *= -1;
   }
@@ -167,6 +172,198 @@ double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const QPointF &edgeS
     }
   }
   return distanceResult;
+}
+
+bool counterclockwiseTo(const double theta, const double phi) {
+  // Checking if rotating from theta to phi is counterclockwise
+  return !clockwiseTo(theta, phi);
+}
+
+bool clockwiseTo(const double theta, const double phi) {
+  const double kPi = 3.14159;
+  // Checking if rotating from theta to phi is clockwise
+  // Move theta to 0 and move phi by same angle (-theta)
+  double newPhi = phi - theta;
+  if (newPhi < 0) {
+    newPhi += 2*kPi;
+  }
+  return (newPhi >= kPi);
+}
+
+double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius) {
+  // Find the two lines that are tangent to the circle and intersect with the given point
+  double distanceToCircle = math::distance(point,centerOfCircle);
+  double lengthOfTangentLine = sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
+  double angleOfTangentLine = asin(circleRadius/distanceToCircle);
+  return angleOfTangentLine;
+}
+
+std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius) {
+  // Find the two lines that are tangent to the circle and intersect with the given point
+  double distanceToCircle = math::distance(point,centerOfCircle);
+  double lengthOfTangentLine = sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
+  double angleOfTangentLine = asin(circleRadius/distanceToCircle);
+
+  // Calculate angle for center of circle
+  double angleOfCenterOfCircle = math::angle(point, centerOfCircle);
+
+  // First point is counterclockwise to circle
+  // Second point is clockwise to circle
+  double x1 = point.x() + lengthOfTangentLine * cos(angleOfCenterOfCircle+angleOfTangentLine);
+  double y1 = point.y() + lengthOfTangentLine * sin(angleOfCenterOfCircle+angleOfTangentLine);
+
+  double x2 = point.x() + lengthOfTangentLine * cos(angleOfCenterOfCircle-angleOfTangentLine);
+  double y2 = point.y() + lengthOfTangentLine * sin(angleOfCenterOfCircle-angleOfTangentLine);
+  return {QPointF(x1, y1), QPointF(x2, y2)};
+}
+
+double angle(const QPointF &point1, const AngleDirection point1Direction, const QPointF &point2, const AngleDirection point2Direction, const double circleRadius) {
+  double angleBetweenPoints = math::angle(point1, point2);
+
+  if (point1Direction == AngleDirection::kPoint && point2Direction != AngleDirection::kPoint) {
+    // Point to circle
+    const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(point1, point2, circleRadius);
+    if (point2Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the left point
+      angleBetweenPoints += angleToTangent;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the right point
+      angleBetweenPoints -= angleToTangent;
+    }
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction == AngleDirection::kPoint) {
+    // Circle to point
+    const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(point2, point1, circleRadius);
+    if (point1Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the right point (from the perspective of point2)
+      angleBetweenPoints -= angleToTangent;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the left point (from the perspective of point2)
+      angleBetweenPoints += angleToTangent;
+    }
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction != AngleDirection::kPoint && point1Direction != point2Direction) {
+    // Circle to circle and inner tangent
+    // Find the point between these two circles
+    QPointF midpoint;
+    midpoint.setX(point1.x() + (point2.x()-point1.x())/2);
+    midpoint.setY(point1.y() + (point2.y()-point1.y())/2);
+    const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(midpoint, point2, circleRadius);
+    if (point1Direction == AngleDirection::kCounterclockwise) {
+      angleBetweenPoints += angleToTangent;
+    } else {
+      angleBetweenPoints -= angleToTangent;
+    }
+  } else {
+    // Point to point or circle to circle and outer tangent
+  }
+
+  return angleBetweenPoints;
+}
+
+std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius) {
+  if (circleRadius < 0.001) {
+    return {point1, point2};
+  }
+  QPointF lineStart, lineEnd;
+
+  if (point1Direction == AngleDirection::kPoint) {
+    lineStart = point1;
+  } else {
+    // point1 is a circle
+    // Does point2 lie within the first circle?
+    const auto distanceBetweenPoints = math::distance(point1, point2);
+    if (math::lessThan(distanceBetweenPoints, circleRadius)) {
+      // TODO: point2 is inside point1's circle. Handle
+      // std::cout << "point2 is inside point1's circle" << std::endl;
+    } else if (math::equal(distanceBetweenPoints, circleRadius)) {
+      // point2 on the circumference of point1's circle
+      // the line is really not a line
+      return {point2, point2};
+    }
+  }
+  if (point2Direction == AngleDirection::kPoint) {
+    lineEnd = point2;
+  } else {
+    // point2 is a circle
+    // Does point1 lie within the first circle?
+    const auto distanceBetweenPoints = math::distance(point1, point2);
+    if (math::lessThan(distanceBetweenPoints, circleRadius)) {
+      // TODO: point1 is inside point2's circle. Handle
+      // std::cout << "point1 is inside point2's circle" << std::endl;
+    } else if (math::equal(distanceBetweenPoints, circleRadius)) {
+      // point1 on the circumference of point2's circle
+      // the line is really not a line
+      return {point1, point1};
+    }
+  }
+
+  if (point1Direction == AngleDirection::kPoint && point2Direction != AngleDirection::kPoint) {
+    // Point to circle
+    const auto intersectionPoints = intersectionsPointsOfTangentLinesToCircle(point1, point2, circleRadius);
+    if (point2Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the left point
+      lineEnd = intersectionPoints.first;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the right point
+      lineEnd = intersectionPoints.second;
+    }
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction == AngleDirection::kPoint) {
+    // Circle to point
+    const auto intersectionPoints = intersectionsPointsOfTangentLinesToCircle(point2, point1, circleRadius);
+    if (point1Direction == AngleDirection::kClockwise) {
+      // Agent will be turning clockwise around this point, get the angle of the right point (from the perspective of point2)
+      lineStart = intersectionPoints.second;
+    } else {
+      // Agent will be turning counterclockwise around this point, get the angle of the left point (from the perspective of point2)
+      lineStart = intersectionPoints.first;
+    }
+  } else if (point1Direction != AngleDirection::kPoint && point2Direction != AngleDirection::kPoint) {
+    // Circle to circle
+    if (point1Direction == point2Direction) {
+      // Outer tangents
+      double distanceBetweenCircles = math::distance(point1, point2);
+      double absoluteAngleToCircle2 = math::angle(point1, point2);
+      double distanceToNewPoint = sqrt(distanceBetweenCircles*distanceBetweenCircles + circleRadius*circleRadius);
+      double angleFromCircle2ToNewPoint = asin(circleRadius / distanceToNewPoint);
+      double newAngle = absoluteAngleToCircle2 + angleFromCircle2ToNewPoint;
+
+      double dxFromPoint1 = distanceToNewPoint * cos(newAngle);
+      double dyFromPoint1 = distanceToNewPoint * sin(newAngle);
+
+      QPointF newPoint{point1.x() + dxFromPoint1, point1.y() + dyFromPoint1};
+      double circleXOffset = newPoint.x() - point2.x();
+      double circleYOffset = newPoint.y() - point2.y();
+
+      if (point1Direction == AngleDirection::kClockwise) {
+        // Both clockwise
+        lineStart = QPointF{point1.x() + circleXOffset, point1.y() + circleYOffset};
+        lineEnd = QPointF{point2.x() + circleXOffset, point2.y() + circleYOffset};
+      } else {
+        // Both counterclockwise
+        lineStart = QPointF{point1.x() - circleXOffset, point1.y() - circleYOffset};
+        lineEnd = QPointF{point2.x() - circleXOffset, point2.y() - circleYOffset};
+      }
+    } else {
+      // Inner tangents
+      // Find the point between these two circles
+      QPointF midpoint;
+      midpoint.setX(point1.x() + (point2.x()-point1.x())/2);
+      midpoint.setY(point1.y() + (point2.y()-point1.y())/2);
+      const auto intersectionPointsWithFirstCircle = intersectionsPointsOfTangentLinesToCircle(midpoint, point1, circleRadius);
+      const auto intersectionPointsWithSecondCircle = intersectionsPointsOfTangentLinesToCircle(midpoint, point2, circleRadius);
+      if (point1Direction == AngleDirection::kCounterclockwise) {
+        // point2 must be clockwise
+        lineStart = intersectionPointsWithFirstCircle.first;
+        lineEnd = intersectionPointsWithSecondCircle.first;
+      } else {
+        // point1 is clockwise
+        // point2 must be counterclockwise
+        lineStart = intersectionPointsWithFirstCircle.second;
+        lineEnd = intersectionPointsWithSecondCircle.second;
+      }
+    }
+  }
+
+  return {lineStart, lineEnd};
 }
 
 } // namespace math
