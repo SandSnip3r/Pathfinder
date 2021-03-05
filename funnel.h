@@ -14,7 +14,10 @@ struct Apex {
   AngleDirection apexType;
 };
 
+class BaseFunnel;
+
 class Funnel {
+friend class BaseFunnel;
 public:
   Funnel() = default; // TODO: Kind of in a weird state here
   Funnel(const QPointF &initialApex, const int corridorSize);
@@ -36,6 +39,7 @@ public:
   int apex_index() const;
   void set_apex_index(const int index);
   void set_apex_type(const AngleDirection type);
+  Funnel cloneButSpaceFor1More() const;
 private:
   std::vector<QPointF> funnel_;
   AngleDirection apexType_{AngleDirection::kPoint};
@@ -68,15 +72,21 @@ struct ArcPathSegment : public PathSegment {
 class BaseFunnel {
 public:
   BaseFunnel(const double agentRadius);
-  void funnel(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint, std::optional<QPointF> &goalPoint);
+  void funnelWithGoal(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint, const QPointF &goalPoint);
+  void funnelWithoutGoal(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint);
+  QPointF finishFunnelAndFindClosestGoalOnEdge(const std::pair<QPointF,QPointF> &edge);
+  void finishFunnelWithGoal(const QPointF &goalPoint);
+  Funnel cloneFunnelButSpaceFor1MorePoint() const;
+  void extendByOneEdge(const std::pair<QPointF,QPointF> &edge);
 protected:
   const double agentRadius_{0.0};
   Funnel funnel_;
   void addLeft(const QPointF &point);
   void addRight(const QPointF &point, const bool isGoal=false);
-  // void addGoal(const QPointF &point); // TODO
   void finishFunnel();
 private:
+  void initializeForFunnelAlgorithm(const int corridorSize, const QPointF &startPoint, const QPointF *goalPoint=nullptr);
+  void funnelForCorridor(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint);
   virtual void addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) = 0;
   virtual double currentPathLength() const = 0;
   virtual QPointF findBestGoalForFunnel(const std::pair<QPointF,QPointF> &lastEdgeOfCorridor) const = 0;
@@ -104,7 +114,7 @@ private:
   virtual void addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) override;
   virtual double currentPathLength() const override;
   virtual QPointF findBestGoalForFunnel(const std::pair<QPointF,QPointF> &lastEdgeOfCorridor) const override;
-  double funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, const QPointF &goalPoint) const; // TODO: Think
+  double funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, const QPointF &goalPoint) const;
 };
 
 #endif // FUNNEL_H

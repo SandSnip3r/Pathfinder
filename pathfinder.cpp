@@ -88,11 +88,9 @@ PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const 
     }
 
     // A path was found
-    std::optional<QPointF> goalPointOptional = goalPoint;
-    // TODO: calculateGValue (called from triangleAStar) has already calculated this funnel
     const auto corridor = buildCorridor(result.aStarInfo.triangleCorridor);
     PathFunnel pathFunnel(characterRadius_);
-    pathFunnel.funnel(corridor, startPoint, goalPointOptional);
+    pathFunnel.funnelWithGoal(corridor, startPoint, goalPoint);
     result.shortestPath = pathFunnel.getPath();
   }
 
@@ -272,7 +270,7 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
 
 std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const {
   // The common edge between triangles `state` and `parentState`
-  const int commonEdge = state.entryEdge;
+  const int commonEdgeNum = state.entryEdge;
 
   if (state.isGoal) {
     // Find length of actual path from start to goal
@@ -285,11 +283,21 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
       // std::cout << "  [G Value] (" << result << ") Straight line from start to goal" << std::endl; //DEBUGPRINTS
     } else {
       // Multiple triangles in corridor, do normal funnel algorithm to find the exact path length
-      std::optional<QPointF> goalPointOptional = goalPoint;
       // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
-      const auto corridor = buildCorridor(triangleCorridor);
+
       LengthFunnel lengthFunnel(characterRadius_);
-      lengthFunnel.funnel(corridor, startPoint, goalPointOptional);
+      if (false/* have cached funnel for parentState */) {
+        // We have a cached funnel for the parent state, lets copy that (we know it already has enough space for the goal)
+        /* lengthFunnel = cachedFunnel; */
+      } else {
+        // Don't have a cached funnel, build the whole thing
+        const auto corridor = buildCorridor(triangleCorridor);
+        lengthFunnel.funnelWithoutGoal(corridor, startPoint);
+      }
+      // I don't think there's a point to cache this funnel, skipping
+
+      // Finish the funnel with the goal
+      lengthFunnel.finishFunnelWithGoal(goalPoint);
       result = lengthFunnel.getLength();
       // std::cout << "  [G Value] (" << result << "), " << shortestPath.size() << "-segment path from start to goal" << std::endl; //DEBUGPRINTS
     }
@@ -305,26 +313,32 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
   
   if (triangleCorridor.size() == 1) {
     // Only one triangle in corridor
-    result = distanceBetweenEdgeAndPoint(commonEdge, startPoint, &pointUsed);
-    // std::cout << "  [G Value] (" << result << ") Straight line from start to edge " << commonEdge << std::endl; //DEBUGPRINTS
+    result = distanceBetweenEdgeAndPoint(commonEdgeNum, startPoint, &pointUsed);
+    // std::cout << "  [G Value] (" << result << ") Straight line from start to edge " << commonEdgeNum << std::endl; //DEBUGPRINTS
   } else {
     // Funnel from startPoint to a point that minimizes g-value
-    std::optional<QPointF> pointUsedResult;
     // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
-    // TODO: >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    // We want to have the result of this funnel so we can cache it
-    //  In fact, this will (probably?) end up being the result of the pathfinding algorithm
-    // Using the cached funnel, there might be an apex that is not the startPoint
-    //  In this case, the funnel we build will be smaller.
-    // We also need to save the pathlength of that cached funnel up to that apex
-    // TODO: <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    const auto corridor = buildCorridor(triangleCorridor);
+
+    // ============================================================
     LengthFunnel lengthFunnel(characterRadius_);
-    lengthFunnel.funnel(corridor, startPoint, pointUsedResult); // No goal given (empty optional)
-    if (!pointUsedResult) {
-      throw std::runtime_error("Dont know point used in funnel");
+    const auto commonEdge = getEdge(commonEdgeNum);
+    if (false/* have cached funnel for parentState */) {
+      // We have a cached funnel for the parent state, lets copy that and extend it
+      // Duplicate the cached funnel, but make sure that we have room for our new edge
+      /* lengthFunnel = cachedFunnel.cloneFunnelButSpaceFor1MorePoint(); */
+      // Add the next edge in the corriror (which is the edge betweeen 'parentState' and 'state')
+      /* lengthFunnel.extendByOneEdge(commonEdge); */
+    } else {
+      // Don't have a cached funnel, build the whole thing
+      const auto corridor = buildCorridor(triangleCorridor);
+      lengthFunnel.funnelWithoutGoal(corridor, startPoint);
     }
-    pointUsed = *pointUsedResult;
+    // Cache the current funnel for 'state'
+    /* funnelCache[state] = lengthFunnel; */
+
+    // Figure out the shortest path to get to 'state'
+    pointUsed = lengthFunnel.finishFunnelAndFindClosestGoalOnEdge(commonEdge);
+    
     // std::cout << "Shortest path: ["; //DEBUGPRINTS
     // for (const auto &i : shortestPath) { //DEBUGPRINTS
       // const StraightPathSegment *straightSegment = dynamic_cast<const StraightPathSegment*>(i.get()); //DEBUGPRINTS
@@ -336,8 +350,9 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
       // } //DEBUGPRINTS
     // } //DEBUGPRINTS
     // std::cout << "]" << std::endl; //DEBUGPRINTS
+
     result = lengthFunnel.getLength();
-    // std::cout << "  Funneling for g(x) from start to edge " << commonEdge << ", length: " << result << std::endl; //DEBUGPRINTS
+    // std::cout << "  Funneling for g(x) from start to edge " << commonEdgeNum << ", length: " << result << std::endl; //DEBUGPRINTS
   }
   return {result, pointUsed};
 }
@@ -378,7 +393,7 @@ double Pathfinder::lengthOfEdge(int edgeNum) const {
   return math::distance(vertexA, vertexB);
 }
 
-double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation) const {
+std::pair<QPointF,QPointF> Pathfinder::getEdge(int edgeNum) const {
   // Return the distance between the closest end of the given edge and the given point
   if (edgeNum < 0) {
     throw std::runtime_error("Invalid edge");
@@ -393,7 +408,12 @@ double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point
   }
   const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
   const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
+  return {vertexA, vertexB};
+}
 
+double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation) const {
+  // Return the distance between the closest end of the given edge and the given point
+  const auto [vertexA, vertexB] = getEdge(edgeNum);
   return math::distanceBetweenEdgeAndPoint(vertexA, vertexB, point, pointUsedForDistanceCalculation);
 }
 
@@ -601,7 +621,6 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
         const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
         // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
         if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
-          // TODO: This comparison was suffering from a floating point issue
 
           // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
           // Update previous

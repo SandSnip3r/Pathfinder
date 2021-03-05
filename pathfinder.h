@@ -60,6 +60,7 @@ private:
   int findTriangleForPoint(const QPointF &point) const;
   QPointF midpointOfEdge(int edgeNum) const;
   double lengthOfEdge(int edgeNum) const;
+  std::pair<QPointF,QPointF> getEdge(int edgeNum) const;
   double distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr) const;
   double calculateArcLength(const int edge1, const int edge2) const;
   double calculateHValue(const State &state, const QPointF &goalPoint) const;
