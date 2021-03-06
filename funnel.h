@@ -71,15 +71,16 @@ struct ArcPathSegment : public PathSegment {
 
 class BaseFunnel {
 public:
+  BaseFunnel() = default; // TODO: Might not be worth having
   BaseFunnel(const double agentRadius);
   void funnelWithGoal(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint, const QPointF &goalPoint);
   void funnelWithoutGoal(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint);
   QPointF finishFunnelAndFindClosestGoalOnEdge(const std::pair<QPointF,QPointF> &edge);
   void finishFunnelWithGoal(const QPointF &goalPoint);
-  Funnel cloneFunnelButSpaceFor1MorePoint() const;
   void extendByOneEdge(const std::pair<QPointF,QPointF> &edge);
+  const Funnel& getFunnel() const { return funnel_; } //TODO: Remove after done debugging
 protected:
-  const double agentRadius_{0.0};
+  double agentRadius_{0.0}; // TODO: Make constant
   Funnel funnel_;
   void addLeft(const QPointF &point);
   void addRight(const QPointF &point, const bool isGoal=false);
@@ -107,7 +108,9 @@ private:
 class LengthFunnel : public BaseFunnel {
 public:
   using BaseFunnel::BaseFunnel;
+  LengthFunnel& operator=(const LengthFunnel &other) = default;
   double getLength() const;
+  LengthFunnel cloneFunnelButSpaceFor1MorePoint() const;
 private:
   double length_{0.0};
   std::optional<double> previousAngle_;

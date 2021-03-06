@@ -51,10 +51,7 @@ private:
   // Pre-computed data from triangle data
   std::vector<std::array<int,3>> triangleEdges_;
 
-  // TODO: Remove
-  // Funnel cache
-  // Apex funnelApex;
-  // std::deque<QPointF> funnel;
+  mutable std::map<State, LengthFunnel> lengthFunnelCache_; // TODO: Dont use mutable
 
   bool pointIsInTriangle(const QPointF &point, const int triangleNum) const;
   int findTriangleForPoint(const QPointF &point) const;
@@ -64,7 +61,7 @@ private:
   double distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr) const;
   double calculateArcLength(const int edge1, const int edge2) const;
   double calculateHValue(const State &state, const QPointF &goalPoint) const;
-  std::pair<double, QPointF> calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const;
+  std::tuple<double, QPointF, std::optional<LengthFunnel>> calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const;
   PathfindingAStarInfo triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const;
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
 

@@ -268,7 +268,7 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
   return characterRadius_ * angle; // Original from paper
 }
 
-std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const {
+std::tuple<double, QPointF, std::optional<LengthFunnel>> Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const {
   // The common edge between triangles `state` and `parentState`
   const int commonEdgeNum = state.entryEdge;
 
@@ -286,31 +286,33 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
       // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
 
       LengthFunnel lengthFunnel(characterRadius_);
-      if (false/* have cached funnel for parentState */) {
+      const auto funnelCacheIt = lengthFunnelCache_.find(parentState);
+      if (funnelCacheIt != lengthFunnelCache_.end()) {
         // We have a cached funnel for the parent state, lets copy that (we know it already has enough space for the goal)
-        /* lengthFunnel = cachedFunnel; */
+        lengthFunnel = funnelCacheIt->second;
       } else {
         // Don't have a cached funnel, build the whole thing
         const auto corridor = buildCorridor(triangleCorridor);
         lengthFunnel.funnelWithoutGoal(corridor, startPoint);
       }
-      // I don't think there's a point to cache this funnel, skipping
 
       // Finish the funnel with the goal
       lengthFunnel.finishFunnelWithGoal(goalPoint);
       result = lengthFunnel.getLength();
       // std::cout << "  [G Value] (" << result << "), " << shortestPath.size() << "-segment path from start to goal" << std::endl; //DEBUGPRINTS
     }
-    return {result, goalPoint};
+    // Never caching the funnel used here
+    return {result, goalPoint, std::optional<LengthFunnel>{}};
   }
 
   // State is not the goal
   double result;
   QPointF pointUsed;
+  std::optional<LengthFunnel> optionalFunnelForCaching;
   std::vector<int> triangleCorridor = rebuildPath(parentState, previous);
   // Add the current triangle to the corridor
   triangleCorridor.emplace_back(state.triangleNum);
-  
+
   if (triangleCorridor.size() == 1) {
     // Only one triangle in corridor
     result = distanceBetweenEdgeAndPoint(commonEdgeNum, startPoint, &pointUsed);
@@ -322,19 +324,23 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
     // ============================================================
     LengthFunnel lengthFunnel(characterRadius_);
     const auto commonEdge = getEdge(commonEdgeNum);
-    if (false/* have cached funnel for parentState */) {
+    const auto funnelCacheIt = lengthFunnelCache_.find(parentState);
+    if (funnelCacheIt != lengthFunnelCache_.end()) {
       // We have a cached funnel for the parent state, lets copy that and extend it
       // Duplicate the cached funnel, but make sure that we have room for our new edge
-      /* lengthFunnel = cachedFunnel.cloneFunnelButSpaceFor1MorePoint(); */
+      lengthFunnel = funnelCacheIt->second.cloneFunnelButSpaceFor1MorePoint();
+
+
       // Add the next edge in the corriror (which is the edge betweeen 'parentState' and 'state')
-      /* lengthFunnel.extendByOneEdge(commonEdge); */
+      lengthFunnel.extendByOneEdge(commonEdge);
     } else {
       // Don't have a cached funnel, build the whole thing
       const auto corridor = buildCorridor(triangleCorridor);
       lengthFunnel.funnelWithoutGoal(corridor, startPoint);
     }
-    // Cache the current funnel for 'state'
-    /* funnelCache[state] = lengthFunnel; */
+
+    // Save the funnel before adding the goal
+    optionalFunnelForCaching = lengthFunnel;
 
     // Figure out the shortest path to get to 'state'
     pointUsed = lengthFunnel.finishFunnelAndFindClosestGoalOnEdge(commonEdge);
@@ -354,7 +360,7 @@ std::pair<double, QPointF> Pathfinder::calculateGValue(const State &state, const
     result = lengthFunnel.getLength();
     // std::cout << "  Funneling for g(x) from start to edge " << commonEdgeNum << ", length: " << result << std::endl; //DEBUGPRINTS
   }
-  return {result, pointUsed};
+  return {result, pointUsed, optionalFunnelForCaching};
 }
 
 QPointF Pathfinder::midpointOfEdge(int edgeNum) const {
@@ -612,9 +618,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
           fScores.emplace(successor, std::numeric_limits<double>::max());
         }
         
-        const auto gValueResult = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
-        const double gValueOfSuccessor = gValueResult.first;
-        const QPointF pointUsedForGValue = gValueResult.second;
+        const auto [gValueOfSuccessor, pointUsedForGValue, optionalFunnelCreated] = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
         const double oldHValue = calculateHValue(successor, goalPoint);
         const double newHValue = math::distance(pointUsedForGValue, goalPoint);
         const double hValueOfSuccessor = std::min(oldHValue, newHValue);
@@ -625,6 +629,13 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
           // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
           // Update previous
           previous[successor] = currentState;
+
+          if (optionalFunnelCreated) {
+            // Funnel was created, cache it
+            // May overwrite existing cached funnel, that's intentional
+            // std::cout << "    Found a better fscore for state " << successor << ", caching funnel" << std::endl; //DEBUGPRINTS
+            lengthFunnelCache_[successor] = *optionalFunnelCreated;
+          }
 
           // Update fScore
           fScores.at(successor) = fValueOfSuccessor;

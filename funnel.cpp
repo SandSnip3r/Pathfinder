@@ -65,8 +65,10 @@ void BaseFunnel::finishFunnelWithGoal(const QPointF &goalPoint) {
   // std::cout << ']' << std::endl; //DEBUGPRINTS
 }
 
-Funnel BaseFunnel::cloneFunnelButSpaceFor1MorePoint() const {
-  return funnel_.cloneButSpaceFor1More();
+LengthFunnel LengthFunnel::cloneFunnelButSpaceFor1MorePoint() const {
+  LengthFunnel newFunnel{*this};
+  newFunnel.funnel_ = funnel_.cloneButSpaceFor1More();
+  return newFunnel;
 }
 
 void BaseFunnel::initializeForFunnelAlgorithm(const int corridorSize, const QPointF &startPoint, const QPointF *goalPoint) {
@@ -85,6 +87,7 @@ void BaseFunnel::initializeForFunnelAlgorithm(const int corridorSize, const QPoi
 }
 
 void BaseFunnel::extendByOneEdge(const std::pair<QPointF,QPointF> &edge) {
+  // std::cout << "  Trying to extend funnel by edge {" << DebugLogger::instance().pointToString(edge.first) << ',' << DebugLogger::instance().pointToString(edge.second) << '}' << std::endl; //DEBUGPRINTS
   const auto &[vertexA, vertexB] = edge;
   if (vertexA == funnel_.back()) {
     addLeft(vertexB);
