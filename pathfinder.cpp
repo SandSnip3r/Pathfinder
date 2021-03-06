@@ -268,6 +268,49 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
   return characterRadius_ * angle; // Original from paper
 }
 
+double Pathfinder::calculateEstimateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const {
+  // The common edge between triangles `state` and `parentState`
+  const int commonEdge = state.entryEdge;
+  const double parentGValue = gScores.at(parentState);
+  const double hValue = calculateHValue(state, goalPoint);
+
+  // Max of {
+  // 1. Distance between start and closest point on edge `commonEdge`
+  double val1;
+  if (state.isGoal) {
+    // Straight line from start to goal
+    val1 = math::distance(startPoint, goalPoint);
+  } else {
+    // Straight line from start and closest point of edge to start
+    val1 = distanceBetweenEdgeAndPoint(commonEdge, startPoint);
+  }
+
+  // 2. parentState.gValue + (arc around vertex shared by parentState.entryEdge and `commonEdge`)
+  double val2 = parentGValue;
+  if (state.isGoal) {
+    // Need to add distance from entry edge to goal point
+    val2 += distanceBetweenEdgeAndPoint(state.entryEdge, goalPoint);
+  } else if (parentState.entryEdge != -1) {
+    // Can calculate arc-length
+    val2 += calculateArcLength(parentState.entryEdge, commonEdge);
+  }
+
+  // 3. parentState.gValue + (parentState.hValue - state.hValue)
+  double parentHeuristicValue;
+  if (parentState.entryEdge == -1) {
+    // This is the start
+    parentHeuristicValue = math::distance(startPoint, goalPoint);
+  } else {
+    parentHeuristicValue = calculateHValue(parentState, goalPoint);
+  }
+  const double val3 = parentGValue + (parentHeuristicValue - hValue);
+  // }
+  // std::cout << "  Potential g values for state " << state; //DEBUGPRINTS
+  // printf(" are [%.9f,%.9f,%.9f]\n",val1,val2,val3); //DEBUGPRINTS
+  // std::cout << std::flush; //DEBUGPRINTS
+  return std::max({val1, val2, val3});
+}
+
 std::tuple<double, QPointF, std::optional<LengthFunnel>> Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const {
   // The common edge between triangles `state` and `parentState`
   const int commonEdgeNum = state.entryEdge;
@@ -617,32 +660,56 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
           // No fScore yet for this state, initialize
           fScores.emplace(successor, std::numeric_limits<double>::max());
         }
-        
-        const auto [gValueOfSuccessor, pointUsedForGValue, optionalFunnelCreated] = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
-        const double oldHValue = calculateHValue(successor, goalPoint);
-        const double newHValue = math::distance(pointUsedForGValue, goalPoint);
-        const double hValueOfSuccessor = std::min(oldHValue, newHValue);
-        const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
-        // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
-        if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
 
-          // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
-          // Update previous
-          previous[successor] = currentState;
+        const bool kOptimalPath{false};
+        if (kOptimalPath) {
+          const auto [gValueOfSuccessor, pointUsedForGValue, optionalFunnelCreated] = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
+          const double oldHValue = calculateHValue(successor, goalPoint);
+          const double newHValue = math::distance(pointUsedForGValue, goalPoint);
+          const double hValueOfSuccessor = std::min(oldHValue, newHValue);
+          const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
+          // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
+          if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
 
-          if (optionalFunnelCreated) {
-            // Funnel was created, cache it
-            // May overwrite existing cached funnel, that's intentional
-            // std::cout << "    Found a better fscore for state " << successor << ", caching funnel" << std::endl; //DEBUGPRINTS
-            lengthFunnelCache_[successor] = *optionalFunnelCreated;
+            // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
+            // Update previous
+            previous[successor] = currentState;
+
+            if (optionalFunnelCreated) {
+              // Funnel was created, cache it
+              // May overwrite existing cached funnel, that's intentional
+              // std::cout << "    Found a better fscore for state " << successor << ", caching funnel" << std::endl; //DEBUGPRINTS
+              lengthFunnelCache_[successor] = *optionalFunnelCreated;
+            }
+
+            // Update fScore
+            fScores.at(successor) = fValueOfSuccessor;
+
+            // Add to open set if not already in
+            if (std::find(openSet.begin(), openSet.end(), successor) == openSet.end()) {
+              openSet.push_back(successor);
+            }
           }
+        } else {
+          const double gValueOfSuccessor = calculateEstimateGValue(successor, currentState, startPoint, goalPoint, gScores);
+          const double hValueOfSuccessor = calculateHValue(successor, goalPoint);
+          const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
+          // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
+          if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
+            // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
+            // Update previous
+            previous[successor] = currentState;
 
-          // Update fScore
-          fScores.at(successor) = fValueOfSuccessor;
+            // Update gScore
+            gScores.at(successor) = gValueOfSuccessor;
 
-          // Add to open set if not already in
-          if (std::find(openSet.begin(), openSet.end(), successor) == openSet.end()) {
-            openSet.push_back(successor);
+            // Update fScore
+            fScores.at(successor) = fValueOfSuccessor;
+
+            // Add to open set if not already in
+            if (std::find(openSet.begin(), openSet.end(), successor) == openSet.end()) {
+              openSet.push_back(successor);
+            }
           }
         }
       }

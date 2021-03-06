@@ -61,6 +61,7 @@ private:
   double distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr) const;
   double calculateArcLength(const int edge1, const int edge2) const;
   double calculateHValue(const State &state, const QPointF &goalPoint) const;
+  double calculateEstimateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const;
   std::tuple<double, QPointF, std::optional<LengthFunnel>> calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const;
   PathfindingAStarInfo triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const;
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
