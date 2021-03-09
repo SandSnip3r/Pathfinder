@@ -27,17 +27,8 @@ public:
   Funnel(const QPointF &initialApex, const int corridorSize);
   int size() const;
   bool empty() const;
-  // const_iterator begin() const;
-  // const_iterator end() const;
-  // const_reverse_iterator rbegin() const;
-  // const_reverse_iterator rend() const;
-  iterator begin();
-  iterator end();
-  iterator apex_it();
-  reverse_iterator rbegin();
-  reverse_iterator rend();
-  reverse_iterator rapex_it();
   const QPointF& at(int index) const;
+  const QPointF& reverse_at(int index) const;
   const QPointF& front() const;
   void pop_front();
   void push_front(const QPointF &point);
@@ -51,12 +42,13 @@ public:
   const QPointF& apex_point() const;
   AngleDirection apex_type() const;
   int apex_index() const;
+  int reverse_apex_index() const;
   void set_apex_index(const int index);
   void set_apex_type(const AngleDirection type);
   Funnel cloneButSpaceFor1More() const;
 private:
   std::vector<QPointF> funnel_;
-  AngleDirection apexType_{AngleDirection::kPoint};
+  AngleDirection apexType_{AngleDirection::kNoDirection};
   int apexIndex_;
   int leftIndex_, rightIndex_;
 };
@@ -108,10 +100,9 @@ private:
   virtual double currentPathLength() const = 0;
   virtual QPointF findBestGoalForFunnel(const std::pair<QPointF,QPointF> &lastEdgeOfCorridor) const = 0;
 
-  template<typename BeginItFunc, typename EndItFunc, typename ApexItFunc, typename ApexTypeFunc, typename SetBeginningAsApexFunc, typename SetApexTypeFunc, typename PushFunc, typename PushApexFunc, typename PopFunc>
-  void addPointToFunnel(const BeginItFunc &getBeginIt,
-                        const EndItFunc &getEndIt,
-                        const ApexItFunc &getApexIt,
+  template<typename AtFunc, typename ApexIndexFunc, typename ApexTypeFunc, typename SetBeginningAsApexFunc, typename SetApexTypeFunc, typename PushFunc, typename PushApexFunc, typename PopFunc>
+  void addPointToFunnel(const AtFunc &at,
+                        const ApexIndexFunc &apex_index,
                         const ApexTypeFunc &getApexType,
                         const SetBeginningAsApexFunc &setBeginningAsApex,
                         const SetApexTypeFunc &setApexType,
@@ -150,10 +141,9 @@ private:
   double funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, const QPointF &goalPoint) const;
 };
 
-template<typename BeginItFunc, typename EndItFunc, typename ApexItFunc, typename ApexTypeFunc, typename SetBeginningAsApexFunc, typename SetApexTypeFunc, typename PushFunc, typename PushApexFunc, typename PopFunc>
-void BaseFunnel::addPointToFunnel(const BeginItFunc &getBeginIt,
-                                  const EndItFunc &getEndIt,
-                                  const ApexItFunc &getApexIt,
+template<typename AtFunc, typename ApexIndexFunc, typename ApexTypeFunc, typename SetBeginningAsApexFunc, typename SetApexTypeFunc, typename PushFunc, typename PushApexFunc, typename PopFunc>
+void BaseFunnel::addPointToFunnel(const AtFunc &at,
+                                  const ApexIndexFunc &apex_index,
                                   const ApexTypeFunc &getApexType,
                                   const SetBeginningAsApexFunc &setBeginningAsApex,
                                   const SetApexTypeFunc &setApexType,
@@ -163,8 +153,8 @@ void BaseFunnel::addPointToFunnel(const BeginItFunc &getBeginIt,
                                   const AngleDirection &direction,
                                   const QPointF &point,
                                   const bool isGoal) {
-  if (direction == AngleDirection::kPoint) {
-    throw std::runtime_error("Direction \"kPoint\" does not make sense in this function");
+  if (direction == AngleDirection::kNoDirection) {
+    throw std::runtime_error("Direction \"kNoDirection\" does not make sense in this function");
   }
 
   const AngleDirection oppositeDirection = (direction == AngleDirection::kClockwise ? AngleDirection::kCounterclockwise : AngleDirection::kClockwise);
@@ -187,63 +177,53 @@ void BaseFunnel::addPointToFunnel(const BeginItFunc &getBeginIt,
     }
   };
 
-  auto badNameTODO = [&direction](const double theta, const double phi) {
-    if (direction == AngleDirection::kClockwise) {
-      return math::counterclockwiseTo(theta, phi); // Rotating from theta to phi is counterclockwise
-    } else {
-      return math::clockwiseTo(theta, phi); // Rotating from theta to phi is clockwise
-    }
-  };
-
-  auto newEdgeWouldRotateInwards = [this, &getBeginIt, &getApexIt, &getApexType, &badNameTODO, &direction, &point, &isGoal]() {
+  auto newEdgeRotatesOutwards = [this, &at, &apex_index, &getApexType, &direction, &point, &isGoal]() {
     // Returns true if a potentially newly added edge would rotate toward the "inside" of the funnel
     // Note: We trust that there are at least 2 points and that the first is not the apex
 
     // std::cout << "Checking if a new edge (to point " << DebugLogger::instance().pointToString(point) << ") would rotate towards the inside of the funnel" << std::endl; //DEBUGPRINTS
 
-    const auto beginIt = getBeginIt();
-    const auto apexIt = getApexIt();
+    const auto &firstPoint = at(0);
 
-    const QPointF &mostRecentEdgePoint1 = *std::next(beginIt);
-    const QPointF &mostRecentEdgePoint2 = *beginIt;
+    const QPointF &mostRecentEdgePoint1 = at(1);
+    const QPointF &mostRecentEdgePoint2 = firstPoint;
     AngleDirection mostRecentEdgePoint1Direction;
     const AngleDirection mostRecentEdgePoint2Direction = direction;
 
     // We know that the first point is not the apex, but the second point could be
-    if (std::next(beginIt) == apexIt) {
+    if (apex_index() == 1) {
       mostRecentEdgePoint1Direction = getApexType();
     } else {
       // Neither points are the apex
       mostRecentEdgePoint1Direction = direction;
     }
 
-    const QPointF &newEdgePoint1 = *beginIt;
+    const QPointF &newEdgePoint1 = firstPoint;
     const QPointF &newEdgePoint2 = point;
     const AngleDirection newEdgePoint1Direction = direction;
-    const AngleDirection newEdgePoint2Direction = (isGoal ? AngleDirection::kPoint : direction);
+    const AngleDirection newEdgePoint2Direction = (isGoal ? AngleDirection::kNoDirection : direction);
 
-
-    const double theta = math::angle(mostRecentEdgePoint1, mostRecentEdgePoint1Direction, mostRecentEdgePoint2, mostRecentEdgePoint2Direction, agentRadius_);
-    const double phi = math::angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, agentRadius_);
-
-    // std::cout << "  Comparing edge mostRecent: " << DebugLogger::instance().pointToString(mostRecentEdgePoint1) << "->" << DebugLogger::instance().pointToString(mostRecentEdgePoint2) << " (angle = " << theta << ") to " << DebugLogger::instance().pointToString(newEdgePoint1) << "->" << DebugLogger::instance().pointToString(newEdgePoint2) << " (angle = " << phi << ")" << std::endl; //DEBUGPRINTS
-    return badNameTODO(theta, phi);
+    const double mostRecentEdgeAngle = math::angle(mostRecentEdgePoint1, mostRecentEdgePoint1Direction, mostRecentEdgePoint2, mostRecentEdgePoint2Direction, agentRadius_);
+    const double newEdgeAngle = math::angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, agentRadius_);
+    const double newEdgeRelativeAngle = newEdgeAngle - mostRecentEdgeAngle;
+    return (math::angleRelativeToOrigin(newEdgeRelativeAngle) == direction);
   };
   // std::cout << "  << Adding " << DebugLogger::instance().pointToString(point) << " to " << directionString() << " of funnel" << std::endl; //DEBUGPRINTS
 
   std::optional<Apex> newApex;
   // Make sure there is at least one edge in the funnel
-  if (std::distance(getBeginIt(), getEndIt()) >= 2) {
+  if (funnel_.size() >= 2) {
     // Remove edges that are more outward-rotating than this new potential edges
-    while (getBeginIt() != getApexIt() && newEdgeWouldRotateInwards()) {
+    while (apex_index() != 0 && !newEdgeRotatesOutwards()) {
       // std::cout << "    << Popping from " << directionString() << " of funnel" << std::endl; //DEBUGPRINTS
       pop();
     }
 
     // Need to check if this new edge would cross over the apex
-    while (getBeginIt() == getApexIt() && std::distance(getBeginIt(), getEndIt()) >= 2) {
-      std::pair<QPointF, QPointF> newWedge = math::createCircleConsciousLine(*getBeginIt(), getApexType(), point, (isGoal ? AngleDirection::kPoint : direction), agentRadius_);
-      std::pair<QPointF, QPointF> firstEdgeInOtherDirection = math::createCircleConsciousLine(*getBeginIt(), getApexType(), *std::next(getBeginIt()), oppositeDirection, agentRadius_);
+    while (apex_index() == 0 && funnel_.size() >= 2) {
+      const auto &currentApexPoint = at(0);
+      std::pair<QPointF, QPointF> newWedge = math::createCircleConsciousLine(currentApexPoint, getApexType(), point, (isGoal ? AngleDirection::kNoDirection : direction), agentRadius_);
+      std::pair<QPointF, QPointF> firstEdgeInOtherDirection = math::createCircleConsciousLine(currentApexPoint, getApexType(), at(1), oppositeDirection, agentRadius_);
       if (rotatesInwardsViaCrossProduct(newWedge.first, newWedge.second, firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second)) {
         // New point crosses over apex
         // std::cout << "    << New point crosses over apex" << std::endl; //DEBUGPRINTS
@@ -251,9 +231,9 @@ void BaseFunnel::addPointToFunnel(const BeginItFunc &getBeginIt,
           // New point is closer and should instead be the apex
           // std::cout << "      << New point is closer and should instead be the apex" << std::endl; //DEBUGPRINTS
 
-          newApex = Apex{point, (isGoal ? AngleDirection::kPoint : direction)};
+          newApex = Apex{point, (isGoal ? AngleDirection::kNoDirection : direction)};
 
-          addSegment(Apex{*getApexIt(), getApexType()}, newWedge, *newApex);
+          addSegment(funnel_.funnel_apex(), newWedge, *newApex);
 
           // Remove old apex
           pop();
@@ -263,9 +243,9 @@ void BaseFunnel::addPointToFunnel(const BeginItFunc &getBeginIt,
         } else {
           // std::cout << "      << Normal add of apex to path" << std::endl; //DEBUGPRINTS
           // Add the apex to the path
-          Apex updatedApex{*std::next(getBeginIt()), oppositeDirection};
+          Apex updatedApex{at(1), oppositeDirection};
 
-          addSegment(Apex{*getApexIt(), getApexType()}, firstEdgeInOtherDirection, updatedApex);
+          addSegment(funnel_.funnel_apex(), firstEdgeInOtherDirection, updatedApex);
 
           // Remove old apex
           pop();

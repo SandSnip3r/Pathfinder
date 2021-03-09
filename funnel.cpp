@@ -123,9 +123,8 @@ void BaseFunnel::funnelForCorridor(const std::vector<std::pair<QPointF,QPointF>>
 }
 
 void BaseFunnel::addLeft(const QPointF &point, const bool isGoal) {
-  addPointToFunnel(std::bind(&Funnel::begin, &funnel_),
-                   std::bind(&Funnel::end, &funnel_),
-                   std::bind(&Funnel::apex_it, &funnel_),
+  addPointToFunnel(std::bind(&Funnel::at, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::apex_index, &funnel_),
                    std::bind(&Funnel::apex_type, &funnel_),
                    [this](){ return funnel_.set_apex_index(0); },
                    std::bind(&Funnel::set_apex_type, &funnel_, std::placeholders::_1),
@@ -138,9 +137,8 @@ void BaseFunnel::addLeft(const QPointF &point, const bool isGoal) {
 }
 
 void BaseFunnel::addRight(const QPointF &point, const bool isGoal) {
-  addPointToFunnel(std::bind(&Funnel::rbegin, &funnel_),
-                   std::bind(&Funnel::rend, &funnel_),
-                   std::bind(&Funnel::rapex_it, &funnel_),
+  addPointToFunnel(std::bind(&Funnel::reverse_at, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::reverse_apex_index, &funnel_),
                    std::bind(&Funnel::apex_type, &funnel_),
                    [this](){ return funnel_.set_apex_index(funnel_.size()-1); },
                    std::bind(&Funnel::set_apex_type, &funnel_, std::placeholders::_1),
@@ -159,7 +157,7 @@ void BaseFunnel::finishFunnel() {
   for (int i=funnel_.apex_index(); i<funnel_.size()-1;) {
     if (i+1 == funnel_.size()-1) {
       // Next point is the end of the last right edge
-      t2 = AngleDirection::kPoint;
+      t2 = AngleDirection::kNoDirection;
     }
     std::pair<QPointF, QPointF> newEdge = math::createCircleConsciousLine(funnel_.at(i), t1, funnel_.at(i+1), t2, agentRadius_);
     addSegment(Apex{funnel_.at(i), t1}, newEdge, Apex{funnel_.at(i+1), t2});
@@ -171,7 +169,7 @@ void BaseFunnel::finishFunnel() {
 void PathFunnel::addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) {
   // std::cout << "  ~Adding segment to path for PathFunnel" << std::endl; //DEBUGPRINTS
   // First, finish an arc if there is an open one
-  if (previousApex.apexType != AngleDirection::kPoint && agentRadius_ > 0.0) {
+  if (previousApex.apexType != AngleDirection::kNoDirection && agentRadius_ > 0.0) {
     // Finish previously created arc
     //  We know that there must be at least one arc in the path
     PathSegment *mostRecentSegment = path_.back().get();
@@ -193,7 +191,7 @@ void PathFunnel::addSegment(const Apex &previousApex, const std::pair<QPointF,QP
   // std::cout << "    ~Adding straight segment from " << DebugLogger::instance().pointToString(edge.first) << " to " << DebugLogger::instance().pointToString(edge.second) << std::endl; //DEBUGPRINTS
   path_.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(edge.first, edge.second)));
 
-  if (newApex.apexType != AngleDirection::kPoint && agentRadius_ > 0.0) {
+  if (newApex.apexType != AngleDirection::kNoDirection && agentRadius_ > 0.0) {
     // Finally, since this isn't the end, start a new arc
     path_.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(newApex.apexPoint, agentRadius_, newApex.apexType)));
     PathSegment *mostRecentSegment = path_.back().get();
@@ -247,7 +245,7 @@ QPointF PathFunnel::findBestGoalForFunnel(const std::pair<QPointF,QPointF> &last
 void LengthFunnel::addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) {
   // std::cout << "  ~Adding segment to path for LengthFunnel" << std::endl; //DEBUGPRINTS
   // First, finish an arc if there is an open one
-  if (previousApex.apexType != AngleDirection::kPoint && agentRadius_ > 0.0) {
+  if (previousApex.apexType != AngleDirection::kNoDirection && agentRadius_ > 0.0) {
     // An arc has been started
     if (!previousAngle_) {
       throw std::runtime_error("There should be an angle for the start of this arc");
@@ -265,7 +263,7 @@ void LengthFunnel::addSegment(const Apex &previousApex, const std::pair<QPointF,
   // std::cout << "    ~Adding straight segment from " << DebugLogger::instance().pointToString(edge.first) << " to " << DebugLogger::instance().pointToString(edge.second) << ", length: " << math::distance(edge.first, edge.second) << std::endl; //DEBUGPRINTS
   length_ += math::distance(edge.first, edge.second);
 
-  if (newApex.apexType != AngleDirection::kPoint && agentRadius_ > 0.0) {
+  if (newApex.apexType != AngleDirection::kNoDirection && agentRadius_ > 0.0) {
     // Finally, since this isn't the end, start a new arc
     previousAngle_ = math::angle(newApex.apexPoint, edge.second);
     // std::cout << "    ~Not the end, adding the start of another arc (angle: " << *previousAngle_ << ")" << std::endl; //DEBUGPRINTS
@@ -422,51 +420,15 @@ bool Funnel::empty() const {
   return false;
 }
 
-// Funnel::const_iterator Funnel::begin() const {
-//   return funnel_.begin() + leftIndex_;
-// }
-
-// Funnel::const_iterator Funnel::end() const {
-//   return funnel_.begin() + leftIndex_ + size();
-// }
-
-// Funnel::const_reverse_iterator Funnel::rbegin() const {
-//   return funnel_.rbegin() + (size()-1-rightIndex_);
-// }
-
-// Funnel::const_reverse_iterator Funnel::rend() const {
-//   return funnel_.rbegin() + (size()-1-rightIndex_) + size();
-// }
-
-Funnel::iterator Funnel::begin() {
-  return funnel_.begin() + leftIndex_;
-}
-
-Funnel::iterator Funnel::end() {
-  return begin() + size();
-}
-
-Funnel::iterator Funnel::apex_it() {
-  return funnel_.begin() + apexIndex_;
-}
-
-Funnel::reverse_iterator Funnel::rbegin() {
-  return funnel_.rbegin() + (funnel_.size()-1-rightIndex_);
-}
-
-Funnel::reverse_iterator Funnel::rend() {
-  return rbegin() + size();
-}
-
-Funnel::reverse_iterator Funnel::rapex_it() {
-  return funnel_.rbegin() + (funnel_.size()-1-apexIndex_);
-}
-
 const QPointF& Funnel::at(int index) const {
-  if (index >= size()) {
+  if (index < 0 || index >= size()) {
     throw std::runtime_error("Accessing funnel out of bounds");
   }
   return funnel_.at(leftIndex_+index);
+}
+
+const QPointF& Funnel::reverse_at(int index) const {
+  return at(size()-1-index);
 }
 
 const QPointF& Funnel::front() const {
@@ -513,6 +475,10 @@ AngleDirection Funnel::apex_type() const {
 
 int Funnel::apex_index() const {
   return apexIndex_-leftIndex_;
+}
+
+int Funnel::reverse_apex_index() const {
+  return size()-1-apex_index();
 }
 
 void Funnel::push_front_apex(const Apex &apex) {

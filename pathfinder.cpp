@@ -661,7 +661,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
           fScores.emplace(successor, std::numeric_limits<double>::max());
         }
 
-        const bool kOptimalPath{false};
+        const bool kOptimalPath{true};
         if (kOptimalPath) {
           const auto [gValueOfSuccessor, pointUsedForGValue, optionalFunnelCreated] = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
           const double oldHValue = calculateHValue(successor, goalPoint);
