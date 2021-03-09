@@ -2,6 +2,7 @@
 #include "funnel.h"
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
 #include <stdexcept>
 
@@ -51,18 +52,6 @@ void BaseFunnel::finishFunnelWithGoal(const QPointF &goalPoint) {
   // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
   // And finish the algorithm, closing out the funnel
   finishFunnel();
-
-  // std::cout << "Final path: ["; //DEBUGPRINTS
-  // for (const auto &i : path) { //DEBUGPRINTS
-    // const StraightPathSegment *segment = dynamic_cast<const StraightPathSegment *>(i.get()); //DEBUGPRINTS
-    // const ArcPathSegment *arcSegment = dynamic_cast<const ArcPathSegment*>(i.get()); //DEBUGPRINTS
-    // if (segment != nullptr) { //DEBUGPRINTS
-      // std::cout << DebugLogger::instance().pointToString(segment->startPoint) << '-' << DebugLogger::instance().pointToString(segment->endPoint) << ','; //DEBUGPRINTS
-    // } else if (arcSegment != nullptr) { //DEBUGPRINTS
-      // std::cout << "arc " << DebugLogger::instance().pointToString(arcSegment->circleCenter) << "(" << arcSegment->startAngle << "->" << arcSegment->endAngle << "),"; //DEBUGPRINTS
-    // } //DEBUGPRINTS
-  // } //DEBUGPRINTS
-  // std::cout << ']' << std::endl; //DEBUGPRINTS
 }
 
 LengthFunnel LengthFunnel::cloneFunnelButSpaceFor1MorePoint() const {
@@ -133,195 +122,34 @@ void BaseFunnel::funnelForCorridor(const std::vector<std::pair<QPointF,QPointF>>
   // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
 }
 
-void BaseFunnel::addLeft(const QPointF &point) {
-  auto newWedgeIsClockwiseToLeftmostWedge = [this, &point]() {
-    // TODO: Might be safe to ignore these checks since we already check beforehand
-    if (funnel_.size() < 2) {
-      throw std::runtime_error("This function requires a funnel with at least two items");
-    }
-    if (funnel_.front() == funnel_.apex_point()) {
-      throw std::runtime_error("Assumption that the front of the funnel is not the apex was broken");
-    }
-
-    const QPointF leftmostEdgePoint1 = funnel_.at(1);
-    const QPointF leftmostEdgePoint2 = funnel_.front();
-    AngleDirection leftmostEdgePoint1Direction;
-    const AngleDirection leftmostEdgePoint2Direction = AngleDirection::kCounterclockwise;
-
-    // We know that funnel.front() is not the apex, but funnel.at(1) could be
-    if (funnel_.at(1) == funnel_.apex_point()) {
-      leftmostEdgePoint1Direction = funnel_.apex_type();
-    } else {
-      // Neither points are the apex
-      leftmostEdgePoint1Direction = AngleDirection::kCounterclockwise;
-    }
-
-    const QPointF newEdgePoint1 = funnel_.front();
-    const QPointF newEdgePoint2 = point;
-    const AngleDirection newEdgePoint1Direction = AngleDirection::kCounterclockwise;
-    const AngleDirection newEdgePoint2Direction = AngleDirection::kCounterclockwise;
-
-    const double theta = math::angle(leftmostEdgePoint1, leftmostEdgePoint1Direction, leftmostEdgePoint2, leftmostEdgePoint2Direction, agentRadius_);
-    const double phi = math::angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, agentRadius_);
-    return math::clockwiseTo(theta, phi); // Rotating from theta to phi is clockwise
-  };
-  // std::cout << "  >> Adding " << DebugLogger::instance().pointToString(point) << " to left of funnel" << std::endl; //DEBUGPRINTS
-
-  std::optional<Apex> newApex;
-  // Make sure there is at least one edge in the funnel
-  if (funnel_.size() >= 2) {
-    // Remove edges that are counterclockwise to this new potential edges
-    while (funnel_.front() != funnel_.apex_point() && newWedgeIsClockwiseToLeftmostWedge()) {
-      // std::cout << "    >> Popping from left of funnel" << std::endl; //DEBUGPRINTS
-      funnel_.pop_front();
-    }
-
-    // Need to check if this new left edge would cross over the apex
-    while (funnel_.front() == funnel_.apex_point() && funnel_.size() >= 2) {
-      std::pair<QPointF, QPointF> newWedge = math::createCircleConsciousLine(funnel_.front(), funnel_.apex_type(), point, AngleDirection::kCounterclockwise, agentRadius_);
-      std::pair<QPointF, QPointF> firstRightEdge = math::createCircleConsciousLine(funnel_.front(), funnel_.apex_type(), funnel_.at(1), AngleDirection::kClockwise, agentRadius_);
-      if (math::crossProduct(newWedge.first, newWedge.second, firstRightEdge.first, firstRightEdge.second) > 0) {
-        // New point crosses over apex
-        // std::cout << "    >> New point crosses over apex" << std::endl; //DEBUGPRINTS
-        if (math::distance(newWedge.first, newWedge.second) < math::distance(firstRightEdge.first, firstRightEdge.second)) {
-          // New point is closer and should instead be the apex
-          // std::cout << "      >> New point is closer and should instead be the apex" << std::endl; //DEBUGPRINTS
-          newApex = Apex{point, AngleDirection::kCounterclockwise};
-
-          addSegment(funnel_.funnel_apex(), newWedge, *newApex);
-
-          // Remove old apex
-          funnel_.pop_front();
-
-          // Apex is now a point not yet in the funnel, this loop is done
-          break;
-        } else {
-          // Add the apex to the path
-          // std::cout << "      >> Normal add of apex to path" << std::endl; //DEBUGPRINTS
-          Apex updatedApex{funnel_.at(1), AngleDirection::kClockwise};
-
-          addSegment(funnel_.funnel_apex(), firstRightEdge, updatedApex);
-
-          // Remove old apex
-          funnel_.pop_front();
-
-          // Front is now the current apex, update
-          funnel_.set_apex_index(0);
-          funnel_.set_apex_type(updatedApex.apexType);
-        }
-      } else {
-        // Done
-        // std::cout << "    >> Done" << std::endl; //DEBUGPRINTS
-        break;
-      }
-    }
-  }
-  // Finally, add point to left of funnel
-  if (newApex) {
-    // Add new apex to funnel
-    funnel_.push_front_apex(*newApex);
-  } else {
-    // Only adding normal point to funnel
-    funnel_.push_front(point);
-  }
+void BaseFunnel::addLeft(const QPointF &point, const bool isGoal) {
+  addPointToFunnel(std::bind(&Funnel::begin, &funnel_),
+                   std::bind(&Funnel::end, &funnel_),
+                   std::bind(&Funnel::apex_it, &funnel_),
+                   std::bind(&Funnel::apex_type, &funnel_),
+                   [this](){ return funnel_.set_apex_index(0); },
+                   std::bind(&Funnel::set_apex_type, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::push_front, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::push_front_apex, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::pop_front, &funnel_),
+                   AngleDirection::kCounterclockwise,
+                   point,
+                   isGoal);
 }
 
 void BaseFunnel::addRight(const QPointF &point, const bool isGoal) {
-  auto newWedgeIsCounterclockwiseToRightmostWedge = [this, &point, &isGoal]() {
-    // TODO: Might be safe to ignore these checks since we already check beforehand
-    if (funnel_.size() < 2) {
-      throw std::runtime_error("This function requires a funnel with at least two items");
-    }
-    if (funnel_.back() == funnel_.apex_point()) {
-      throw std::runtime_error("Assumption that the back of the funnel is not the apex was broken");
-    }
-
-    const QPointF rightmostEdgePoint1 = funnel_.at(funnel_.size()-2);
-    const QPointF rightmostEdgePoint2 = funnel_.back();
-    AngleDirection rightmostEdgePoint1Direction;
-    const AngleDirection rightmostEdgePoint2Direction = AngleDirection::kClockwise;
-
-    // We know that funnel.back() is not the apex, but funnel.at(funnel.size()-2) could be
-    if (funnel_.at(funnel_.size()-2) == funnel_.apex_point()) {
-      rightmostEdgePoint1Direction = funnel_.apex_type();
-    } else {
-      // Neither points are the apex
-      rightmostEdgePoint1Direction = AngleDirection::kClockwise;
-    }
-
-    const QPointF newEdgePoint1 = funnel_.back();
-    const QPointF newEdgePoint2 = point;
-    const AngleDirection newEdgePoint1Direction = AngleDirection::kClockwise;
-    const AngleDirection newEdgePoint2Direction = (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise);
-
-    const double theta = math::angle(rightmostEdgePoint1, rightmostEdgePoint1Direction, rightmostEdgePoint2, rightmostEdgePoint2Direction, agentRadius_);
-    const double phi = math::angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, agentRadius_);
-    return math::counterclockwiseTo(theta, phi); // Rotating from theta to phi is counterclockwise
-  };
-  // std::cout << "  << Adding " << DebugLogger::instance().pointToString(point) << " to right of funnel" << std::endl; //DEBUGPRINTS
-
-  std::optional<Apex> newApex;
-  // Make sure there is at least one edge in the funnel
-  if (funnel_.size() >= 2) {
-    // Remove edges that are clockwise to this new potential edges
-    while (funnel_.back() != funnel_.apex_point() && newWedgeIsCounterclockwiseToRightmostWedge()) {
-      // std::cout << "    << Popping from right of funnel" << std::endl; //DEBUGPRINTS
-      funnel_.pop_back();
-    }
-
-    // Need to check if this new right edge would cross over the apex
-    while (funnel_.back() == funnel_.apex_point() && funnel_.size() >= 2) {
-      // TODO: This apex check is dangerous because we modify what the apex should be in this loop, but we dont change it in the 'funnel_'
-      //  actually might not be true anymore...?
-      std::pair<QPointF, QPointF> newWedge = math::createCircleConsciousLine(funnel_.back(), funnel_.apex_type(), point, (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise), agentRadius_);
-      std::pair<QPointF, QPointF> firstLeftEdge = math::createCircleConsciousLine(funnel_.back(), funnel_.apex_type(), funnel_.at(funnel_.size()-2), AngleDirection::kCounterclockwise, agentRadius_);
-      if (math::crossProduct(newWedge.first, newWedge.second, firstLeftEdge.first, firstLeftEdge.second) <= 0) {
-        // New point crosses over apex
-        // std::cout << "    << New point crosses over apex" << std::endl; //DEBUGPRINTS
-        if (math::distance(newWedge.first, newWedge.second) < math::distance(firstLeftEdge.first, firstLeftEdge.second)) {
-          // New point is closer and should instead be the apex
-          // std::cout << "      << New point is closer and should instead be the apex" << std::endl; //DEBUGPRINTS
-
-          newApex = Apex{point, (isGoal ? AngleDirection::kPoint : AngleDirection::kClockwise)};
-
-          addSegment(funnel_.funnel_apex(), newWedge, *newApex);
-
-          // Remove old apex
-          funnel_.pop_back();
-
-          // Apex is now a point not yet in the funnel, this loop is done
-          break;
-        } else {
-          // std::cout << "      << Normal add of apex to path" << std::endl; //DEBUGPRINTS
-          // Add the apex to the path
-          Apex updatedApex{funnel_.at(funnel_.size()-2), AngleDirection::kCounterclockwise};
-
-          addSegment(funnel_.funnel_apex(), firstLeftEdge, updatedApex);
-
-          // Remove old apex
-          funnel_.pop_back();
-
-          // Back is now the current apex, update
-          funnel_.set_apex_index(funnel_.size()-1);
-          funnel_.set_apex_type(updatedApex.apexType);
-        }
-      } else {
-        // Done
-        // std::cout << "    << Done" << std::endl; //DEBUGPRINTS
-        break;
-      }
-    }
-  }
-  // Finally, add point to right of funnel
-  if (newApex) {
-    // Add new apex to funnel
-    // std::cout << "  << Adding point to right of funnel, as apex" << std::endl; //DEBUGPRINTS
-    funnel_.push_back_apex(*newApex);
-  } else {
-    // Only adding normal point to funnel
-    // std::cout << "  << Adding point to right of funnel" << std::endl; //DEBUGPRINTS
-    funnel_.push_back(point);
-  }
+  addPointToFunnel(std::bind(&Funnel::rbegin, &funnel_),
+                   std::bind(&Funnel::rend, &funnel_),
+                   std::bind(&Funnel::rapex_it, &funnel_),
+                   std::bind(&Funnel::apex_type, &funnel_),
+                   [this](){ return funnel_.set_apex_index(funnel_.size()-1); },
+                   std::bind(&Funnel::set_apex_type, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::push_back, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::push_back_apex, &funnel_, std::placeholders::_1),
+                   std::bind(&Funnel::pop_back, &funnel_),
+                   AngleDirection::kClockwise,
+                   point,
+                   isGoal);
 }
 
 void BaseFunnel::finishFunnel() {
@@ -417,9 +245,6 @@ QPointF PathFunnel::findBestGoalForFunnel(const std::pair<QPointF,QPointF> &last
 }
 
 void LengthFunnel::addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) {
-  // double length_;
-  // std::optional<double> previousAngle_;
-
   // std::cout << "  ~Adding segment to path for LengthFunnel" << std::endl; //DEBUGPRINTS
   // First, finish an arc if there is an open one
   if (previousApex.apexType != AngleDirection::kPoint && agentRadius_ > 0.0) {
@@ -595,6 +420,46 @@ bool Funnel::empty() const {
     throw std::runtime_error("Funnel is empty. Shouldnt be possible");
   }
   return false;
+}
+
+// Funnel::const_iterator Funnel::begin() const {
+//   return funnel_.begin() + leftIndex_;
+// }
+
+// Funnel::const_iterator Funnel::end() const {
+//   return funnel_.begin() + leftIndex_ + size();
+// }
+
+// Funnel::const_reverse_iterator Funnel::rbegin() const {
+//   return funnel_.rbegin() + (size()-1-rightIndex_);
+// }
+
+// Funnel::const_reverse_iterator Funnel::rend() const {
+//   return funnel_.rbegin() + (size()-1-rightIndex_) + size();
+// }
+
+Funnel::iterator Funnel::begin() {
+  return funnel_.begin() + leftIndex_;
+}
+
+Funnel::iterator Funnel::end() {
+  return begin() + size();
+}
+
+Funnel::iterator Funnel::apex_it() {
+  return funnel_.begin() + apexIndex_;
+}
+
+Funnel::reverse_iterator Funnel::rbegin() {
+  return funnel_.rbegin() + (funnel_.size()-1-rightIndex_);
+}
+
+Funnel::reverse_iterator Funnel::rend() {
+  return rbegin() + size();
+}
+
+Funnel::reverse_iterator Funnel::rapex_it() {
+  return funnel_.rbegin() + (funnel_.size()-1-apexIndex_);
 }
 
 const QPointF& Funnel::at(int index) const {
