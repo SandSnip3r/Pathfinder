@@ -4,7 +4,7 @@
 #include <QPoint>
 
 enum class AngleDirection {
-  kPoint,
+  kNoDirection,
   kCounterclockwise,
   kClockwise
 };
@@ -23,9 +23,15 @@ bool lessThan(const double d1, const double d2);
 bool equal(const double d1, const double d2);
 double angle(const QPointF &point1, const QPointF &point2);
 double angleBetweenVectors(const QPointF &v1Start, const QPointF &v1End, const QPointF &v2Start, const QPointF &v2End);
-double arcAngle(const double startAngle, const double endAngle, bool isCounterclockwise);
+double arcAngle(const double startAngle, const double endAngle, AngleDirection direction);
 double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation=nullptr);
 double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &circleCenter, const double circleRadius, const AngleDirection &circleRotationDirection, QPointF *pointUsedForDistanceCalculation=nullptr);
+AngleDirection angleRelativeToOrigin(double theta);
+double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
+std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius);
+double angle(const QPointF &point1, const AngleDirection point1Direction, const QPointF &point2, const AngleDirection point2Direction, const double circleRadius);
+std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius);
+
 
 } // namespace math
 
