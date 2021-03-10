@@ -34,6 +34,9 @@ BehaviorFactory::BehaviorFactory() {
   // 0-based indexing
   behavior_.firstnumber = 0;
 
+  // Voronoi disabled for now
+  behavior_.voronoi = 0;
+
   // TODO: I dont think we care about triangle neighbors (maybe in the future for graph building?)
   behavior_.neighbors = 0;
   

@@ -102,8 +102,8 @@ extern "C" {
 	 * @param neighbors If non-zero, write neighbors to triangleio.
 	 * @return Integer status code.
 	 */
-	EXPORT int triangle_mesh_copy(context* ctx, triangleio *out,
-		int edges, int neighbors);
+	EXPORT int triangle_mesh_copy(context *ctx, triangleio *out,
+		int edges, int neighbors, triangleio *vorout);
 	
 	/**
 	 * Compute mesh statistics.
@@ -237,14 +237,6 @@ extern "C" {
 	EXPORT int triangle_read_area(const char* filename, triangleio *io);
 
 #endif /* NO_FILE_IO */
-
-// =================================================Begin modifications=================================================
-
-EXPORT void triange_traversal_init(struct memorypool *pool);
-EXPORT vertex triange_vertex_traverse(mesh *m);
-EXPORT triangle* triangle_triangle_traverse(mesh *m);
-
-// ==================================================End modifications==================================================
 
 #ifdef __cplusplus
 }

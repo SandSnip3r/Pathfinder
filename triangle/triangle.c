@@ -1156,7 +1156,7 @@ void initializetrisubpools(mesh *m, behavior *b)
   /*   sure there's room to store an integer index in each triangle.  This */
   /*   integer index can occupy the same space as the subsegment pointers  */
   /*   or attributes or area constraint or extra nodes.                    */
-  if (b->neighbors &&
+  if ((b->voronoi || b->neighbors) &&
       (trisize < 6 * sizeof(triangle) + sizeof(int))) {
     trisize = 6 * sizeof(triangle) + sizeof(int);
   }
@@ -7916,6 +7916,133 @@ void writeedges(mesh *m, behavior *b,
           }
         }
         edgenumber++;
+      }
+    }
+    triangleloop.tri = triangletraverse(m);
+  }
+}
+
+/*****************************************************************************/
+/*                                                                           */
+/*  writevoronoi()   Write the Voronoi diagram to a .v.node and .v.edge      */
+/*                   file.                                                   */
+/*                                                                           */
+/*  The Voronoi diagram is the geometric dual of the Delaunay triangulation. */
+/*  Hence, the Voronoi vertices are listed by traversing the Delaunay        */
+/*  triangles, and the Voronoi edges are listed by traversing the Delaunay   */
+/*  edges.                                                                   */
+/*                                                                           */
+/*  WARNING:  In order to assign numbers to the Voronoi vertices, this       */
+/*  procedure messes up the subsegments or the extra nodes of every          */
+/*  element.  Hence, you should call this procedure last.                    */
+/*                                                                           */
+/*****************************************************************************/
+
+void writevoronoi(mesh *m, behavior *b, REAL **vpointlist,
+                  REAL **vpointattriblist, int **vpointmarkerlist,
+                  int **vedgelist, int **vedgemarkerlist, REAL **vnormlist) {
+
+  REAL *plist;
+  REAL *palist;
+  int *elist;
+  REAL *normlist;
+  int coordindex;
+  int attribindex;
+  struct otri triangleloop, trisym;
+  vertex torg, tdest, tapex;
+  REAL circumcenter[2];
+  REAL xi, eta;
+  long vnodenumber, vedgenumber;
+  int p1, p2;
+  int i;
+  triangle ptr;                         /* Temporary variable used by sym(). */
+
+  /* Allocate memory for Voronoi vertices if necessary. */
+  if (*vpointlist == (REAL *) NULL) {
+    *vpointlist = (REAL *) trimalloc((int) (m->triangles.items * 2 *
+                                            sizeof(REAL)));
+  }
+  /* Allocate memory for Voronoi vertex attributes if necessary. */
+  if (*vpointattriblist == (REAL *) NULL) {
+    *vpointattriblist = (REAL *) trimalloc((int) (m->triangles.items *
+                                                  m->nextras * sizeof(REAL)));
+  }
+  *vpointmarkerlist = (int *) NULL;
+  plist = *vpointlist;
+  palist = *vpointattriblist;
+  coordindex = 0;
+  attribindex = 0;
+
+  traversalinit(&m->triangles);
+  triangleloop.tri = triangletraverse(m);
+  triangleloop.orient = 0;
+  vnodenumber = b->firstnumber;
+  while (triangleloop.tri != (triangle *) NULL) {
+    org(triangleloop, torg);
+    dest(triangleloop, tdest);
+    apex(triangleloop, tapex);
+    findcircumcenter(m, b, torg, tdest, tapex, circumcenter, &xi, &eta, 0);
+    /* X and y coordinates. */
+    plist[coordindex++] = circumcenter[0];
+    plist[coordindex++] = circumcenter[1];
+    for (i = 2; i < 2 + m->nextras; i++) {
+      /* Interpolate the vertex attributes at the circumcenter. */
+      palist[attribindex++] = torg[i] + xi * (tdest[i] - torg[i])
+                                     + eta * (tapex[i] - torg[i]);
+    }
+
+    * (int *) (triangleloop.tri + 6) = (int) vnodenumber;
+    triangleloop.tri = triangletraverse(m);
+    vnodenumber++;
+  }
+
+  /* Allocate memory for output Voronoi edges if necessary. */
+  if (*vedgelist == (int *) NULL) {
+    *vedgelist = (int *) trimalloc((int) (m->edges * 2 * sizeof(int)));
+  }
+  *vedgemarkerlist = (int *) NULL;
+  /* Allocate memory for output Voronoi norms if necessary. */
+  if (*vnormlist == (REAL *) NULL) {
+    *vnormlist = (REAL *) trimalloc((int) (m->edges * 2 * sizeof(REAL)));
+  }
+  elist = *vedgelist;
+  normlist = *vnormlist;
+  coordindex = 0;
+
+  traversalinit(&m->triangles);
+  triangleloop.tri = triangletraverse(m);
+  vedgenumber = b->firstnumber;
+  /* To loop over the set of edges, loop over all triangles, and look at   */
+  /*   the three edges of each triangle.  If there isn't another triangle  */
+  /*   adjacent to the edge, operate on the edge.  If there is another     */
+  /*   adjacent triangle, operate on the edge only if the current triangle */
+  /*   has a smaller pointer than its neighbor.  This way, each edge is    */
+  /*   considered only once.                                               */
+  while (triangleloop.tri != (triangle *) NULL) {
+    for (triangleloop.orient = 0; triangleloop.orient < 3;
+         triangleloop.orient++) {
+      sym(triangleloop, trisym);
+      if ((triangleloop.tri < trisym.tri) || (trisym.tri == m->dummytri)) {
+        /* Find the number of this triangle (and Voronoi vertex). */
+        p1 = * (int *) (triangleloop.tri + 6);
+        if (trisym.tri == m->dummytri) {
+          org(triangleloop, torg);
+          dest(triangleloop, tdest);
+          /* Copy an infinite ray.  Index of one endpoint, and -1. */
+          elist[coordindex] = p1;
+          normlist[coordindex++] = tdest[1] - torg[1];
+          elist[coordindex] = -1;
+          normlist[coordindex++] = torg[0] - tdest[0];
+        } else {
+          /* Find the number of the adjacent triangle (and Voronoi vertex). */
+          p2 = * (int *) (trisym.tri + 6);
+          /* Finite edge.  Write indices of two endpoints. */
+          elist[coordindex] = p1;
+          normlist[coordindex++] = 0.0;
+          elist[coordindex] = p2;
+          normlist[coordindex++] = 0.0;
+        }
+        vedgenumber++;
       }
     }
     triangleloop.tri = triangletraverse(m);

@@ -359,9 +359,7 @@ int triangle_mesh_refine(context* ctx)
 	return status;
 }
 
-int triangle_mesh_copy(context* ctx, triangleio *out,
-					   int edges, int neighbors)
-{
+int triangle_mesh_copy(context* ctx, triangleio *out, int edges, int neighbors, triangleio *vorout) {
 	mesh *m;
 	behavior *b;
 
@@ -389,6 +387,11 @@ int triangle_mesh_copy(context* ctx, triangleio *out,
 	} else {
 		out->numberofsegments = m->hullsize;
 	}
+  if (vorout != NULL) {
+    vorout->numberofpoints = m->triangles.items;
+    vorout->numberofpointattributes = m->nextras;
+    vorout->numberofedges = m->edges;
+  }
 
 	/* writenodes() numbers the vertices too. */
 	writenodes(m, b, &out->pointlist, &out->pointattributelist,
@@ -415,6 +418,12 @@ int triangle_mesh_copy(context* ctx, triangleio *out,
 	if (edges) {
 		writeedges(m, b, &out->edgelist, &out->edgemarkerlist);
 	}
+
+  if (vorout != NULL) {
+		writevoronoi(m, b,  &vorout->pointlist, &vorout->pointattributelist,
+                 &vorout->pointmarkerlist, &vorout->edgelist,
+                 &vorout->edgemarkerlist, &vorout->normlist);
+  }
 
 	if (neighbors) {
 		writeneighbors(m, b, &out->neighborlist);
@@ -555,19 +564,3 @@ int triangle_read_area(const char* filename, triangleio *io)
 }
 
 #endif /* NO_FILE_IO */
-
-// =================================================Begin modifications=================================================
-
-void triange_traversal_init(struct memorypool *pool) {
-  traversalinit(pool);
-}
-
-vertex triange_vertex_traverse(mesh *m) {
-  return vertextraverse(m);
-}
-
-triangle* triangle_triangle_traverse(mesh *m) {
-  return triangletraverse(m);
-}
-
-// ==================================================End modifications==================================================
