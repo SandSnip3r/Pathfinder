@@ -647,6 +647,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
     // Look at successors
     auto successors = getSuccessors(currentState, goalTriangle);
     for (const auto &successor : successors) {
+      // std::cout << "  -Possible successor- " << successor << std::endl; //DEBUGPRINTS
       if (visited.find(successor) == visited.end()) {
         // Touched this successor
         result.trianglesDiscovered.emplace(successor.triangleNum);
@@ -663,22 +664,35 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
 
         const bool kOptimalPath{true};
         if (kOptimalPath) {
+          // The heuristic scale factor allows this A* algorithm to be tailored more towards:
+          //  1. Djikstra's search
+          //    a. A scale factor < 1 will result in a potentially wider search area
+          //    b. Will trend towards a globally optimal path when the heuristic is not admissible
+          //  2. Greedy Best First search
+          //    a. A scale factor > 1 will result in a more direct but potentially incorrect search
+          const double kHeuristicScaleFactor = 0.50;
           const auto [gValueOfSuccessor, pointUsedForGValue, optionalFunnelCreated] = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
           const double oldHValue = calculateHValue(successor, goalPoint);
           const double newHValue = math::distance(pointUsedForGValue, goalPoint);
-          const double hValueOfSuccessor = std::min(oldHValue, newHValue);
+          const double hValueOfSuccessor = kHeuristicScaleFactor * std::min(oldHValue, newHValue);
           const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
           // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
           if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
 
-            // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
+            if (fScores.at(successor) != std::numeric_limits<double>::max()) {
+              // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
+            }
             // Update previous
             previous[successor] = currentState;
 
             if (optionalFunnelCreated) {
               // Funnel was created, cache it
               // May overwrite existing cached funnel, that's intentional
-              // std::cout << "    Found a better fscore for state " << successor << ", caching funnel" << std::endl; //DEBUGPRINTS
+              if (fScores.at(successor) != std::numeric_limits<double>::max()) {
+                // std::cout << "    Found a better fscore for state " << successor << ", overwriting cached funnel" << std::endl; //DEBUGPRINTS
+              } else {
+                // std::cout << "    Caching first funnel for state " << successor << std::endl; //DEBUGPRINTS
+              }
               lengthFunnelCache_[successor] = *optionalFunnelCreated;
             }
 
@@ -694,7 +708,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int st
           const double gValueOfSuccessor = calculateEstimateGValue(successor, currentState, startPoint, goalPoint, gScores);
           const double hValueOfSuccessor = calculateHValue(successor, goalPoint);
           const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
-          // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
+          // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f, and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, fValueOfSuccessor); //DEBUGPRINTS
           if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
             // std::cout << "    Better fscore" << std::endl; //DEBUGPRINTS
             // Update previous
