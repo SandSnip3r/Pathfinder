@@ -14,6 +14,7 @@ namespace math {
 extern const double kPi;
 extern const double k2Pi;
 
+QPointF polarToVector(const double r, const double theta);
 double distance(const QPointF &p1, const QPointF &p2);
 double crossProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p1, const QPointF &v2p2);
 double dotProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p1, const QPointF &v2p2);
