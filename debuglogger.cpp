@@ -13,7 +13,7 @@ DebugLogger::DebugLogger() {
 
 }
 
-void DebugLogger::setPointToIndexFunction(const std::function<int(const QPointF &point)> &func) {
+void DebugLogger::setPointToIndexFunction(const std::function<int(const Vector &point)> &func) {
   pointToIndexFunction_ = func;
   initialized_ = true;
 }
@@ -34,7 +34,7 @@ void DebugLogger::printFunnel(const Funnel &funnel) const {
   std::cout << "]" << std::endl;
 }
 
-std::string DebugLogger::pointToString(const QPointF &point) const {
+std::string DebugLogger::pointToString(const Vector &point) const {
   if (!initialized_) {
     throw std::runtime_error("DebugLogger unitialized");
   }
@@ -56,11 +56,11 @@ std::string DebugLogger::pointToString(const QPointF &point) const {
   }
 }
 
-void DebugLogger::setStartPoint(const QPointF &point) {
+void DebugLogger::setStartPoint(const Vector &point) {
   startPoint_ = point;
 }
 
-void DebugLogger::setGoalPoint(const QPointF &point) {
+void DebugLogger::setGoalPoint(const Vector &point) {
   goalPoint_ = point;
 }
 

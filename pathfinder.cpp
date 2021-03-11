@@ -1,5 +1,6 @@
 #include "debuglogger.h"
 #include "pathfinder.h"
+#include "vector.h"
 
 #include <algorithm>
 #include <functional>
@@ -60,7 +61,7 @@ Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangl
   }
 }
 
-PathfindingResult Pathfinder::findShortestPath(const QPointF &startPoint, const QPointF &goalPoint) {
+PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const Vector &goalPoint) {
   int startTriangle = findTriangleForPoint(startPoint);
   int goalTriangle = findTriangleForPoint(goalPoint);
   PathfindingResult result;
@@ -160,8 +161,8 @@ int Pathfinder::getSharedEdge(const int triangle1Num, const int triangle2Num) co
   return -1;
 }
 
-std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
-  std::vector<std::pair<QPointF,QPointF>> corridorSegments;
+std::vector<std::pair<Vector,Vector>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
+  std::vector<std::pair<Vector,Vector>> corridorSegments;
   for (int i=1; i<trianglesInCorridor.size(); ++i) {
     // find common edge between triangle i,i-1
     const int triangleANum = trianglesInCorridor.at(i-1);
@@ -182,14 +183,14 @@ std::vector<std::pair<QPointF,QPointF>> Pathfinder::buildCorridor(const std::vec
     if (sharedEdgeVertexAIndex >= triangleData_.numberofpoints || sharedEdgeVertexBIndex >= triangleData_.numberofpoints) {
       throw std::runtime_error("Shared edge references points which do not exist");
     }
-    const QPointF sharedEdgeVertexA{triangleData_.pointlist[sharedEdgeVertexAIndex*2], triangleData_.pointlist[sharedEdgeVertexAIndex*2+1]};
-    const QPointF sharedEdgeVertexB{triangleData_.pointlist[sharedEdgeVertexBIndex*2], triangleData_.pointlist[sharedEdgeVertexBIndex*2+1]};
+    const Vector sharedEdgeVertexA{triangleData_.pointlist[sharedEdgeVertexAIndex*2], triangleData_.pointlist[sharedEdgeVertexAIndex*2+1]};
+    const Vector sharedEdgeVertexB{triangleData_.pointlist[sharedEdgeVertexBIndex*2], triangleData_.pointlist[sharedEdgeVertexBIndex*2+1]};
     corridorSegments.emplace_back(sharedEdgeVertexA, sharedEdgeVertexB);
   }
   return corridorSegments;
 }
 
-int Pathfinder::pointToIndex(const QPointF &point) const {
+int Pathfinder::pointToIndex(const Vector &point) const {
   // TODO: Remove once done debugging
   for (int i=0; i<triangleData_.numberofpoints; ++i) {
     if (point.x() == triangleData_.pointlist[i*2] && point.y() == triangleData_.pointlist[i*2+1]) {
@@ -203,7 +204,7 @@ void Pathfinder::setCharacterRadius(double value) {
   characterRadius_ = value;
 }
 
-bool Pathfinder::pointIsInTriangle(const QPointF &point, const int triangleNum) const {
+bool Pathfinder::pointIsInTriangle(const Vector &point, const int triangleNum) const {
   const int vertexIndexA = triangleData_.trianglelist[triangleNum*3];
   const int vertexIndexB = triangleData_.trianglelist[triangleNum*3+1];
   const int vertexIndexC = triangleData_.trianglelist[triangleNum*3+2];
@@ -212,15 +213,15 @@ bool Pathfinder::pointIsInTriangle(const QPointF &point, const int triangleNum) 
       vertexIndexC >= triangleData_.numberofpoints) {
     throw std::runtime_error("Triangle references vertex which does not exist");
   }
-  const QPointF vertexA{triangleData_.pointlist[vertexIndexA*2], triangleData_.pointlist[vertexIndexA*2+1]};
-  const QPointF vertexB{triangleData_.pointlist[vertexIndexB*2], triangleData_.pointlist[vertexIndexB*2+1]};
-  const QPointF vertexC{triangleData_.pointlist[vertexIndexC*2], triangleData_.pointlist[vertexIndexC*2+1]};
+  const Vector vertexA{triangleData_.pointlist[vertexIndexA*2], triangleData_.pointlist[vertexIndexA*2+1]};
+  const Vector vertexB{triangleData_.pointlist[vertexIndexB*2], triangleData_.pointlist[vertexIndexB*2+1]};
+  const Vector vertexC{triangleData_.pointlist[vertexIndexC*2], triangleData_.pointlist[vertexIndexC*2+1]};
 
   // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
   return math::isPointInTriangle(point, vertexA, vertexB, vertexC);
 }
 
-int Pathfinder::findTriangleForPoint(const QPointF &point) const {
+int Pathfinder::findTriangleForPoint(const Vector &point) const {
   if (triangleData_.trianglelist == nullptr) {
     throw std::runtime_error("Triangle list is null!");
   }
@@ -257,10 +258,10 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
     throw std::runtime_error("Edge 2 references points which do not exist");
   }
   
-  const QPointF edge1VertexA{triangleData_.pointlist[edge1VertexAIndex*2], triangleData_.pointlist[edge1VertexAIndex*2+1]};
-  const QPointF edge1VertexB{triangleData_.pointlist[edge1VertexBIndex*2], triangleData_.pointlist[edge1VertexBIndex*2+1]};
-  const QPointF edge2VertexA{triangleData_.pointlist[edge2VertexAIndex*2], triangleData_.pointlist[edge2VertexAIndex*2+1]};
-  const QPointF edge2VertexB{triangleData_.pointlist[edge2VertexBIndex*2], triangleData_.pointlist[edge2VertexBIndex*2+1]};
+  const Vector edge1VertexA{triangleData_.pointlist[edge1VertexAIndex*2], triangleData_.pointlist[edge1VertexAIndex*2+1]};
+  const Vector edge1VertexB{triangleData_.pointlist[edge1VertexBIndex*2], triangleData_.pointlist[edge1VertexBIndex*2+1]};
+  const Vector edge2VertexA{triangleData_.pointlist[edge2VertexAIndex*2], triangleData_.pointlist[edge2VertexAIndex*2+1]};
+  const Vector edge2VertexB{triangleData_.pointlist[edge2VertexBIndex*2], triangleData_.pointlist[edge2VertexBIndex*2+1]};
   const double angle = math::angleBetweenVectors(edge1VertexA, edge1VertexB, edge2VertexA, edge2VertexB);
   // TODO: Sometimes this arclength causes weird paths
   // return 0;
@@ -268,7 +269,7 @@ double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
   return characterRadius_ * angle; // Original from paper
 }
 
-double Pathfinder::calculateEstimateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, double> &gScores) const {
+double Pathfinder::calculateEstimateGValue(const State &state, const State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<State, double> &gScores) const {
   // The common edge between triangles `state` and `parentState`
   const int commonEdge = state.entryEdge;
   const double parentGValue = gScores.at(parentState);
@@ -311,7 +312,7 @@ double Pathfinder::calculateEstimateGValue(const State &state, const State &pare
   return std::max({val1, val2, val3});
 }
 
-std::tuple<double, QPointF, std::optional<LengthFunnel>> Pathfinder::calculateGValue(const State &state, const State &parentState, const QPointF &startPoint, const QPointF &goalPoint, const std::map<State, State> &previous) const {
+std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGValue(const State &state, const State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<State, State> &previous) const {
   // The common edge between triangles `state` and `parentState`
   const int commonEdgeNum = state.entryEdge;
 
@@ -350,7 +351,7 @@ std::tuple<double, QPointF, std::optional<LengthFunnel>> Pathfinder::calculateGV
 
   // State is not the goal
   double result;
-  QPointF pointUsed;
+  Vector pointUsed;
   std::optional<LengthFunnel> optionalFunnelForCaching;
   std::vector<int> triangleCorridor = rebuildPath(parentState, previous);
   // Add the current triangle to the corridor
@@ -406,7 +407,7 @@ std::tuple<double, QPointF, std::optional<LengthFunnel>> Pathfinder::calculateGV
   return {result, pointUsed, optionalFunnelForCaching};
 }
 
-QPointF Pathfinder::midpointOfEdge(int edgeNum) const {
+Vector Pathfinder::midpointOfEdge(int edgeNum) const {
   if (edgeNum < 0) {
     throw std::runtime_error("Invalid edge");
   }
@@ -418,11 +419,11 @@ QPointF Pathfinder::midpointOfEdge(int edgeNum) const {
   if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
     throw std::runtime_error("Edge references points which do not exist");
   }
-  const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
-  const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
+  const Vector vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
+  const Vector vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
   const auto dx = vertexB.x()-vertexA.x();
   const auto dy = vertexB.y()-vertexA.y();
-  return QPointF{vertexA.x()+dx/2, vertexB.y()+dy/2};
+  return Vector{vertexA.x()+dx/2, vertexB.y()+dy/2};
 }
 
 double Pathfinder::lengthOfEdge(int edgeNum) const {
@@ -437,12 +438,12 @@ double Pathfinder::lengthOfEdge(int edgeNum) const {
   if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
     throw std::runtime_error("Edge references points which do not exist");
   }
-  const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
-  const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
+  const Vector vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
+  const Vector vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
   return math::distance(vertexA, vertexB);
 }
 
-std::pair<QPointF,QPointF> Pathfinder::getEdge(int edgeNum) const {
+std::pair<Vector,Vector> Pathfinder::getEdge(int edgeNum) const {
   // Return the distance between the closest end of the given edge and the given point
   if (edgeNum < 0) {
     throw std::runtime_error("Invalid edge");
@@ -455,18 +456,18 @@ std::pair<QPointF,QPointF> Pathfinder::getEdge(int edgeNum) const {
   if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
     throw std::runtime_error("Edge references points which do not exist");
   }
-  const QPointF vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
-  const QPointF vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
+  const Vector vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
+  const Vector vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
   return {vertexA, vertexB};
 }
 
-double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const QPointF &point, QPointF *pointUsedForDistanceCalculation) const {
+double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const Vector &point, Vector *pointUsedForDistanceCalculation) const {
   // Return the distance between the closest end of the given edge and the given point
   const auto [vertexA, vertexB] = getEdge(edgeNum);
   return math::distanceBetweenEdgeAndPoint(vertexA, vertexB, point, pointUsedForDistanceCalculation);
 }
 
-double Pathfinder::calculateHValue(const State &state, const QPointF &goalPoint) const {
+double Pathfinder::calculateHValue(const State &state, const Vector &goalPoint) const {
   // The h-value is the Euclidean distance between the goalPoint and the closest point to it on this edge (entry edge)
   if (state.entryEdge == -1) {
     throw std::runtime_error("Logic error, calculating h value for state which has no entry edge");
@@ -522,15 +523,15 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
       throw std::runtime_error("Exit edge references points which do not exist");
     }
     
-    const QPointF entryEdgeVertexA{triangleData_.pointlist[entryEdgeVertexAIndex*2], triangleData_.pointlist[entryEdgeVertexAIndex*2+1]};
-    const QPointF entryEdgeVertexB{triangleData_.pointlist[entryEdgeVertexBIndex*2], triangleData_.pointlist[entryEdgeVertexBIndex*2+1]};
-    const QPointF exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
-    const QPointF exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
+    const Vector entryEdgeVertexA{triangleData_.pointlist[entryEdgeVertexAIndex*2], triangleData_.pointlist[entryEdgeVertexAIndex*2+1]};
+    const Vector entryEdgeVertexB{triangleData_.pointlist[entryEdgeVertexBIndex*2], triangleData_.pointlist[entryEdgeVertexBIndex*2+1]};
+    const Vector exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
+    const Vector exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
 
     return ((math::distance(entryEdgeVertexA, entryEdgeVertexB) >= (characterRadius_*2)) && math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2));
     // TODO: This is a better approximation until the below code handles unconstrained edges
 
-    QPointF sharedPoint, oppositeEdgeStart, oppositeEdgeEnd;
+    Vector sharedPoint, oppositeEdgeStart, oppositeEdgeEnd;
 
     if (entryEdgeVertexAIndex == exitEdgeVertexAIndex) {
       sharedPoint = entryEdgeVertexA;
@@ -579,7 +580,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
 }
 
 
-PathfindingAStarInfo Pathfinder::triangleAStar(const QPointF &startPoint, int startTriangle, const QPointF &goalPoint, int goalTriangle) const {
+PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int startTriangle, const Vector &goalPoint, int goalTriangle) const {
   PathfindingAStarInfo result;
   // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
   // std::cout << "Trying to find shortest path from triangle " << startTriangle << " to triangle " << goalTriangle << std::endl; //DEBUGPRINTS

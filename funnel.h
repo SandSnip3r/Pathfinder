@@ -2,15 +2,14 @@
 #define FUNNEL_H
 
 #include "math_helpers.h"
-
-#include <QPointF>
+#include "vector.h"
 
 #include <memory>
 #include <optional>
 #include <vector>
 
 struct Apex {
-  QPointF apexPoint;
+  Vector apexPoint;
   AngleDirection apexType;
 };
 
@@ -19,27 +18,23 @@ class BaseFunnel;
 class Funnel {
 friend class BaseFunnel;
 public:
-  using iterator = std::vector<QPointF>::iterator;
-  using const_iterator = std::vector<QPointF>::const_iterator;
-  using reverse_iterator = std::vector<QPointF>::reverse_iterator;
-  using const_reverse_iterator = std::vector<QPointF>::const_reverse_iterator;
   Funnel() = default; // TODO: Kind of in a weird state here
-  Funnel(const QPointF &initialApex, const int corridorSize);
+  Funnel(const Vector &initialApex, const int corridorSize);
   int size() const;
   bool empty() const;
-  const QPointF& at(int index) const;
-  const QPointF& reverse_at(int index) const;
-  const QPointF& front() const;
+  const Vector& at(int index) const;
+  const Vector& reverse_at(int index) const;
+  const Vector& front() const;
   void pop_front();
-  void push_front(const QPointF &point);
-  const QPointF& back() const;
+  void push_front(const Vector &point);
+  const Vector& back() const;
   void pop_back();
-  void push_back(const QPointF &point);
-  bool point_in_funnel(const QPointF &point) const;
+  void push_back(const Vector &point);
+  bool point_in_funnel(const Vector &point) const;
   void push_front_apex(const Apex &apex);
   void push_back_apex(const Apex &apex);
   Apex funnel_apex() const;
-  const QPointF& apex_point() const;
+  const Vector& apex_point() const;
   AngleDirection apex_type() const;
   int apex_index() const;
   int reverse_apex_index() const;
@@ -47,7 +42,7 @@ public:
   void set_apex_type(const AngleDirection type);
   Funnel cloneButSpaceFor1More() const;
 private:
-  std::vector<QPointF> funnel_;
+  std::vector<Vector> funnel_;
   AngleDirection apexType_{AngleDirection::kNoDirection};
   int apexIndex_;
   int leftIndex_, rightIndex_;
@@ -59,17 +54,17 @@ struct PathSegment {
 };
 
 struct StraightPathSegment : public PathSegment {
-  StraightPathSegment(const QPointF &start, const QPointF &end) : startPoint(start), endPoint(end) {}
+  StraightPathSegment(const Vector &start, const Vector &end) : startPoint(start), endPoint(end) {}
   StraightPathSegment(const StraightPathSegment &other) : startPoint(other.startPoint), endPoint(other.endPoint) {}
   virtual std::unique_ptr<PathSegment> clone() const override { return std::unique_ptr<PathSegment>(new StraightPathSegment(*this)); }
-  QPointF startPoint, endPoint;
+  Vector startPoint, endPoint;
 };
 
 struct ArcPathSegment : public PathSegment {
-  ArcPathSegment(const QPointF &center, const double radius, const AngleDirection direction) : circleCenter(center), circleRadius(radius), angleDirection(direction) {}
+  ArcPathSegment(const Vector &center, const double radius, const AngleDirection direction) : circleCenter(center), circleRadius(radius), angleDirection(direction) {}
   ArcPathSegment(const ArcPathSegment &other) : circleCenter(other.circleCenter), circleRadius(other.circleRadius), angleDirection(other.angleDirection), startAngle(other.startAngle), endAngle(other.endAngle) {}
   virtual std::unique_ptr<PathSegment> clone() const override { return std::unique_ptr<PathSegment>(new ArcPathSegment(*this)); }
-  QPointF circleCenter;
+  Vector circleCenter;
   double circleRadius;
   AngleDirection angleDirection;
   double startAngle, endAngle;
@@ -79,26 +74,26 @@ class BaseFunnel {
 public:
   BaseFunnel() = default; // TODO: Might not be worth having
   BaseFunnel(const double agentRadius);
-  void funnelWithGoal(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint, const QPointF &goalPoint);
-  void funnelWithoutGoal(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint);
-  QPointF finishFunnelAndFindClosestGoalOnEdge(const std::pair<QPointF,QPointF> &edge);
-  void finishFunnelWithGoal(const QPointF &goalPoint);
-  void extendByOneEdge(const std::pair<QPointF,QPointF> &edge);
+  void funnelWithGoal(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint, const Vector &goalPoint);
+  void funnelWithoutGoal(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint);
+  Vector finishFunnelAndFindClosestGoalOnEdge(const std::pair<Vector,Vector> &edge);
+  void finishFunnelWithGoal(const Vector &goalPoint);
+  void extendByOneEdge(const std::pair<Vector,Vector> &edge);
   const Funnel& getFunnel() const { return funnel_; } //TODO: Remove after done debugging
 
 protected:
   double agentRadius_{0.0}; // TODO: Make constant
   Funnel funnel_;
-  void addLeft(const QPointF &point, const bool isGoal=false);
-  void addRight(const QPointF &point, const bool isGoal=false);
+  void addLeft(const Vector &point, const bool isGoal=false);
+  void addRight(const Vector &point, const bool isGoal=false);
   void finishFunnel();
+  virtual void addSegment(const Apex &previousApex, const std::pair<Vector,Vector> &edge, const Apex &newApex) = 0;
 
 private:
-  void initializeForFunnelAlgorithm(const int corridorSize, const QPointF &startPoint, const QPointF *goalPoint=nullptr);
-  void funnelForCorridor(const std::vector<std::pair<QPointF,QPointF>> &corridor, const QPointF &startPoint);
-  virtual void addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) = 0;
+  void initializeForFunnelAlgorithm(const int corridorSize, const Vector &startPoint, const Vector *goalPoint=nullptr);
+  void funnelForCorridor(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint);
   virtual double currentPathLength() const = 0;
-  virtual QPointF findBestGoalForFunnel(const std::pair<QPointF,QPointF> &lastEdgeOfCorridor) const = 0;
+  virtual Vector findBestGoalForFunnel(const std::pair<Vector,Vector> &lastEdgeOfCorridor) const = 0;
 
   template<typename AtFunc, typename ApexIndexFunc, typename ApexTypeFunc, typename SetBeginningAsApexFunc, typename SetApexTypeFunc, typename PushFunc, typename PushApexFunc, typename PopFunc>
   void addPointToFunnel(const AtFunc &at,
@@ -110,7 +105,7 @@ private:
                         const PushApexFunc &pushApex,
                         const PopFunc &pop,
                         const AngleDirection &direction,
-                        const QPointF &point,
+                        const Vector &point,
                         const bool isGoal);
 };
 
@@ -121,9 +116,9 @@ public:
   PathType getPath() const;
 private:
   PathType path_;
-  virtual void addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) override;
+  virtual void addSegment(const Apex &previousApex, const std::pair<Vector,Vector> &edge, const Apex &newApex) override;
   virtual double currentPathLength() const override;
-  virtual QPointF findBestGoalForFunnel(const std::pair<QPointF,QPointF> &lastEdgeOfCorridor) const override;
+  virtual Vector findBestGoalForFunnel(const std::pair<Vector,Vector> &lastEdgeOfCorridor) const override;
 };
 
 class LengthFunnel : public BaseFunnel {
@@ -135,10 +130,10 @@ public:
 private:
   double length_{0.0};
   std::optional<double> previousAngle_;
-  virtual void addSegment(const Apex &previousApex, const std::pair<QPointF,QPointF> &edge, const Apex &newApex) override;
+  virtual void addSegment(const Apex &previousApex, const std::pair<Vector,Vector> &edge, const Apex &newApex) override;
   virtual double currentPathLength() const override;
-  virtual QPointF findBestGoalForFunnel(const std::pair<QPointF,QPointF> &lastEdgeOfCorridor) const override;
-  double funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, const QPointF &goalPoint) const;
+  virtual Vector findBestGoalForFunnel(const std::pair<Vector,Vector> &lastEdgeOfCorridor) const override;
+  double funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, const Vector &goalPoint) const;
 };
 
 template<typename AtFunc, typename ApexIndexFunc, typename ApexTypeFunc, typename SetBeginningAsApexFunc, typename SetApexTypeFunc, typename PushFunc, typename PushApexFunc, typename PopFunc>
@@ -151,7 +146,7 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
                                   const PushApexFunc &pushApex,
                                   const PopFunc &pop,
                                   const AngleDirection &direction,
-                                  const QPointF &point,
+                                  const Vector &point,
                                   const bool isGoal) {
   if (direction == AngleDirection::kNoDirection) {
     throw std::runtime_error("Direction \"kNoDirection\" does not make sense in this function");
@@ -167,7 +162,7 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
     }
   };
 
-  auto rotatesInwardsViaCrossProduct = [&direction](const QPointF &v1Start, const QPointF &v1End, const QPointF &v2Start, const QPointF &v2End) {
+  auto rotatesInwardsViaCrossProduct = [&direction](const Vector &v1Start, const Vector &v1End, const Vector &v2Start, const Vector &v2End) {
     const double crossProductMagnitude = math::crossProduct(v1Start, v1End, v2Start, v2End);
     // Cross product should be <=0 for "Right" and > 0 for "Left"
     if (direction == AngleDirection::kClockwise) {
@@ -185,8 +180,8 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
 
     const auto &firstPoint = at(0);
 
-    const QPointF &mostRecentEdgePoint1 = at(1);
-    const QPointF &mostRecentEdgePoint2 = firstPoint;
+    const Vector &mostRecentEdgePoint1 = at(1);
+    const Vector &mostRecentEdgePoint2 = firstPoint;
     AngleDirection mostRecentEdgePoint1Direction;
     const AngleDirection mostRecentEdgePoint2Direction = direction;
 
@@ -198,8 +193,8 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
       mostRecentEdgePoint1Direction = direction;
     }
 
-    const QPointF &newEdgePoint1 = firstPoint;
-    const QPointF &newEdgePoint2 = point;
+    const Vector &newEdgePoint1 = firstPoint;
+    const Vector &newEdgePoint2 = point;
     const AngleDirection newEdgePoint1Direction = direction;
     const AngleDirection newEdgePoint2Direction = (isGoal ? AngleDirection::kNoDirection : direction);
 
@@ -222,8 +217,8 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
     // Need to check if this new edge would cross over the apex
     while (apex_index() == 0 && funnel_.size() >= 2) {
       const auto &currentApexPoint = at(0);
-      std::pair<QPointF, QPointF> newWedge = math::createCircleConsciousLine(currentApexPoint, getApexType(), point, (isGoal ? AngleDirection::kNoDirection : direction), agentRadius_);
-      std::pair<QPointF, QPointF> firstEdgeInOtherDirection = math::createCircleConsciousLine(currentApexPoint, getApexType(), at(1), oppositeDirection, agentRadius_);
+      std::pair<Vector, Vector> newWedge = math::createCircleConsciousLine(currentApexPoint, getApexType(), point, (isGoal ? AngleDirection::kNoDirection : direction), agentRadius_);
+      std::pair<Vector, Vector> firstEdgeInOtherDirection = math::createCircleConsciousLine(currentApexPoint, getApexType(), at(1), oppositeDirection, agentRadius_);
       if (rotatesInwardsViaCrossProduct(newWedge.first, newWedge.second, firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second)) {
         // New point crosses over apex
         // std::cout << "    << New point crosses over apex" << std::endl; //DEBUGPRINTS

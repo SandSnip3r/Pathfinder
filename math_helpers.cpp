@@ -1,21 +1,24 @@
 #include "math_helpers.h"
 
+#include <algorithm>
+#include <cmath>
+
 namespace math {
   
 const double kPi = 3.141592653589793;
 const double k2Pi = 6.283185307179586;
 
-QPointF polarToVector(const double r, const double theta) {
+Vector polarToVector(const double r, const double theta) {
   return {r*cos(theta), r*sin(theta)};
 }
 
-double distance(const QPointF &p1, const QPointF &p2) {
+double distance(const Vector &p1, const Vector &p2) {
   const double dx = p2.x() - p1.x();
   const double dy = p2.y() - p1.y();
-  return sqrt(dx*dx+dy*dy);
+  return std::sqrt(dx*dx+dy*dy);
 }
 
-double crossProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p1, const QPointF &v2p2) {
+double crossProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2) {
   const double v1_x = v1p2.x() - v1p1.x();
   const double v1_y = v1p2.y() - v1p1.y();
   const double v2_x = v2p2.x() - v2p1.x();
@@ -23,7 +26,7 @@ double crossProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p
   return (v1_x*v2_y - v2_x*v1_y);
 }
 
-double dotProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p1, const QPointF &v2p2) {
+double dotProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2) {
   const double dx1 = v1p2.x()-v1p1.x();
   const double dy1 = v1p2.y()-v1p1.y();
   const double dx2 = v2p2.x()-v2p1.x();
@@ -31,7 +34,7 @@ double dotProduct(const QPointF &v1p1, const QPointF &v1p2, const QPointF &v2p1,
   return dx1*dx2+dy1*dy2;
 }
 
-bool isPointInTriangle(const QPointF &point, const QPointF &triangleVertex1, const QPointF &triangleVertex2, const QPointF &triangleVertex3) {
+bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3) {
   bool b1, b2, b3;
   b1 = (math::crossProduct(triangleVertex2, point, triangleVertex2, triangleVertex1) < 0.0f);
   b2 = (math::crossProduct(triangleVertex3, point, triangleVertex3, triangleVertex2) < 0.0f);
@@ -47,10 +50,10 @@ bool equal(const double d1, const double d2) {
   return std::abs(d2-d1) < 0.000001;
 }
 
-double angle(const QPointF &point1, const QPointF &point2) {
+double angle(const Vector &point1, const Vector &point2) {
   const double dx = point2.x()-point1.x();
   const double dy = point2.y()-point1.y();
-  double angle = atan(dy/dx);
+  double angle = std::atan(dy/dx);
   if (dx < 0) {
     angle += kPi;
   } else if (dy < 0) {
@@ -59,7 +62,7 @@ double angle(const QPointF &point1, const QPointF &point2) {
   return angle;
 }
 
-double angleBetweenVectors(const QPointF &v1Start, const QPointF &v1End, const QPointF &v2Start, const QPointF &v2End) {
+double angleBetweenVectors(const Vector &v1Start, const Vector &v1End, const Vector &v2Start, const Vector &v2End) {
   const double dotProductOfVectors = dotProduct(v1Start, v1End, v2Start, v2End);
   const double lengthsMultiplied = distance(v1Start, v1End) * distance(v2Start, v2End);
   return std::acos(dotProductOfVectors/lengthsMultiplied);
@@ -89,7 +92,7 @@ double arcAngle(const double startAngle, const double endAngle, AngleDirection d
   return spanAngle;
 }
 
-double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &point, QPointF *pointUsedForDistanceCalculation) {
+double distanceBetweenEdgeAndPoint(const Vector &edgeStartPoint, const Vector &edgeEndPoint, const Vector &point, Vector *pointUsedForDistanceCalculation) {
   const double dx = edgeEndPoint.x()-edgeStartPoint.x();
   const double dy = edgeEndPoint.y()-edgeStartPoint.y();
   const double lengthSquared = dx*dx+dy*dy;
@@ -98,24 +101,24 @@ double distanceBetweenEdgeAndPoint(const QPointF &edgeStartPoint, const QPointF 
     return math::distance(edgeStartPoint, point);
   }
   const double t = std::clamp(static_cast<double>(((point.x()-edgeStartPoint.x())*dx + (point.y()-edgeStartPoint.y())*dy) / lengthSquared), 0.0, 1.0);
-  QPointF closestPoint{edgeStartPoint.x() + t*dx, edgeStartPoint.y() + t*dy};
+  Vector closestPoint{edgeStartPoint.x() + t*dx, edgeStartPoint.y() + t*dy};
   if (pointUsedForDistanceCalculation != nullptr) {
     *pointUsedForDistanceCalculation = closestPoint;
   }
   return math::distance(point, closestPoint);
 }
 
-double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const QPointF &edgeStartPoint, const QPointF &edgeEndPoint, const QPointF &circleCenter, const double circleRadius, const AngleDirection &circleRotationDirection, QPointF *pointUsedForDistanceCalculation) {
+double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const Vector &edgeStartPoint, const Vector &edgeEndPoint, const Vector &circleCenter, const double circleRadius, const AngleDirection &circleRotationDirection, Vector *pointUsedForDistanceCalculation) {
   if (circleRotationDirection == AngleDirection::kNoDirection) {
     return distanceBetweenEdgeAndPoint(edgeStartPoint, edgeEndPoint, circleCenter, pointUsedForDistanceCalculation);
   }
   const double edgeDx = edgeEndPoint.x()-edgeStartPoint.x();
   const double edgeDy = edgeEndPoint.y()-edgeStartPoint.y();
-  const double edgeLength = sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
+  const double edgeLength = std::sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
   const double ratio = circleRadius/edgeLength;
-  const QPointF circleTangentIntersectionPoint1{circleCenter.x()+edgeDx*ratio, circleCenter.y()+edgeDy*ratio};
-  const QPointF circleTangentIntersectionPoint2{circleCenter.x()-edgeDx*ratio, circleCenter.y()-edgeDy*ratio};
-  QPointF edgePoint1, edgePoint2;
+  const Vector circleTangentIntersectionPoint1{circleCenter.x()+edgeDx*ratio, circleCenter.y()+edgeDy*ratio};
+  const Vector circleTangentIntersectionPoint2{circleCenter.x()-edgeDx*ratio, circleCenter.y()-edgeDy*ratio};
+  Vector edgePoint1, edgePoint2;
   double dist1 = distanceBetweenEdgeAndPoint(edgeStartPoint, edgeEndPoint, circleTangentIntersectionPoint1, &edgePoint1);
   double dist2 = distanceBetweenEdgeAndPoint(edgeStartPoint, edgeEndPoint, circleTangentIntersectionPoint2, &edgePoint2);
   double distanceResult;
@@ -188,18 +191,18 @@ AngleDirection angleRelativeToOrigin(double theta) {
 }
 
 
-double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius) {
+double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const Vector &point, const Vector &centerOfCircle, const double circleRadius) {
   // Find the two lines that are tangent to the circle and intersect with the given point
   double distanceToCircle = math::distance(point,centerOfCircle);
-  double lengthOfTangentLine = sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
+  double lengthOfTangentLine = std::sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
   double angleOfTangentLine = asin(circleRadius/distanceToCircle);
   return angleOfTangentLine;
 }
 
-std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPointF &point, const QPointF &centerOfCircle, const double circleRadius) {
+std::pair<Vector, Vector> intersectionsPointsOfTangentLinesToCircle(const Vector &point, const Vector &centerOfCircle, const double circleRadius) {
   // Find the two lines that are tangent to the circle and intersect with the given point
   double distanceToCircle = math::distance(point,centerOfCircle);
-  double lengthOfTangentLine = sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
+  double lengthOfTangentLine = std::sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
   double angleOfTangentLine = asin(circleRadius/distanceToCircle);
 
   // Calculate angle for center of circle
@@ -212,10 +215,10 @@ std::pair<QPointF, QPointF> intersectionsPointsOfTangentLinesToCircle(const QPoi
 
   double x2 = point.x() + lengthOfTangentLine * cos(angleOfCenterOfCircle-angleOfTangentLine);
   double y2 = point.y() + lengthOfTangentLine * sin(angleOfCenterOfCircle-angleOfTangentLine);
-  return {QPointF(x1, y1), QPointF(x2, y2)};
+  return {Vector(x1, y1), Vector(x2, y2)};
 }
 
-double angle(const QPointF &point1, const AngleDirection point1Direction, const QPointF &point2, const AngleDirection point2Direction, const double circleRadius) {
+double angle(const Vector &point1, const AngleDirection point1Direction, const Vector &point2, const AngleDirection point2Direction, const double circleRadius) {
   double angleBetweenPoints = math::angle(point1, point2);
 
   if (point1Direction == AngleDirection::kNoDirection && point2Direction != AngleDirection::kNoDirection) {
@@ -241,7 +244,7 @@ double angle(const QPointF &point1, const AngleDirection point1Direction, const 
   } else if (point1Direction != AngleDirection::kNoDirection && point2Direction != AngleDirection::kNoDirection && point1Direction != point2Direction) {
     // Circle to circle and inner tangent
     // Find the point between these two circles
-    QPointF midpoint;
+    Vector midpoint;
     midpoint.setX(point1.x() + (point2.x()-point1.x())/2);
     midpoint.setY(point1.y() + (point2.y()-point1.y())/2);
     const double angleToTangent = angleBetweenCenterOfCircleAndIntersectionWithTangentLine(midpoint, point2, circleRadius);
@@ -257,11 +260,11 @@ double angle(const QPointF &point1, const AngleDirection point1Direction, const 
   return angleBetweenPoints;
 }
 
-std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, const AngleDirection &point1Direction, const QPointF &point2, const AngleDirection &point2Direction, const double circleRadius) {
+std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const AngleDirection &point1Direction, const Vector &point2, const AngleDirection &point2Direction, const double circleRadius) {
   if (circleRadius < 0.001) {
     return {point1, point2};
   }
-  QPointF lineStart, lineEnd;
+  Vector lineStart, lineEnd;
 
   if (point1Direction == AngleDirection::kNoDirection) {
     lineStart = point1;
@@ -320,30 +323,30 @@ std::pair<QPointF, QPointF> createCircleConsciousLine(const QPointF &point1, con
       // Outer tangents
       double distanceBetweenCircles = math::distance(point1, point2);
       double absoluteAngleToCircle2 = math::angle(point1, point2);
-      double distanceToNewPoint = sqrt(distanceBetweenCircles*distanceBetweenCircles + circleRadius*circleRadius);
+      double distanceToNewPoint = std::sqrt(distanceBetweenCircles*distanceBetweenCircles + circleRadius*circleRadius);
       double angleFromCircle2ToNewPoint = asin(circleRadius / distanceToNewPoint);
       double newAngle = absoluteAngleToCircle2 + angleFromCircle2ToNewPoint;
 
       double dxFromPoint1 = distanceToNewPoint * cos(newAngle);
       double dyFromPoint1 = distanceToNewPoint * sin(newAngle);
 
-      QPointF newPoint{point1.x() + dxFromPoint1, point1.y() + dyFromPoint1};
+      Vector newPoint{point1.x() + dxFromPoint1, point1.y() + dyFromPoint1};
       double circleXOffset = newPoint.x() - point2.x();
       double circleYOffset = newPoint.y() - point2.y();
 
       if (point1Direction == AngleDirection::kClockwise) {
         // Both clockwise
-        lineStart = QPointF{point1.x() + circleXOffset, point1.y() + circleYOffset};
-        lineEnd = QPointF{point2.x() + circleXOffset, point2.y() + circleYOffset};
+        lineStart = Vector{point1.x() + circleXOffset, point1.y() + circleYOffset};
+        lineEnd = Vector{point2.x() + circleXOffset, point2.y() + circleYOffset};
       } else {
         // Both counterclockwise
-        lineStart = QPointF{point1.x() - circleXOffset, point1.y() - circleYOffset};
-        lineEnd = QPointF{point2.x() - circleXOffset, point2.y() - circleYOffset};
+        lineStart = Vector{point1.x() - circleXOffset, point1.y() - circleYOffset};
+        lineEnd = Vector{point2.x() - circleXOffset, point2.y() - circleYOffset};
       }
     } else {
       // Inner tangents
       // Find the point between these two circles
-      QPointF midpoint;
+      Vector midpoint;
       midpoint.setX(point1.x() + (point2.x()-point1.x())/2);
       midpoint.setY(point1.y() + (point2.y()-point1.y())/2);
       const auto intersectionPointsWithFirstCircle = intersectionsPointsOfTangentLinesToCircle(midpoint, point1, circleRadius);
