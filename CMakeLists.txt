@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Pathfinder)
-
-set(CMAKE_CXX_STANDARD 17)
+project(Pathfinder LANGUAGES CXX C)
 
 # Create an interface library for Triangle that will be used by Pathfinder
 add_library(Triangle INTERFACE)
@@ -27,6 +25,8 @@ add_library(${PROJECT_NAME} STATIC
   pathfinder.cpp
   vector.cpp
 )
+
+target_compile_features(Pathfinder PUBLIC cxx_std_17)
 
 # Link Triangle to Pathfinder
 target_link_libraries(${PROJECT_NAME}
