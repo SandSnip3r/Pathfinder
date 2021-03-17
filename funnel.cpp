@@ -32,17 +32,30 @@ void BaseFunnel::finishFunnelWithGoal(const Vector &goalPoint) {
 
   if (funnel_.point_in_funnel(goalPoint)) {
     // std::cout << "Goal already in funnel" << std::endl; //DEBUGPRINTS
+    if (funnel_.apex_point() == goalPoint) {
+      // The goal is already the apex
+      // std::cout << "Goal is the apex. Funnel : "; //DEBUGPRINTS
+      // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
+      if (agentRadius_ > 0.0) {
+        // TODO: Thoroughly analyze
+        throw std::runtime_error("Goal is the apex, probably shouldnt be possible");
+      }
+      // The funnel is done at this point. We dont even call finishFunnel()
+      return;
+    }
     if (funnel_.front() == goalPoint) {
       // Goal is on the left, lets pop it and put it on the right
       // std::cout << "Goal is on the left of the funnel, removing it and putting it on the right" << std::endl; //DEBUGPRINTS
-      if (funnel_.front() == funnel_.apex_point()) {
-        throw std::runtime_error("Goal is the apex?");
-      }
       funnel_.pop_front();
       addRight(goalPoint, true);
+    } else if (funnel_.back() == goalPoint) {
+      // Goal is already on the right, nothing to do
+      // std::cout << "Goal is already on the right, nothing to do" << std::endl; //DEBUGPRINTS
     } else {
       // TODO: Might need to handle cases where the goal is elsewhere in the funnel
-      throw std::runtime_error("Goal is in funnel, but not at the left end");
+      // std::cout << "Goal is in funnel, but not at the either end. Funnel : "; //DEBUGPRINTS
+      // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
+      throw std::runtime_error("Goal is in funnel, but not at either end");
     }
   } else {
     // Finally, add the goal to the right of the funnel
@@ -276,34 +289,7 @@ double LengthFunnel::getLength() const {
 }
 
 double LengthFunnel::funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, const Vector &goalPoint) const {
-  // Do not work with data of self, work with data of copy
-  // std::cout << "  ::Checking funnel length from potential apex" << std::endl; //DEBUGPRINTS
-
-  if (funnelCopy.funnel_.point_in_funnel(goalPoint)) {
-    if (funnelCopy.funnel_.front() == goalPoint) {
-      // Goal is on the left, lets pop it and put it on the right
-      if (funnelCopy.funnel_.front() == funnelCopy.funnel_.apex_point()) {
-        throw std::runtime_error("Goal is the apex?");
-      }
-      funnelCopy.funnel_.pop_front();
-      funnelCopy.addRight(goalPoint, true);
-    } else if (funnelCopy.funnel_.back() == goalPoint) {
-      // std::cout << "    ::Goal point is already in the right spot in the funnel" << std::endl; //DEBUGPRINTS
-    } else {
-      // TODO: Handle
-      // std::cout << "    ::Goal point is in the funnel, but not at the right or left" << std::endl; //DEBUGPRINTS
-      throw std::runtime_error("Goal is in funnel, but not at the left end");
-    }
-  } else {
-    // Finally, add the goal to the right of the funnel
-    funnelCopy.addRight(goalPoint, true);
-  }
-  // And finish the algorithm, closing out the funnel
-  funnelCopy.finishFunnel();
-
-  // std::cout << "    ::Completed funnel : "; //DEBUGPRINTS
-  // DebugLogger::instance().printFunnel(funnelCopy); //DEBUGPRINTS
-
+  funnelCopy.finishFunnelWithGoal(goalPoint);
   return funnelCopy.getLength();
 }
 
