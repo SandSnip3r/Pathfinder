@@ -294,7 +294,7 @@ double LengthFunnel::funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, con
 }
 
 Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastEdgeOfCorridor) const {
-  Vector result;
+  std::optional<Vector> result;
 
   // std::cout << "  Need to find goal for funnel" << std::endl; //DEBUGPRINTS
   // No goal given, this must mean we're funneling inside of the A* algorithm
@@ -377,7 +377,11 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
   }
   // std::cout << "Funnel ends with a segment from apex " << DebugLogger::instance().pointToString(funnel.apex_point()) << " to " << DebugLogger::instance().pointToString(goalPointToUse) << std::endl; //DEBUGPRINTS
 
-  return result;
+  if (result) {
+    return *result;
+  } else {
+    throw std::runtime_error("No point found!");
+  }
 }
 
 double LengthFunnel::currentPathLength() const {

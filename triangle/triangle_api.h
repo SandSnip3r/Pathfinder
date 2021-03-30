@@ -70,6 +70,19 @@ extern "C" {
 	 * @return Integer status code.
 	 */
 	EXPORT int triangle_context_set_behavior(context* ctx, behavior *in);
+
+	/**
+	 * Initialize the triangleio struct with 0's and NULLs
+	 * @param ctx Pointer to context struct.
+	 * @param io Pointer to uninitialized triangleio struct.
+	 */
+  void triangle_initialize_triangleio(triangleio *io);
+
+	/**
+	 * Free the memory held by the triangleio struct
+	 * @param io Pointer to a triangleio struct which owns data.
+	 */
+  void triangle_free_triangleio(triangleio *io);
 	
 	/**
 	 * Triangulate an input polygon.

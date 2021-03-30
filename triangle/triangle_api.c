@@ -99,6 +99,57 @@ int triangle_context_set_behavior(context* ctx, behavior *in)
 	return triangle_check_behavior(in);
 }
 
+void triangle_initialize_triangleio(triangleio *io) {
+	io->pointlist = NULL;
+	io->pointattributelist = NULL;
+	io->pointmarkerlist = NULL;
+	io->numberofpoints = 0;
+	io->numberofpointattributes = 0;
+
+	io->trianglelist = NULL;
+	io->triangleattributelist = NULL;
+	io->trianglearealist = NULL;
+	io->neighborlist = NULL;
+	io->numberoftriangles = 0;
+	io->numberofcorners = 0;
+	io->numberoftriangleattributes = 0;
+
+	io->segmentlist = NULL;
+	io->segmentmarkerlist = NULL;
+	io->numberofsegments = 0;
+
+	io->holelist = NULL;
+	io->numberofholes = 0;
+	io->regionlist = NULL;
+	io->numberofregions = 0;
+
+	io->edgelist = NULL;
+	io->edgemarkerlist = NULL;
+  io->normlist = NULL;
+	io->numberofedges = 0;
+}
+
+void triangle_free_triangleio(triangleio *io) {
+  free(io->pointlist);
+  free(io->pointattributelist);
+  free(io->pointmarkerlist);
+
+  free(io->trianglelist);
+  free(io->triangleattributelist);
+  free(io->trianglearealist);
+  free(io->neighborlist);
+
+  free(io->segmentlist);
+  free(io->segmentmarkerlist);
+
+  free(io->holelist);
+  free(io->regionlist);
+
+  free(io->edgelist);
+  free(io->edgemarkerlist);
+  free(io->normlist);
+}
+
 int triangle_mesh_quality(context* ctx, quality *q)
 {
 	if (triangle_check_context(ctx) < 0) {
