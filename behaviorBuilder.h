@@ -1,11 +1,11 @@
-#ifndef BEHAVIOR_FACTOR_H_
-#define BEHAVIOR_FACTOR_H_
+#ifndef BEHAVIOR_BUILDER_H_
+#define BEHAVIOR_BUILDER_H_
 
 #include "triangle/triangle.h"
 
-class BehaviorFactory {
+class BehaviorBuilder {
 public:
-  BehaviorFactory();
+  BehaviorBuilder();
 
   behavior getBehavior() const;
 
@@ -19,4 +19,4 @@ private:
   behavior behavior_;
 };
 
-#endif // BEHAVIOR_FACTOR_H_
+#endif // BEHAVIOR_BUILDER_H_

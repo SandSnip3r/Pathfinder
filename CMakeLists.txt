@@ -18,7 +18,7 @@ target_sources(Triangle INTERFACE
 
 # Create Pathfinder as a static library
 add_library(${PROJECT_NAME} STATIC
-  behaviorFactory.cpp
+  behaviorBuilder.cpp
   debuglogger.cpp
   funnel.cpp
   math_helpers.cpp

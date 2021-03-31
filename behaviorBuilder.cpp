@@ -1,8 +1,8 @@
-#include "behaviorFactory.h"
+#include "behaviorBuilder.h"
 
 #include <cmath>
 
-BehaviorFactory::BehaviorFactory() {
+BehaviorBuilder::BehaviorBuilder() {
   // Set a bunch of default behavior
 
   // do want a PSLG triangulation
@@ -112,11 +112,11 @@ BehaviorFactory::BehaviorFactory() {
 
 }
 
-behavior BehaviorFactory::getBehavior() const {
+behavior BehaviorBuilder::getBehavior() const {
   return behavior_;
 }
 
-void BehaviorFactory::setConformingDelaunay(bool val) {
+void BehaviorBuilder::setConformingDelaunay(bool val) {
   if (val) {
     behavior_.quality = 1;
     behavior_.conformdel = 1;
@@ -126,7 +126,7 @@ void BehaviorFactory::setConformingDelaunay(bool val) {
   }
 }
 
-void BehaviorFactory::setEnforceMinimumAngle(bool val, float angle) {
+void BehaviorBuilder::setEnforceMinimumAngle(bool val, float angle) {
   if (val) {
     behavior_.quality = 1;
     behavior_.minangle = angle;
@@ -144,7 +144,7 @@ void BehaviorFactory::setEnforceMinimumAngle(bool val, float angle) {
   }
 }
 
-void BehaviorFactory::setMinimumAngle(float angle) {
+void BehaviorBuilder::setMinimumAngle(float angle) {
   behavior_.minangle = angle;
   behavior_.goodangle = cos(behavior_.minangle * PI / 180.0);
   if (behavior_.goodangle == 1.0) {
@@ -155,7 +155,7 @@ void BehaviorFactory::setMinimumAngle(float angle) {
   behavior_.goodangle *= behavior_.goodangle;
 }
 
-void BehaviorFactory::setEnforceMinimumArea(bool val, float area) {
+void BehaviorBuilder::setEnforceMinimumArea(bool val, float area) {
   if (val) {
     behavior_.quality = 1;
     behavior_.fixedarea = 1;
@@ -167,6 +167,6 @@ void BehaviorFactory::setEnforceMinimumArea(bool val, float area) {
   }
 }
 
-void BehaviorFactory::setMinimumArea(float area) {
+void BehaviorBuilder::setMinimumArea(float area) {
   behavior_.maxarea = area;
 }
