@@ -4,6 +4,10 @@
 
 #include "private/triangle_internal.h"
 
+#ifdef __cplusplus
+namespace triangle {
+#endif
+
 void triangle_version(int version[4])
 {
 	version[0] = TRIANGLE_VERSION_MAJOR;
@@ -461,8 +465,8 @@ int triangle_mesh_copy(context* ctx, triangleio *out, int edges, int neighbors, 
 			//out->holelist = in->holelist;
 			//out->regionlist = in->regionlist;
 		} else {
-			out->holelist = (REAL *) NULL;
-			out->regionlist = (REAL *) NULL;
+			out->holelist = (TRIANGLE_MACRO_REAL *) NULL;
+			out->regionlist = (TRIANGLE_MACRO_REAL *) NULL;
 		}
 	}
 
@@ -487,7 +491,7 @@ int triangle_mesh_copy(context* ctx, triangleio *out, int edges, int neighbors, 
 	return status;
 }
 
-void triangle_free(VOID *memptr)
+void triangle_free(TRIANGLE_MACRO_VOID *memptr)
 {
 	free(memptr);
 }
@@ -513,7 +517,7 @@ int triangle_write_elements(context *ctx, FILE *file)
 }
 
 int triangle_write_poly(context *ctx, FILE *file,
-						REAL *holelist, int holes, REAL *regionlist, int regions)
+						TRIANGLE_MACRO_REAL *holelist, int holes, TRIANGLE_MACRO_REAL *regionlist, int regions)
 {
 	if (triangle_check_context(ctx) < 0) {
 		return TRI_NULL;
@@ -615,3 +619,7 @@ int triangle_read_area(const char* filename, triangleio *io)
 }
 
 #endif /* NO_FILE_IO */
+
+#ifdef __cplusplus
+} // namespace triangle
+#endif

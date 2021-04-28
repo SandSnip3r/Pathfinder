@@ -6,21 +6,21 @@
 typedef struct acutepool_t {
     int size;
     // getWedgeIntersection (fixed size)
-    REAL *initialpoly;
+    TRIANGLE_MACRO_REAL *initialpoly;
     // getWedgeIntersection (dynamic size)
-    REAL *petalx;
-    REAL *petaly;
-    REAL *petalr;
-    REAL *wedges;
+    TRIANGLE_MACRO_REAL *petalx;
+    TRIANGLE_MACRO_REAL *petaly;
+    TRIANGLE_MACRO_REAL *petalr;
+    TRIANGLE_MACRO_REAL *wedges;
     // doSmoothing (fixed size [500])
-    REAL *points_p;
-    REAL *points_q;
-    REAL *points_r;
+    TRIANGLE_MACRO_REAL *points_p;
+    TRIANGLE_MACRO_REAL *points_q;
+    TRIANGLE_MACRO_REAL *points_r;
 } acutepool;
 
 void findNewSPLocation(mesh *m, behavior *b,
                       vertex torg, vertex tdest, vertex tapex,
-                      vertex circumcenter, REAL *xi, REAL *eta, int offcenter, struct otri badotri);
+                      vertex circumcenter, TRIANGLE_MACRO_REAL *xi, TRIANGLE_MACRO_REAL *eta, int offcenter, struct otri badotri);
 
 void acutepool_init(int n, acutepool **mp);
 

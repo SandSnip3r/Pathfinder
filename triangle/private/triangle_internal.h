@@ -15,9 +15,9 @@ void behavior_update(behavior *b);
 
 void triexit(int status);
 
-VOID *trimalloc(int size);
+TRIANGLE_MACRO_VOID *trimalloc(int size);
 
-void trifree(VOID *memptr);
+void trifree(TRIANGLE_MACRO_VOID *memptr);
 
 
 /**                                                                         **/
@@ -79,12 +79,12 @@ void pooldeinit(struct memorypool *pool);
 /**
  * Allocate space for an item.
  */
-VOID *poolalloc(struct memorypool *pool);
+TRIANGLE_MACRO_VOID *poolalloc(struct memorypool *pool);
 
 /**
  * Deallocate space for an item.
  */
-void pooldealloc(struct memorypool *pool, VOID *dyingitem);
+void pooldealloc(struct memorypool *pool, TRIANGLE_MACRO_VOID *dyingitem);
 
 /**
  * Prepare to traverse the entire list of items.
@@ -94,7 +94,7 @@ void traversalinit(struct memorypool *pool);
 /**
  * Find the next item in the list.
  */
-VOID *traverse(struct memorypool *pool);
+TRIANGLE_MACRO_VOID *traverse(struct memorypool *pool);
 
 /**
  * Initialize the triangle that fills "outer space" and the
@@ -157,7 +157,7 @@ void enqueuebadtriang(mesh *m, behavior *b,
                       struct badtriang *badtri);
 
 void enqueuebadtri(mesh *m, behavior *b, struct otri *enqtri,
-                   REAL minedge, vertex enqapex, vertex enqorg, vertex enqdest);
+                   TRIANGLE_MACRO_REAL minedge, vertex enqapex, vertex enqorg, vertex enqdest);
 
 struct badtriang *dequeuebadtriang(mesh *m);
 
@@ -273,7 +273,7 @@ void createeventheap(mesh *m, struct event ***eventheap,
 
 int rightofhyperbola(mesh *m, struct otri *fronttri, vertex newsite);
 
-REAL circletop(mesh *m, vertex pa, vertex pb, vertex pc, REAL ccwabc);
+TRIANGLE_MACRO_REAL circletop(mesh *m, vertex pa, vertex pb, vertex pc, TRIANGLE_MACRO_REAL ccwabc);
 
 void check4deadevent(struct otri *checktri, struct event **freeevents,
                      struct event **eventheap, int *heapsize);
@@ -287,7 +287,7 @@ struct splaynode *splayinsert(mesh *m, struct splaynode *splayroot,
 struct splaynode *circletopinsert(mesh *m, behavior *b,
                                   struct splaynode *splayroot,
                                   struct otri *newkey,
-                                  vertex pa, vertex pb, vertex pc, REAL topy);
+                                  vertex pa, vertex pb, vertex pc, TRIANGLE_MACRO_REAL topy);
 
 struct splaynode *frontlocate(mesh *m, struct splaynode *splayroot,
                               struct otri *bottommost, vertex searchvertex,
@@ -308,7 +308,7 @@ long delaunay(mesh *m, behavior *b);
 #ifndef CDT_ONLY
 
 int reconstruct(mesh *m, behavior *b, int *trianglelist,
-                REAL *triangleattriblist, REAL *trianglearealist,
+                TRIANGLE_MACRO_REAL *triangleattriblist, TRIANGLE_MACRO_REAL *trianglearealist,
                 int elements, int corners, int attribs,
                 int *segmentlist,int *segmentmarkerlist, int numberofsegments);
 
@@ -365,10 +365,10 @@ void infecthull(mesh *m, behavior *b);
 void plague(mesh *m, behavior *b);
 
 void regionplague(mesh *m, behavior *b,
-                  REAL attribute, REAL area);
+                  TRIANGLE_MACRO_REAL attribute, TRIANGLE_MACRO_REAL area);
 
-void carveholes(mesh *m, behavior *b, REAL *holelist, int holes,
-                REAL *regionlist, int regions);
+void carveholes(mesh *m, behavior *b, TRIANGLE_MACRO_REAL *holelist, int holes,
+                TRIANGLE_MACRO_REAL *regionlist, int regions);
 
 /**                                                                         **/
 /********* Carving out holes and concavities ends here               *********/
@@ -401,17 +401,17 @@ void highorder(mesh *m, behavior *b);
 /********* Array I/O routines begin here                              *********/
 /**                                                                         **/
 
-int transfernodes(mesh *m, behavior *b, REAL *pointlist,
-                   REAL *pointattriblist, int *pointmarkerlist,
+int transfernodes(mesh *m, behavior *b, TRIANGLE_MACRO_REAL *pointlist,
+                   TRIANGLE_MACRO_REAL *pointattriblist, int *pointmarkerlist,
                    int numberofpoints, int numberofpointattribs);
 
-void writenodes(mesh *m, behavior *b, REAL **pointlist,
-                REAL **pointattriblist, int **pointmarkerlist);
+void writenodes(mesh *m, behavior *b, TRIANGLE_MACRO_REAL **pointlist,
+                TRIANGLE_MACRO_REAL **pointattriblist, int **pointmarkerlist);
 
 void numbernodes(mesh *m, behavior *b);
 
 void writeelements(mesh *m, behavior *b,
-                   int **trianglelist, REAL **triangleattriblist);
+                   int **trianglelist, TRIANGLE_MACRO_REAL **triangleattriblist);
 
 void writepoly(mesh *m, behavior *b,
                int **segmentlist, int **segmentmarkerlist);
@@ -419,9 +419,9 @@ void writepoly(mesh *m, behavior *b,
 void writeedges(mesh *m, behavior *b,
                 int **edgelist, int **edgemarkerlist);
 
-void writevoronoi(mesh *m, behavior *b, REAL **vpointlist,
-                  REAL **vpointattriblist, int **vpointmarkerlist,
-                  int **vedgelist, int **vedgemarkerlist, REAL **vnormlist);
+void writevoronoi(mesh *m, behavior *b, TRIANGLE_MACRO_REAL **vpointlist,
+                  TRIANGLE_MACRO_REAL **vpointattriblist, int **vpointmarkerlist,
+                  int **vedgelist, int **vedgemarkerlist, TRIANGLE_MACRO_REAL **vnormlist);
 
 void writeneighbors(mesh *m, behavior *b, int **neighborlist);
 
@@ -436,7 +436,7 @@ int file_writenodes(mesh *m, behavior *b, FILE *nodefile);
 int file_writeelements(mesh *m, behavior *b, FILE *elefile);
 
 int file_writepoly(mesh *m, behavior *b, FILE *polyfile,
-				   REAL *holelist, int holes, REAL *regionlist, int regions);
+				   TRIANGLE_MACRO_REAL *holelist, int holes, TRIANGLE_MACRO_REAL *regionlist, int regions);
 
 int file_writeedges(mesh *m, behavior *b, FILE *edgefile);
 

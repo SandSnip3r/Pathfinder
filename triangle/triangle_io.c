@@ -1,7 +1,12 @@
 
 #include "triangle.h"
+#include "triangle_macros.h"
 #include "private/triangle_internal.h"
 #include "private/eps_writer.h"
+
+#ifdef __cplusplus
+namespace triangle {
+#endif
 
 // Defined in triangle.c
 extern int plus1mod3[3];
@@ -131,7 +136,7 @@ int file_writeelements(mesh *m, behavior *b, FILE *elefile)
 /*****************************************************************************/
 
 int file_writepoly(mesh *m, behavior *b, FILE *polyfile,
-				   REAL *holelist, int holes, REAL *regionlist, int regions)
+				   TRIANGLE_MACRO_REAL *holelist, int holes, TRIANGLE_MACRO_REAL *regionlist, int regions)
 {
 	long holenumber, regionnumber;
 	struct osub subsegloop;
@@ -433,7 +438,7 @@ int file_readnodes_internal(FILE *file, triangleio *io, int poly, int* firstnode
 {
 	char inputline[INPUTLINESIZE];
 	char *stringptr;
-	REAL x, y;
+	TRIANGLE_MACRO_REAL x, y;
 	int nodemarkers;
 	int invertices;
 	int mesh_dim;
@@ -489,10 +494,10 @@ int file_readnodes_internal(FILE *file, triangleio *io, int poly, int* firstnode
 		//b->weighted = 0;
 	}
 	io->numberofpointattributes = nextras;
-	io->pointlist = (REAL *)trimalloc(2 * invertices * sizeof(REAL));
+	io->pointlist = (TRIANGLE_MACRO_REAL *)trimalloc(2 * invertices * sizeof(TRIANGLE_MACRO_REAL));
 	
 	if (nextras) {
-		io->pointattributelist = (REAL *)trimalloc(nextras * invertices * sizeof(REAL));
+		io->pointattributelist = (TRIANGLE_MACRO_REAL *)trimalloc(nextras * invertices * sizeof(TRIANGLE_MACRO_REAL));
 	}
 
 	if (nodemarkers) {
@@ -512,12 +517,12 @@ int file_readnodes_internal(FILE *file, triangleio *io, int poly, int* firstnode
 		if (*stringptr == '\0') {
 			return -1; // TODO: error: Vertex (b->firstnumber + i) has no x coordinate.
 		}
-		x = (REAL) strtod(stringptr, &stringptr);
+		x = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 		stringptr = findfield(stringptr);
 		if (*stringptr == '\0') {
 			return -1; // TODO: error: Vertex (b->firstnumber + i) has no y coordinate.
 		}
-		y = (REAL) strtod(stringptr, &stringptr);
+		y = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 		io->pointlist[2 * i + 0] = x;
 		io->pointlist[2 * i + 1] = y;
 		/* Read the vertex attributes. */
@@ -526,7 +531,7 @@ int file_readnodes_internal(FILE *file, triangleio *io, int poly, int* firstnode
 			if (*stringptr == '\0') {
 				io->pointattributelist[nextras * i + j] = 0.0;
 			} else {
-				io->pointattributelist[nextras * i + j] = (REAL) strtod(stringptr, &stringptr);
+				io->pointattributelist[nextras * i + j] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 		}
 		if (nodemarkers) {
@@ -634,7 +639,7 @@ int file_readholes_internal(FILE *file, triangleio *io)
 	holes = (int) strtol(stringptr, &stringptr, 0);
 	if (holes > 0) {
 		io->numberofholes = holes;
-		io->holelist = (REAL *) trimalloc(2 * holes * (int) sizeof(REAL));
+		io->holelist = (TRIANGLE_MACRO_REAL *) trimalloc(2 * holes * (int) sizeof(TRIANGLE_MACRO_REAL));
 		for (i = 0; i < 2 * holes; i += 2) {
 			stringptr = readline(inputline, file);
 			if (stringptr == (char *) NULL) {
@@ -644,13 +649,13 @@ int file_readholes_internal(FILE *file, triangleio *io)
 			if (*stringptr == '\0') {
 				return -1; // TODO: error: Hole (b->firstnumber + (i >> 1)) has no x coordinate.
 			} else {
-				io->holelist[i] = (REAL) strtod(stringptr, &stringptr);
+				io->holelist[i] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 			stringptr = findfield(stringptr);
 			if (*stringptr == '\0') {
 				return -1; // TODO: error: Hole (b->firstnumber + (i >> 1)) has no y coordinate.
 			} else {
-				io->holelist[i + 1] = (REAL) strtod(stringptr, &stringptr);
+				io->holelist[i + 1] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 		}
 	}
@@ -664,7 +669,7 @@ int file_readholes_internal(FILE *file, triangleio *io)
 	regions = (int) strtol(stringptr, &stringptr, 0);
 	if (regions > 0) {
 		io->numberofregions = regions;
-		io->regionlist = (REAL *) trimalloc(4 * regions * (int) sizeof(REAL));
+		io->regionlist = (TRIANGLE_MACRO_REAL *) trimalloc(4 * regions * (int) sizeof(TRIANGLE_MACRO_REAL));
 		index = 0;
 		for (i = 0; i < regions; i++) {
 			stringptr = readline(inputline, file);
@@ -675,25 +680,25 @@ int file_readholes_internal(FILE *file, triangleio *io)
 			if (*stringptr == '\0') {
 				return -1; // TODO: error: Region (b->firstnumber + i) has no x coordinate.
 			} else {
-				io->regionlist[index++] = (REAL) strtod(stringptr, &stringptr);
+				io->regionlist[index++] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 			stringptr = findfield(stringptr);
 			if (*stringptr == '\0') {
 				return -1; // TODO: error: Region (b->firstnumber + i) has no y coordinate.
 			} else {
-				io->regionlist[index++] = (REAL) strtod(stringptr, &stringptr);
+				io->regionlist[index++] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 			stringptr = findfield(stringptr);
 			if (*stringptr == '\0') {
 				return -1; // TODO: error: Region (b->firstnumber + i) has no region attribute or area constraint.
 			} else {
-				io->regionlist[index++] = (REAL) strtod(stringptr, &stringptr);
+				io->regionlist[index++] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 			stringptr = findfield(stringptr);
 			if (*stringptr == '\0') {
 				io->regionlist[index] = io->regionlist[index - 1];
 			} else {
-				io->regionlist[index] = (REAL) strtod(stringptr, &stringptr);
+				io->regionlist[index] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 			index++;
 		}
@@ -786,7 +791,7 @@ int file_readelements(FILE *file, triangleio *io)
 	io->trianglelist = (int *)trimalloc(3 * inelements * sizeof(int));
 	if (eextras > 0) {
 		io->numberoftriangleattributes = eextras;
-		io->triangleattributelist = (REAL *)trimalloc(eextras * inelements * sizeof(REAL));
+		io->triangleattributelist = (TRIANGLE_MACRO_REAL *)trimalloc(eextras * inelements * sizeof(TRIANGLE_MACRO_REAL));
 	}
 
 	/* Read the triangles from the .ele file. */
@@ -811,7 +816,7 @@ int file_readelements(FILE *file, triangleio *io)
 			if (*stringptr == '\0') {
 				io->triangleattributelist[eextras * i + j] = 0;
 			} else {
-				io->triangleattributelist[eextras * i + j] = (REAL) strtod(stringptr, &stringptr);
+				io->triangleattributelist[eextras * i + j] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 			}
 		}
 	}
@@ -850,7 +855,7 @@ int file_readelementsarea(FILE *file, triangleio *io)
 		return -1; // TODO: error: area file disagrees on number of triangles.
 	}
 
-	io->trianglearealist = (REAL *)trimalloc(numelements * sizeof(REAL));
+	io->trianglearealist = (TRIANGLE_MACRO_REAL *)trimalloc(numelements * sizeof(TRIANGLE_MACRO_REAL));
 
 	/* Read the triangles from the .ele file. */
 	for (i = 0; i < numelements; i++) {
@@ -863,7 +868,7 @@ int file_readelementsarea(FILE *file, triangleio *io)
 		if (*stringptr == '\0') {
 			io->trianglearealist[i] = -1.0; /* No constraint on this triangle. */
 		} else {
-			io->trianglearealist[i] = (REAL) strtod(stringptr, &stringptr);
+			io->trianglearealist[i] = (TRIANGLE_MACRO_REAL) strtod(stringptr, &stringptr);
 		}
 	}
 
@@ -873,3 +878,7 @@ int file_readelementsarea(FILE *file, triangleio *io)
 /**                                                                         **/
 /**                                                                         **/
 /********* File reading routines end here                            *********/
+
+#ifdef __cplusplus
+} // namespace triangle
+#endif

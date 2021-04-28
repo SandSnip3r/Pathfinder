@@ -4,6 +4,7 @@
 #include <string.h>
 #include <math.h>
 
+#include "triangle_macros.h"
 #include "private/triangle_internal.h"
 #include "private/eps_writer.h"
 

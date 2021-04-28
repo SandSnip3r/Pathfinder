@@ -12,6 +12,7 @@
 #define EXPORT TRIANGLE_EXPORT
 
 #ifdef __cplusplus
+namespace triangle {
 extern "C" {
 #endif
 
@@ -159,7 +160,7 @@ extern "C" {
 	 * Free memory that was allocated by triangle.
 	 * @param memptr Pointer to native memory.
 	 */
-	EXPORT void triangle_free(VOID *memptr);
+	EXPORT void triangle_free(TRIANGLE_MACRO_VOID *memptr);
 
 #ifndef NO_FILE_IO
 	/**
@@ -189,7 +190,7 @@ extern "C" {
 	 * @return Integer status code.
 	 */
 	EXPORT int triangle_write_poly(context *ctx, FILE *file,
-		REAL *holelist, int holes, REAL *regionlist, int regions);
+		TRIANGLE_MACRO_REAL *holelist, int holes, TRIANGLE_MACRO_REAL *regionlist, int regions);
 	
 	/**
 	 * Write edge file.
@@ -253,6 +254,7 @@ extern "C" {
 
 #ifdef __cplusplus
 }
+} // namespace triangle
 #endif
 
 #endif /* TRIANGLE_API_H */

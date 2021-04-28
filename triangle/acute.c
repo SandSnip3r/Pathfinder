@@ -10,12 +10,17 @@
 #include <string.h>
 #include <math.h>
 #include "triangle.h"
+#include "triangle_macros.h"
 #include "private/triangle_internal.h"
 #include "private/predicates.h"
 #include "private/acute.h"
 #include "private/acute_internal.h"
 
 #ifndef NO_ACUTE
+
+#ifdef __cplusplus
+namespace triangle {
+#endif
 
 // ACUTE MEMORY POOL
 
@@ -24,20 +29,20 @@ void acutepool_init(int n, acutepool **mp) {
 
     p->size = n;
     
-    p->initialpoly = (REAL *)malloc(sizeof(REAL)* 500);
-    p->petalx = (REAL *)malloc(sizeof(REAL)* 2 * n);
-    p->petaly = (REAL *)malloc(sizeof(REAL)* 2 * n);
-    p->petalr = (REAL *)malloc(sizeof(REAL)* 2 * n);
+    p->initialpoly = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 500);
+    p->petalx = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n);
+    p->petaly = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n);
+    p->petalr = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n);
 
     // If maxangle is 0.0 we'd only need (2 * n * 16 + 36) REALs, but since we
     // do not know if maxangle gets set later on, let's allocate enough memory
     // right away.
 
-    p->wedges = (REAL *)malloc(sizeof(REAL)* 2 * n * 20 + 40);
+    p->wedges = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n * 20 + 40);
 
-    p->points_p = (REAL *)malloc(sizeof(REAL)* 500);
-    p->points_q = (REAL *)malloc(sizeof(REAL)* 500);
-    p->points_r = (REAL *)malloc(sizeof(REAL)* 500);
+    p->points_p = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 500);
+    p->points_q = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 500);
+    p->points_r = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 500);
 
 	*mp = p;
 }
@@ -53,11 +58,11 @@ void acutepool_resize(int n, acutepool *p) {
         free(p->wedges);
 
         // Allocate new memory
-        p->petalx = (REAL *)malloc(sizeof(REAL)* 2 * n);
-        p->petaly = (REAL *)malloc(sizeof(REAL)* 2 * n);
-        p->petalr = (REAL *)malloc(sizeof(REAL)* 2 * n);
+        p->petalx = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n);
+        p->petaly = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n);
+        p->petalr = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n);
 
-        p->wedges = (REAL *)malloc(sizeof(REAL)* 2 * n * 20 + 40);
+        p->wedges = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL)* 2 * n * 20 + 40);
     }
 }
 
@@ -94,7 +99,7 @@ extern int minus1mod3[3];
 
 void findNewSPLocation(mesh *m, behavior *b,
                       vertex torg, vertex tdest, vertex tapex,
-                      vertex circumcenter, REAL *xi, REAL *eta, int offcenter, struct otri badotri) {
+                      vertex circumcenter, TRIANGLE_MACRO_REAL *xi, TRIANGLE_MACRO_REAL *eta, int offcenter, struct otri badotri) {
 	// Based on using -U switch, call the corresponding function
 	if(b->maxangle == 0.00000){
 		 findNewSPLocationWithoutMaxAngle(m, b, torg, tdest, tapex, circumcenter, xi, eta, 1, badotri);
@@ -112,21 +117,21 @@ void findNewSPLocation(mesh *m, behavior *b,
 /*********************************************************************************/
 void findNewSPLocationWithoutMaxAngle(mesh *m, behavior *b,
                       vertex torg, vertex tdest, vertex tapex,
-                      vertex circumcenter, REAL *xi, REAL *eta, int offcenter, struct otri badotri){
+                      vertex circumcenter, TRIANGLE_MACRO_REAL *xi, TRIANGLE_MACRO_REAL *eta, int offcenter, struct otri badotri){
 
 	// for calculating the distances of the edges
-	REAL xdo, ydo, xao, yao, xda, yda;
-	REAL dodist, aodist, dadist;
+	TRIANGLE_MACRO_REAL xdo, ydo, xao, yao, xda, yda;
+	TRIANGLE_MACRO_REAL dodist, aodist, dadist;
 	// for exact calculation
-	REAL denominator;
-	REAL dx, dy, dxoff, dyoff;
+	TRIANGLE_MACRO_REAL denominator;
+	TRIANGLE_MACRO_REAL dx, dy, dxoff, dyoff;
 	
 	////////////////////////////// HALE'S VARIABLES //////////////////////////////
 	// keeps the difference of coordinates edge 
-	REAL xShortestEdge, yShortestEdge, xMiddleEdge, yMiddleEdge, xLongestEdge, yLongestEdge;
+	TRIANGLE_MACRO_REAL xShortestEdge, yShortestEdge, xMiddleEdge, yMiddleEdge, xLongestEdge, yLongestEdge;
 	
 	// keeps the square of edge lengths
-	REAL shortestEdgeDist, middleEdgeDist, longestEdgeDist;
+	TRIANGLE_MACRO_REAL shortestEdgeDist, middleEdgeDist, longestEdgeDist;
 	
 	// keeps the vertices according to the angle incident to that vertex in a triangle
 	vertex smallestAngleCorner = NULL, middleAngleCorner = NULL, largestAngleCorner = NULL;
@@ -134,47 +139,47 @@ void findNewSPLocationWithoutMaxAngle(mesh *m, behavior *b,
 	// keeps the type of orientation if the triangle
 	int orientation = 0;
 	// keeps the coordinates of circumcenter of itself and neighbor triangle circumcenter	
-	REAL myCircumcenter[2], neighborCircumcenter[2];	
+	TRIANGLE_MACRO_REAL myCircumcenter[2], neighborCircumcenter[2];
 
 	// keeps if bad triangle is almost good or not
 	int almostGood = 0;
 	// keeps the cosine of the largest angle
-	REAL cosMaxAngle;
+	TRIANGLE_MACRO_REAL cosMaxAngle;
 	int isObtuse = -1; // 1: obtuse 0: nonobtuse
 	// keeps the radius of petal
-	REAL petalRadius;
+	TRIANGLE_MACRO_REAL petalRadius;
 	// for calculating petal center
-	REAL xPetalCtr_1, yPetalCtr_1, xPetalCtr_2, yPetalCtr_2, xPetalCtr, yPetalCtr, xMidOfShortestEdge, yMidOfShortestEdge;
-	REAL dxcenter1, dycenter1, dxcenter2, dycenter2;
+	TRIANGLE_MACRO_REAL xPetalCtr_1, yPetalCtr_1, xPetalCtr_2, yPetalCtr_2, xPetalCtr, yPetalCtr, xMidOfShortestEdge, yMidOfShortestEdge;
+	TRIANGLE_MACRO_REAL dxcenter1, dycenter1, dxcenter2, dycenter2;
 	// for finding neighbor
 	struct otri neighborotri;
-	REAL thirdPoint[2];
+	TRIANGLE_MACRO_REAL thirdPoint[2];
 	int neighborNotFound = -1;
 	// for keeping the vertices of the neighbor triangle
 	vertex neighborvertex_1;
 	vertex neighborvertex_2;
 	vertex neighborvertex_3;
 	// dummy variables 
-  	REAL xi_tmp, eta_tmp;
+  TRIANGLE_MACRO_REAL xi_tmp, eta_tmp;
 	// for petal intersection
-	REAL vector_x, vector_y, xMidOfLongestEdge, yMidOfLongestEdge, inter_x, inter_y, p[5], voronoiOrInter[4];
+	TRIANGLE_MACRO_REAL vector_x, vector_y, xMidOfLongestEdge, yMidOfLongestEdge, inter_x, inter_y, p[5], voronoiOrInter[4];
 	int isCorrect = -1; 
 
 	// for vector calculations in perturbation
-	REAL ax, ay, d;	
-	REAL pertConst = 0.06; // perturbation constant
+	TRIANGLE_MACRO_REAL ax, ay, d;
+	TRIANGLE_MACRO_REAL pertConst = 0.06; // perturbation constant
 
-	REAL lengthConst = 1; // used at comparing circumcenter's distance to proposed point's distance
-	REAL justAcute = 1; // used for making the program working for one direction only
+	TRIANGLE_MACRO_REAL lengthConst = 1; // used at comparing circumcenter's distance to proposed point's distance
+	TRIANGLE_MACRO_REAL justAcute = 1; // used for making the program working for one direction only
 	// for smoothing
 	int relocated = 0;// used to differentiate between calling the deletevertex and just proposing a steiner point
-	REAL newloc[2];   // new location suggested by smoothing
-	REAL origin_x, origin_y; // for keeping torg safe
+	TRIANGLE_MACRO_REAL newloc[2];   // new location suggested by smoothing
+	TRIANGLE_MACRO_REAL origin_x, origin_y; // for keeping torg safe
 	struct otri delotri; // keeping the original orientation for relocation process
 	// keeps the first and second direction suggested points
-	REAL dxFirstSuggestion, dyFirstSuggestion, dxSecondSuggestion, dySecondSuggestion;
+	TRIANGLE_MACRO_REAL dxFirstSuggestion, dyFirstSuggestion, dxSecondSuggestion, dySecondSuggestion;
 	// second direction variables
-	REAL xMidOfMiddleEdge, yMidOfMiddleEdge;
+	TRIANGLE_MACRO_REAL xMidOfMiddleEdge, yMidOfMiddleEdge;
 	////////////////////////////// END OF HALE'S VARIABLES //////////////////////////////
 	
 	m->circumcentercount++; 
@@ -721,21 +726,21 @@ void findNewSPLocationWithoutMaxAngle(mesh *m, behavior *b,
 /*********************************************************************************/
 void findNewSPLocationWithMaxAngle(mesh *m, behavior *b,
                       vertex torg, vertex tdest, vertex tapex,
-                      vertex circumcenter, REAL *xi, REAL *eta, int offcenter, struct otri badotri){
+                      vertex circumcenter, TRIANGLE_MACRO_REAL *xi, TRIANGLE_MACRO_REAL *eta, int offcenter, struct otri badotri){
 
 	// for calculating the distances of the edges
-	REAL xdo, ydo, xao, yao, xda, yda;
-	REAL dodist, aodist, dadist;
+	TRIANGLE_MACRO_REAL xdo, ydo, xao, yao, xda, yda;
+	TRIANGLE_MACRO_REAL dodist, aodist, dadist;
 	// for exact calculation
-	REAL denominator;
-	REAL dx, dy, dxoff, dyoff;
+	TRIANGLE_MACRO_REAL denominator;
+	TRIANGLE_MACRO_REAL dx, dy, dxoff, dyoff;
 	
 	////////////////////////////// HALE'S VARIABLES //////////////////////////////
 	// keeps the difference of coordinates edge 
-	REAL xShortestEdge, yShortestEdge, xMiddleEdge, yMiddleEdge, xLongestEdge, yLongestEdge;
+	TRIANGLE_MACRO_REAL xShortestEdge, yShortestEdge, xMiddleEdge, yMiddleEdge, xLongestEdge, yLongestEdge;
 	
 	// keeps the square of edge lengths
-	REAL shortestEdgeDist, middleEdgeDist, longestEdgeDist;
+	TRIANGLE_MACRO_REAL shortestEdgeDist, middleEdgeDist, longestEdgeDist;
 	
 	// keeps the vertices according to the angle incident to that vertex in a triangle
 	vertex smallestAngleCorner = NULL, middleAngleCorner = NULL, largestAngleCorner = NULL;
@@ -743,58 +748,58 @@ void findNewSPLocationWithMaxAngle(mesh *m, behavior *b,
 	// keeps the type of orientation if the triangle
 	int orientation = 0;
 	// keeps the coordinates of circumcenter of itself and neighbor triangle circumcenter	
-	REAL myCircumcenter[2], neighborCircumcenter[2];	
+	TRIANGLE_MACRO_REAL myCircumcenter[2], neighborCircumcenter[2];
 
 	// keeps if bad triangle is almost good or not
 	int almostGood = 0;
 	// keeps the cosine of the largest angle
-	REAL cosMaxAngle;
+	TRIANGLE_MACRO_REAL cosMaxAngle;
 	int isObtuse = -1; // 1: obtuse 0: nonobtuse
 	// keeps the radius of petal
-	REAL petalRadius;
+	TRIANGLE_MACRO_REAL petalRadius;
 	// for calculating petal center
-	REAL xPetalCtr_1, yPetalCtr_1, xPetalCtr_2, yPetalCtr_2, xPetalCtr, yPetalCtr, xMidOfShortestEdge, yMidOfShortestEdge;
-	REAL dxcenter1, dycenter1, dxcenter2, dycenter2;
+	TRIANGLE_MACRO_REAL xPetalCtr_1, yPetalCtr_1, xPetalCtr_2, yPetalCtr_2, xPetalCtr, yPetalCtr, xMidOfShortestEdge, yMidOfShortestEdge;
+	TRIANGLE_MACRO_REAL dxcenter1, dycenter1, dxcenter2, dycenter2;
 	// for finding neighbor
 	struct otri neighborotri;
-	REAL thirdPoint[2];
+	TRIANGLE_MACRO_REAL thirdPoint[2];
 	// for keeping the vertices of the neighbor triangle
 	vertex neighborvertex_1;
 	vertex neighborvertex_2;
 	vertex neighborvertex_3;
 	// dummy variables 
-  	REAL xi_tmp, eta_tmp;
+  TRIANGLE_MACRO_REAL xi_tmp, eta_tmp;
 	// for petal intersection
-	REAL vector_x, vector_y, xMidOfLongestEdge, yMidOfLongestEdge, inter_x, inter_y, p[5], voronoiOrInter[4];
+	TRIANGLE_MACRO_REAL vector_x, vector_y, xMidOfLongestEdge, yMidOfLongestEdge, inter_x, inter_y, p[5], voronoiOrInter[4];
 	int isCorrect = -1; 
 
 	// for vector calculations in perturbation
-	REAL ax, ay, d;	
-	REAL pertConst = 0.06; // perturbation constant
+	TRIANGLE_MACRO_REAL ax, ay, d;
+	TRIANGLE_MACRO_REAL pertConst = 0.06; // perturbation constant
 
-	REAL lengthConst = 1; // used at comparing circumcenter's distance to proposed point's distance
-	REAL justAcute = 1; // used for making the program working for one direction only
+	TRIANGLE_MACRO_REAL lengthConst = 1; // used at comparing circumcenter's distance to proposed point's distance
+	TRIANGLE_MACRO_REAL justAcute = 1; // used for making the program working for one direction only
 	// for smoothing
 	int relocated = 0;// used to differentiate between calling the deletevertex and just proposing a steiner point
-	REAL newloc[2];   // new location suggested by smoothing
-	REAL origin_x, origin_y; // for keeping torg safe
+	TRIANGLE_MACRO_REAL newloc[2];   // new location suggested by smoothing
+	TRIANGLE_MACRO_REAL origin_x, origin_y; // for keeping torg safe
 	struct otri delotri; // keeping the original orientation for relocation process
 	// keeps the first and second direction suggested points
-	REAL dxFirstSuggestion, dyFirstSuggestion, dxSecondSuggestion, dySecondSuggestion;
+	TRIANGLE_MACRO_REAL dxFirstSuggestion, dyFirstSuggestion, dxSecondSuggestion, dySecondSuggestion;
 	// second direction variables
-	REAL xMidOfMiddleEdge, yMidOfMiddleEdge;
+	TRIANGLE_MACRO_REAL xMidOfMiddleEdge, yMidOfMiddleEdge;
 
-	REAL minangle;	// in order to make sure that the circumcircle of the bad triangle is greater than petal
+	TRIANGLE_MACRO_REAL minangle;	// in order to make sure that the circumcircle of the bad triangle is greater than petal
 	// for calculating the slab
-	REAL linepnt1_x,linepnt1_y,linepnt2_x,linepnt2_y;	// two points of the line
-  	REAL line_inter_x, line_inter_y;
-  	REAL line_vector_x, line_vector_y;
-  	REAL line_p[3]; // used for getting the return values of functions related to line intersection
-  	REAL line_result[4];
+	TRIANGLE_MACRO_REAL linepnt1_x,linepnt1_y,linepnt2_x,linepnt2_y;	// two points of the line
+	TRIANGLE_MACRO_REAL line_inter_x, line_inter_y;
+	TRIANGLE_MACRO_REAL line_vector_x, line_vector_y;
+	TRIANGLE_MACRO_REAL line_p[3]; // used for getting the return values of functions related to line intersection
+	TRIANGLE_MACRO_REAL line_result[4];
 	// intersection of slab and the petal
-	REAL petal_slab_inter_x_first, petal_slab_inter_y_first,petal_slab_inter_x_second, petal_slab_inter_y_second, x_1, y_1, x_2, y_2;
-	REAL petal_bisector_x, petal_bisector_y, dist;
-	REAL alpha;
+	TRIANGLE_MACRO_REAL petal_slab_inter_x_first, petal_slab_inter_y_first,petal_slab_inter_x_second, petal_slab_inter_y_second, x_1, y_1, x_2, y_2;
+	TRIANGLE_MACRO_REAL petal_bisector_x, petal_bisector_y, dist;
+	TRIANGLE_MACRO_REAL alpha;
 	int neighborNotFound_first = -1;
 	int neighborNotFound_second = -1;
 	////////////////////////////// END OF HALE'S VARIABLES //////////////////////////////
@@ -1813,7 +1818,7 @@ void findNewSPLocationWithMaxAngle(mesh *m, behavior *b,
 //	longest: dadist		//	longest: aodist		//	longest: aodist
 // 
 //---------------------------------------------------------------------------------//
-int longestShortestEdge(REAL aodist, REAL dadist, REAL dodist){
+int longestShortestEdge(TRIANGLE_MACRO_REAL aodist, TRIANGLE_MACRO_REAL dadist, TRIANGLE_MACRO_REAL dodist){
 	
 	int max = 0, min = 0, mid = 0,minMidMax;
 	if (dodist < aodist && dodist < dadist){
@@ -1860,19 +1865,19 @@ int doSmoothing(mesh *m, behavior *b,
 		vertex torg,
 		vertex tdest,
 		vertex tapex,
-		REAL *newloc){
+		TRIANGLE_MACRO_REAL *newloc){
 
     int numpoints_p = 0;// keeps the number of points in a star of point p, q, r
 	int numpoints_q = 0;
 	int numpoints_r = 0;
-	REAL possibilities[6];//there can be more than one possibilities
+	TRIANGLE_MACRO_REAL possibilities[6];//there can be more than one possibilities
 	int num_pos = 0; // number of possibilities
 	int flag1 = 0, flag2 = 0, flag3 = 0;
 	int newLocFound = 0;
 	
-	REAL *points_p;// keeps the points in a star of point p, q, r
-	REAL *points_q;
-	REAL *points_r;
+	TRIANGLE_MACRO_REAL *points_p;// keeps the points in a star of point p, q, r
+	TRIANGLE_MACRO_REAL *points_q;
+	TRIANGLE_MACRO_REAL *points_r;
 
 	points_p = m->acute_mem->points_p;
 	points_q = m->acute_mem->points_q;
@@ -2042,14 +2047,14 @@ int getStarPoints(mesh *m, struct otri badotri,
 			vertex q,
 			vertex r,
 			int whichPoint,
-			REAL *points){
+			TRIANGLE_MACRO_REAL *points){
 
 	struct otri neighotri;  // for return value of the function
 	struct otri tempotri;   // for temporary usage
-	REAL first_x, first_y;	  // keeps the first point to be considered
-	REAL second_x, second_y;  // for determining the edge we will begin
-	REAL third_x, third_y;	  // termination
-	REAL returnPoint[2];	  // for keeping the returned point	
+	TRIANGLE_MACRO_REAL first_x, first_y;	  // keeps the first point to be considered
+	TRIANGLE_MACRO_REAL second_x, second_y;  // for determining the edge we will begin
+	TRIANGLE_MACRO_REAL third_x, third_y;	  // termination
+	TRIANGLE_MACRO_REAL returnPoint[2];	  // for keeping the returned point
 	int numvertices = 0;	  // for keeping number of surrounding vertices
 
 	// first determine which point to be used to find its neighbor triangles
@@ -2119,9 +2124,9 @@ int getStarPoints(mesh *m, struct otri badotri,
 // returns 1, if not found, 0 otherwise
 //---------------------------------------------------------------------------------//
 int getNeighborsVertex(mesh *m, struct otri badotri,
-				REAL first_x, REAL first_y,
-				REAL second_x, REAL second_y, 
-				REAL *thirdpoint, struct otri *neighotri){
+				TRIANGLE_MACRO_REAL first_x, TRIANGLE_MACRO_REAL first_y,
+				TRIANGLE_MACRO_REAL second_x, TRIANGLE_MACRO_REAL second_y,
+				TRIANGLE_MACRO_REAL *thirdpoint, struct otri *neighotri){
  
 	struct otri neighbor; // keeps the neighbor triangles
 	int notFound = 0;	// boolean variable if we can find that neighbor or not
@@ -2248,30 +2253,30 @@ int getNeighborsVertex(mesh *m, struct otri badotri,
 // this version uses intersection of wedges to find the new location
 //---------------------------------------------------------------------------------//
 int getWedgeIntersectionWithoutMaxAngle(mesh *m, behavior *b, 
-			    int numpoints, REAL *points, REAL *newloc){
-    REAL x0, y0, x1, y1, x2, y2;
+			    int numpoints, TRIANGLE_MACRO_REAL *points, TRIANGLE_MACRO_REAL *newloc){
+    TRIANGLE_MACRO_REAL x0, y0, x1, y1, x2, y2;
     //REAL compConst = 0.01; // for comparing real numbers
     
-    REAL x01, y01;
-    REAL d01;
+    TRIANGLE_MACRO_REAL x01, y01;
+    TRIANGLE_MACRO_REAL d01;
     
-    REAL *petalx;
-    REAL *petaly;
-    REAL *petalr;
-    REAL *wedges;
-    REAL *initialConvexPoly;
+    TRIANGLE_MACRO_REAL *petalx;
+    TRIANGLE_MACRO_REAL *petaly;
+    TRIANGLE_MACRO_REAL *petalr;
+    TRIANGLE_MACRO_REAL *wedges;
+    TRIANGLE_MACRO_REAL *initialConvexPoly;
 
-    REAL xmid, ymid, dist, x3, y3;
-    REAL x_1, y_1, x_2, y_2, x_3, y_3, x_4, y_4, tempx, tempy; 
-    REAL ux, uy;
-    REAL alpha;
-    REAL p1[3];
+    TRIANGLE_MACRO_REAL xmid, ymid, dist, x3, y3;
+    TRIANGLE_MACRO_REAL x_1, y_1, x_2, y_2, x_3, y_3, x_4, y_4, tempx, tempy;
+    TRIANGLE_MACRO_REAL ux, uy;
+    TRIANGLE_MACRO_REAL alpha;
+    TRIANGLE_MACRO_REAL p1[3];
     int numpolypoints;
     
     int i, j;
 	int s, flag, count, num;
 
-    REAL petalcenterconstant, petalradiusconstant;
+    TRIANGLE_MACRO_REAL petalcenterconstant, petalradiusconstant;
 	
 	acutepool_resize(numpoints, m->acute_mem);
     
@@ -2488,36 +2493,36 @@ int getWedgeIntersectionWithoutMaxAngle(mesh *m, behavior *b,
 // this version uses intersection of wedges to find the new location
 //---------------------------------------------------------------------------------//
 int getWedgeIntersectionWithMaxAngle(mesh *m, behavior *b, 
-			    int numpoints, REAL *points, REAL *newloc){
-    REAL x0, y0, x1, y1, x2, y2;
+			    int numpoints, TRIANGLE_MACRO_REAL *points, TRIANGLE_MACRO_REAL *newloc){
+    TRIANGLE_MACRO_REAL x0, y0, x1, y1, x2, y2;
     //REAL compConst = 0.01; // for comparing real numbers
     
-    REAL x01, y01;
+    TRIANGLE_MACRO_REAL x01, y01;
     
-    REAL d01;
+    TRIANGLE_MACRO_REAL d01;
     
-    REAL *petalx;
-    REAL *petaly;
-    REAL *petalr;
-    REAL *wedges;
-    REAL *initialConvexPoly;
+    TRIANGLE_MACRO_REAL *petalx;
+    TRIANGLE_MACRO_REAL *petaly;
+    TRIANGLE_MACRO_REAL *petalr;
+    TRIANGLE_MACRO_REAL *wedges;
+    TRIANGLE_MACRO_REAL *initialConvexPoly;
 
-    REAL xmid, ymid, dist, x3, y3;
-    REAL x_1, y_1, x_2, y_2, x_3, y_3, x_4, y_4, tempx, tempy,x_5,y_5,x_6,y_6; 
-    REAL ux, uy;
-    REAL alpha;
-    REAL p1[3], p2[3], p3[3], p4[3];
+    TRIANGLE_MACRO_REAL xmid, ymid, dist, x3, y3;
+    TRIANGLE_MACRO_REAL x_1, y_1, x_2, y_2, x_3, y_3, x_4, y_4, tempx, tempy,x_5,y_5,x_6,y_6;
+    TRIANGLE_MACRO_REAL ux, uy;
+    TRIANGLE_MACRO_REAL alpha;
+    TRIANGLE_MACRO_REAL p1[3], p2[3], p3[3], p4[3];
     int numpolypoints;
     int howManyPoints;	// keeps the number of points used for representing the wedge
-    REAL line345 = 4.0, line789 = 4.0; // flag keeping which line to skip or construct
+    TRIANGLE_MACRO_REAL line345 = 4.0, line789 = 4.0; // flag keeping which line to skip or construct
     
     int numBadTriangle;
     int i, j, k;
 	int s, flag, count, num;
 	int e, n;
-	REAL weight;
+	TRIANGLE_MACRO_REAL weight;
 
-    REAL petalcenterconstant, petalradiusconstant;
+    TRIANGLE_MACRO_REAL petalcenterconstant, petalradiusconstant;
 	
 	acutepool_resize(numpoints, m->acute_mem);
     
@@ -2915,7 +2920,7 @@ int getWedgeIntersectionWithMaxAngle(mesh *m, behavior *b,
 // polygonAngles()
 // Return 0 if the polygon has angles greater than 2*minangle
 //---------------------------------------------------------------------------------//
-int polygonAngles(behavior *b,int numpoints, REAL *points){
+int polygonAngles(behavior *b,int numpoints, TRIANGLE_MACRO_REAL *points){
 	int i;
 	for(i = 0; i < numpoints; i++){
 		if(i == numpoints-1){
@@ -2942,14 +2947,14 @@ int polygonAngles(behavior *b,int numpoints, REAL *points){
 // Returns 1, if it is a BAD polygon corner, returns 0 if it is a GOOD polygon corner
 //---------------------------------------------------------------------------------//
 int testPolygonAngle(behavior *b, 
-				REAL *x1, REAL *y1,
-				REAL *x2, REAL *y2,
-				REAL *x3, REAL *y3 ){
+				TRIANGLE_MACRO_REAL *x1, TRIANGLE_MACRO_REAL *y1,
+				TRIANGLE_MACRO_REAL *x2, TRIANGLE_MACRO_REAL *y2,
+				TRIANGLE_MACRO_REAL *x3, TRIANGLE_MACRO_REAL *y3 ){
 	// variables keeping the distance values for the edges
-	REAL dx12, dy12, dx23, dy23, dx31, dy31;
-	REAL dist12, dist23, dist31;
+	TRIANGLE_MACRO_REAL dx12, dy12, dx23, dy23, dx31, dy31;
+	TRIANGLE_MACRO_REAL dist12, dist23, dist31;
 	
-	REAL cosAngle;    // in order to check minimum angle condition
+	TRIANGLE_MACRO_REAL cosAngle;    // in order to check minimum angle condition
 	
 	// calculate the side lengths
 	
@@ -2981,10 +2986,10 @@ int testPolygonAngle(behavior *b,
 // referenced to: http://local.wasp.uwa.edu.au/~pbourke/geometry/
 //---------------------------------------------------------------------------------//
 void lineLineIntersection (
-    REAL x1, REAL y1 ,
-    REAL x2, REAL y2 ,
-    REAL x3, REAL y3 , 
-    REAL x4, REAL y4 , REAL *p)
+    TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1,
+    TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2,
+    TRIANGLE_MACRO_REAL x3, TRIANGLE_MACRO_REAL y3,
+    TRIANGLE_MACRO_REAL x4, TRIANGLE_MACRO_REAL y4, TRIANGLE_MACRO_REAL *p)
 {
 	// x1,y1  P1 coordinates (point of line 1)
 	// x2,y2  P2 coordinates (point of line 1)	
@@ -2995,7 +3000,7 @@ void lineLineIntersection (
 	// This function returns a pointer array which first index indicates
 	// weather they intersect on one point or not, followed by coordinate pairs.
 		
-	REAL u_a, u_b, denom;
+	TRIANGLE_MACRO_REAL u_a, u_b, denom;
 	
 	// calculate denominator first
 	denom = (y4-y3)*(x2-x1)-(x4-x3)*(y2-y1);
@@ -3029,19 +3034,19 @@ void lineLineIntersection (
 // (regarding the directional vector) of the given line.
 // www.mathematik.uni-ulm.de/stochastik/lehre/ws03_04/rt/Geometry2D.ps
 //---------------------------------------------------------------------------------//
-int halfPlaneIntersection(int numvertices, REAL *convexPoly, REAL x1, REAL y1, REAL x2, REAL y2){
+int halfPlaneIntersection(int numvertices, TRIANGLE_MACRO_REAL *convexPoly, TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1, TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2){
 
-	REAL dx, dy;	// direction of the line
-	REAL z, min, max;
+	TRIANGLE_MACRO_REAL dx, dy;	// direction of the line
+	TRIANGLE_MACRO_REAL z, min, max;
 	int i, j;
-	REAL *polys[2];
-	REAL *res = NULL;
+	TRIANGLE_MACRO_REAL *polys[2];
+	TRIANGLE_MACRO_REAL *res = NULL;
 	int count = 0;
  	int intFound = 0;
 	int numpolys;
 
-	polys[0] = (REAL *)malloc(sizeof(REAL) * 100);
-	polys[1] = (REAL *)malloc(sizeof(REAL) * 100);
+	polys[0] = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL) * 100);
+	polys[1] = (TRIANGLE_MACRO_REAL *)malloc(sizeof(TRIANGLE_MACRO_REAL) * 100);
 
 	dx = x2 - x1;
 	dy = y2 - y1;
@@ -3093,23 +3098,23 @@ int halfPlaneIntersection(int numvertices, REAL *convexPoly, REAL x1, REAL y1, R
 // (regarding the directional vector) of the given line.
 // www.mathematik.uni-ulm.de/stochastik/lehre/ws03_04/rt/Geometry2D.ps
 //---------------------------------------------------------------------------------//
-int splitConvexPolygon(int numvertices,REAL *convexPoly, REAL x1, REAL y1, REAL x2, REAL y2, REAL *polys[]) {
+int splitConvexPolygon(int numvertices,TRIANGLE_MACRO_REAL *convexPoly, TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1, TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2, TRIANGLE_MACRO_REAL *polys[]) {
 	/*
 	* state = 0: before the first intersection (with the line)
 	* state = 1: after the first intersection (with the line)
 	* state = 2: after the second intersection (with the line)
 	*/
 	int state = 0;
-	REAL p[3];
+	TRIANGLE_MACRO_REAL p[3];
 	// poly1 is constructed in states 0 and 2
-	REAL *poly1 = polys[0];
+	TRIANGLE_MACRO_REAL *poly1 = polys[0];
 	int poly1counter = 0;
 	// poly2 is constructed in state 1
-	REAL *poly2 = polys[1];
+	TRIANGLE_MACRO_REAL *poly2 = polys[1];
 	int poly2counter = 0;
 	int numpolys;
 	int i;
-	REAL compConst = 0.000000000001;
+	TRIANGLE_MACRO_REAL compConst = 0.000000000001;
 	// for debugging 
 	int case1 = 0, case2 = 0, case3 = 0, case31 = 0, case32 = 0, case33 = 0, case311 = 0, case3111 = 0;
 	// intersect all edges of poly with line
@@ -3252,8 +3257,8 @@ int splitConvexPolygon(int numvertices,REAL *convexPoly, REAL x1, REAL y1, REAL 
 // (regarding the directional vector) of the given line.
 // www.mathematik.uni-ulm.de/stochastik/lehre/ws03_04/rt/Geometry2D.ps
 //---------------------------------------------------------------------------------//
-int linePointLocation(REAL x1, REAL y1, REAL x2, REAL y2, REAL x, REAL y){
-	REAL z;
+int linePointLocation(TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1, TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2, TRIANGLE_MACRO_REAL x, TRIANGLE_MACRO_REAL y){
+	TRIANGLE_MACRO_REAL z;
 	if(atan((y2-y1)/(x2-x1))*180.0/PI == 90.0){
 		if(fabs(x1-x) <= 0.00000000001)
 			return 0;
@@ -3277,10 +3282,10 @@ int linePointLocation(REAL x1, REAL y1, REAL x2, REAL y2, REAL x, REAL y){
 // referenced to: http://local.wasp.uwa.edu.au/~pbourke/geometry/
 //---------------------------------------------------------------------------------//
 void lineLineSegmentIntersection(
-    REAL x1, REAL y1 ,
-    REAL x2, REAL y2 ,
-    REAL x3, REAL y3 , 
-    REAL x4, REAL y4 , REAL *p)
+    TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1,
+    TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2,
+    TRIANGLE_MACRO_REAL x3, TRIANGLE_MACRO_REAL y3,
+    TRIANGLE_MACRO_REAL x4, TRIANGLE_MACRO_REAL y4, TRIANGLE_MACRO_REAL *p)
 {
 	// x1,y1  P1 coordinates (point of line)
 	// x2,y2  P2 coordinates (point of line)	
@@ -3291,8 +3296,8 @@ void lineLineSegmentIntersection(
 	// This function returns a pointer array which first index indicates
 	// weather they intersect on one point or not, followed by coordinate pairs.
 		
-	REAL u_a, u_b, denom;	
-	REAL compConst = 0.0000000000001;	
+	TRIANGLE_MACRO_REAL u_a, u_b, denom;
+	TRIANGLE_MACRO_REAL compConst = 0.0000000000001;
 	// calculate denominator first
 	denom = (y4-y3)*(x2-x1)-(x4-x3)*(y2-y1);
 	u_a = (x4-x3)*(y1-y3) - (y4-y3)*(x1-x3);
@@ -3327,7 +3332,7 @@ void lineLineSegmentIntersection(
 // findPolyCentroid()
 // Returns the centroid of a given polygon 
 //---------------------------------------------------------------------------------//
-void findPolyCentroid(int numpoints, REAL *points, REAL *centroid){
+void findPolyCentroid(int numpoints, TRIANGLE_MACRO_REAL *points, TRIANGLE_MACRO_REAL *centroid){
 	int i;
 	centroid[0] = 0.0;	centroid[1] = 0.0;
 
@@ -3344,7 +3349,7 @@ void findPolyCentroid(int numpoints, REAL *points, REAL *centroid){
 
 
 //---------------------------------------------------------------------------------//
-// circleLineIntersection() 
+// circleLineIntersection()
 // Given two points representing a line and 
 // a radius together with a center point representing a circle,
 // returns the intersection points
@@ -3352,9 +3357,9 @@ void findPolyCentroid(int numpoints, REAL *points, REAL *centroid){
 //---------------------------------------------------------------------------------//
 // returns a pointer to list of intersection points
 void circleLineIntersection (
-    REAL x1, REAL y1 ,
-    REAL x2, REAL y2 ,
-    REAL x3, REAL y3 , REAL r , REAL *p)
+    TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1 ,
+    TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2 ,
+    TRIANGLE_MACRO_REAL x3, TRIANGLE_MACRO_REAL y3 , TRIANGLE_MACRO_REAL r , TRIANGLE_MACRO_REAL *p)
 {
 	// x1,y1  P1 coordinates [point of line]
 	// x2,y2  P2 coordinates [point of line]
@@ -3364,7 +3369,7 @@ void circleLineIntersection (
 	// This function returns a pointer array which first index indicates
 	// the number of intersection points, followed by coordinate pairs.
 	
-	REAL a, b, c, mu, i ;	
+	TRIANGLE_MACRO_REAL a, b, c, mu, i;
 	
 	a =  (x2 - x1)*(x2 - x1) + (y2 - y1)*(y2 - y1);
 	b =  2* ( (x2 - x1)*(x1 - x3) + (y2 - y1)*(y1 - y3)) ;
@@ -3409,9 +3414,9 @@ void circleLineIntersection (
 // check if the point is the correct point that we are looking for
 //---------------------------------------------------------------------------------//
 int chooseCorrectPoint (
-    REAL x1, REAL y1 ,
-    REAL x2, REAL y2 ,
-    REAL x3, REAL y3, int isObtuse )
+    TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1 ,
+    TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2 ,
+    TRIANGLE_MACRO_REAL x3, TRIANGLE_MACRO_REAL y3, int isObtuse )
 {
 
 	// x1,y1  P1 coordinates (bisector point of dual edge on triangle)
@@ -3421,7 +3426,7 @@ int chooseCorrectPoint (
 	// otherwise return 0.0
 	
 	
-	REAL d1, d2 ;
+	TRIANGLE_MACRO_REAL d1, d2 ;
 	int p;
 	
 	// squared distance between circumcenter and intersection point
@@ -3455,7 +3460,7 @@ int chooseCorrectPoint (
 // returns 1 if point is between given points
 //---------------------------------------------------------------------------------//
 
-void pointBetweenPoints(REAL x1, REAL y1, REAL x2, REAL y2, REAL x, REAL y, REAL *p){
+void pointBetweenPoints(TRIANGLE_MACRO_REAL x1, TRIANGLE_MACRO_REAL y1, TRIANGLE_MACRO_REAL x2, TRIANGLE_MACRO_REAL y2, TRIANGLE_MACRO_REAL x, TRIANGLE_MACRO_REAL y, TRIANGLE_MACRO_REAL *p){
 	
 	// x1,y1  P1 coordinates [point of line] (point on Voronoi edge - intersection)
 	// x2,y2  P2 coordinates [point of line] (circumcenter)
@@ -3491,18 +3496,18 @@ void pointBetweenPoints(REAL x1, REAL y1, REAL x2, REAL y2, REAL x, REAL y, REAL
 // Returns 1, if it is a BAD triangle, returns 0 if it is a GOOD triangle
 //---------------------------------------------------------------------------------//
 int testTriangleAngle(behavior *b, 
-				REAL *x1, REAL *y1,
-				REAL *x2, REAL *y2,
-				REAL *x3, REAL *y3 )
+				TRIANGLE_MACRO_REAL *x1, TRIANGLE_MACRO_REAL *y1,
+				TRIANGLE_MACRO_REAL *x2, TRIANGLE_MACRO_REAL *y2,
+				TRIANGLE_MACRO_REAL *x3, TRIANGLE_MACRO_REAL *y3 )
 {
     // variables keeping the distance values for the edges
-  REAL dxod, dyod, dxda, dyda, dxao, dyao;
-  REAL dxod2, dyod2, dxda2, dyda2, dxao2, dyao2;
+  TRIANGLE_MACRO_REAL dxod, dyod, dxda, dyda, dxao, dyao;
+  TRIANGLE_MACRO_REAL dxod2, dyod2, dxda2, dyda2, dxao2, dyao2;
 
-  REAL apexlen, orglen, destlen, minedge;
-  REAL angle;    // in order to check minimum angle condition 
+  TRIANGLE_MACRO_REAL apexlen, orglen, destlen, minedge;
+  TRIANGLE_MACRO_REAL angle;    // in order to check minimum angle condition
   
-  REAL maxangle, maxedge;    // in order to check minimum angle condition
+  TRIANGLE_MACRO_REAL maxangle, maxedge;    // in order to check minimum angle condition
  // calculate the side lengths
   
   dxod = *x1 - *x2;
@@ -3581,11 +3586,11 @@ int testTriangleAngle(behavior *b,
 // Given the triangulation, and a vertex
 // returns the minimum distance to the vertices of the triangle where the given vertex located
 //---------------------------------------------------------------------------------//
-REAL minDistanceToNeigbor(mesh *m, behavior *b, REAL newlocX, REAL newlocY, struct otri *searchtri){
+TRIANGLE_MACRO_REAL minDistanceToNeigbor(mesh *m, behavior *b, TRIANGLE_MACRO_REAL newlocX, TRIANGLE_MACRO_REAL newlocY, struct otri *searchtri){
 	struct otri horiz;	// for search operation
 	enum locateresult intersect;
 	vertex v1, v2, v3, newvertex, torg, tdest;
-	REAL d1, d2, d3, ahead;
+	TRIANGLE_MACRO_REAL d1, d2, d3, ahead;
 	triangle ptr;                         /* Temporary variable used by sym(). */
 		
 	newvertex = (vertex) poolalloc(&m->vertices);
@@ -3660,6 +3665,11 @@ REAL minDistanceToNeigbor(mesh *m, behavior *b, REAL newlocX, REAL newlocY, stru
 }// end of minDistanceToNeighbor()
 
 /*============================NEW CODE ENDS==============================*/
+
+#ifdef __cplusplus
+} // namespace triangle
+#endif
+
 #endif
 
 

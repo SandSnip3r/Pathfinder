@@ -16,12 +16,12 @@
 /*   you do not have enough memory.                                          */
 
 /* Define as "float" for single precision. */
-#define REAL double
+#define TRIANGLE_MACRO_REAL double
 
 /* The next line is used to outsmart some very stupid compilers.  If your    */
 /*   compiler is smarter, feel free to replace the "int" with "void".        */
 /*   Not that it matters.                                                    */
-#define VOID void
+#define TRIANGLE_MACRO_VOID void
 
 /* Triangle status codes. */
 
@@ -40,10 +40,10 @@
 
 /* Set correct size for pointer alignment calculations */
 #if defined(_M_X64) || defined(__amd64__)
-  #define ULONG_PTR unsigned long long
+  #define TRIANGLE_MACRO_ULONG_PTR unsigned long long
   #define LX "%llx"
 #else
-  #define ULONG_PTR unsigned long
+  #define TRIANGLE_MACRO_ULONG_PTR unsigned long
   #define LX "%lx"
 #endif
 

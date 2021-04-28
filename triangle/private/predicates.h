@@ -5,38 +5,38 @@
 
 void exactinit();
 
-REAL counterclockwise(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL counterclockwise(mesh *m, behavior *b,
                       vertex pa, vertex pb, vertex pc);
 
-REAL incircle(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL incircle(mesh *m, behavior *b,
               vertex pa, vertex pb, vertex pc, vertex pd);
 
-REAL nonregular(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL nonregular(mesh *m, behavior *b,
                 vertex pa, vertex pb, vertex pc, vertex pd);
 
 void findcircumcenter(mesh *m, behavior *b,
                       vertex torg, vertex tdest, vertex tapex,
-                      vertex circumcenter, REAL *xi, REAL *eta, int offcenter);
+                      vertex circumcenter, TRIANGLE_MACRO_REAL *xi, TRIANGLE_MACRO_REAL *eta, int offcenter);
 
 /********* Private methods *********/
 
-int fast_expansion_sum_zeroelim(int elen, REAL *e, int flen, REAL *f, REAL *h);
+int fast_expansion_sum_zeroelim(int elen, TRIANGLE_MACRO_REAL *e, int flen, TRIANGLE_MACRO_REAL *f, TRIANGLE_MACRO_REAL *h);
 
-int scale_expansion_zeroelim(int elen, REAL *e, REAL b, REAL *h);
+int scale_expansion_zeroelim(int elen, TRIANGLE_MACRO_REAL *e, TRIANGLE_MACRO_REAL b, TRIANGLE_MACRO_REAL *h);
 
-REAL estimate(int elen, REAL *e);
+TRIANGLE_MACRO_REAL estimate(int elen, TRIANGLE_MACRO_REAL *e);
 
-REAL counterclockwiseadapt(vertex pa, vertex pb, vertex pc, REAL detsum);
+TRIANGLE_MACRO_REAL counterclockwiseadapt(vertex pa, vertex pb, vertex pc, TRIANGLE_MACRO_REAL detsum);
 
-REAL incircleadapt(vertex pa, vertex pb, vertex pc, vertex pd, REAL permanent);
+TRIANGLE_MACRO_REAL incircleadapt(vertex pa, vertex pb, vertex pc, vertex pd, TRIANGLE_MACRO_REAL permanent);
 
-REAL orient3dadapt(vertex pa, vertex pb, vertex pc, vertex pd,
-                   REAL aheight, REAL bheight, REAL cheight, REAL dheight,
-                   REAL permanent);
+TRIANGLE_MACRO_REAL orient3dadapt(vertex pa, vertex pb, vertex pc, vertex pd,
+                   TRIANGLE_MACRO_REAL aheight, TRIANGLE_MACRO_REAL bheight, TRIANGLE_MACRO_REAL cheight, TRIANGLE_MACRO_REAL dheight,
+                   TRIANGLE_MACRO_REAL permanent);
 
-REAL orient3d(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL orient3d(mesh *m, behavior *b,
               vertex pa, vertex pb, vertex pc, vertex pd,
-              REAL aheight, REAL bheight, REAL cheight, REAL dheight);
+              TRIANGLE_MACRO_REAL aheight, TRIANGLE_MACRO_REAL bheight, TRIANGLE_MACRO_REAL cheight, TRIANGLE_MACRO_REAL dheight);
 
 
 #endif /* PREDICATES_H */

@@ -1,6 +1,12 @@
 
+#include "triangle_macros.h"
+
 #include "private/triangle_helper.h"
 #include "private/triangle_internal.h"
+
+#ifdef __cplusplus
+namespace triangle {
+#endif
 
 int triangle_check_context(context* ctx)
 {
@@ -26,7 +32,7 @@ int triangle_check_triangleio(triangleio* io, int firstnumber)
 {
 	int i;
 	int a, b, c;
-	REAL x1, y1, x2, y2;
+	TRIANGLE_MACRO_REAL x1, y1, x2, y2;
 
 	int invertices = io->numberofpoints;
 	int insegments = io->numberofsegments;
@@ -95,3 +101,7 @@ void triangle_restore_pointmarkers(context* ctx, int *pointmarkers)
 		vertexloop = vertextraverse(m);
 	}
 }
+
+#ifdef __cplusplus
+} // namespace triangle
+#endif

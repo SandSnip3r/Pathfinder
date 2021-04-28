@@ -11,12 +11,12 @@
 
 /* Global constants.                                                         */
 
-REAL splitter;       /* Used to split REAL factors for exact multiplication. */
-REAL epsilon;                             /* Floating-point machine epsilon. */
-REAL resulterrbound;
-REAL ccwerrboundA, ccwerrboundB, ccwerrboundC;
-REAL iccerrboundA, iccerrboundB, iccerrboundC;
-REAL o3derrboundA, o3derrboundB, o3derrboundC;
+TRIANGLE_MACRO_REAL splitter;       /* Used to split REAL factors for exact multiplication. */
+TRIANGLE_MACRO_REAL epsilon;                             /* Floating-point machine epsilon. */
+TRIANGLE_MACRO_REAL resulterrbound;
+TRIANGLE_MACRO_REAL ccwerrboundA, ccwerrboundB, ccwerrboundC;
+TRIANGLE_MACRO_REAL iccerrboundA, iccerrboundB, iccerrboundC;
+TRIANGLE_MACRO_REAL o3derrboundA, o3derrboundB, o3derrboundC;
 
 
 /********* Geometric primitives begin here                           *********/
@@ -57,34 +57,34 @@ REAL o3derrboundA, o3derrboundB, o3derrboundC;
   y = b - bvirt
 
 #define Fast_Two_Sum(a, b, x, y) \
-  x = (REAL) (a + b); \
+  x = (TRIANGLE_MACRO_REAL) (a + b); \
   Fast_Two_Sum_Tail(a, b, x, y)
 
 #define Two_Sum_Tail(a, b, x, y) \
-  bvirt = (REAL) (x - a); \
+  bvirt = (TRIANGLE_MACRO_REAL) (x - a); \
   avirt = x - bvirt; \
   bround = b - bvirt; \
   around = a - avirt; \
   y = around + bround
 
 #define Two_Sum(a, b, x, y) \
-  x = (REAL) (a + b); \
+  x = (TRIANGLE_MACRO_REAL) (a + b); \
   Two_Sum_Tail(a, b, x, y)
 
 #define Two_Diff_Tail(a, b, x, y) \
-  bvirt = (REAL) (a - x); \
+  bvirt = (TRIANGLE_MACRO_REAL) (a - x); \
   avirt = x + bvirt; \
   bround = bvirt - b; \
   around = a - avirt; \
   y = around + bround
 
 #define Two_Diff(a, b, x, y) \
-  x = (REAL) (a - b); \
+  x = (TRIANGLE_MACRO_REAL) (a - b); \
   Two_Diff_Tail(a, b, x, y)
 
 #define Split(a, ahi, alo) \
-  c = (REAL) (splitter * a); \
-  abig = (REAL) (c - a); \
+  c = (TRIANGLE_MACRO_REAL) (splitter * a); \
+  abig = (TRIANGLE_MACRO_REAL) (c - a); \
   ahi = c - abig; \
   alo = a - ahi
 
@@ -97,14 +97,14 @@ REAL o3derrboundA, o3derrboundB, o3derrboundC;
   y = (alo * blo) - err3
 
 #define Two_Product(a, b, x, y) \
-  x = (REAL) (a * b); \
+  x = (TRIANGLE_MACRO_REAL) (a * b); \
   Two_Product_Tail(a, b, x, y)
 
 /* Two_Product_Presplit() is Two_Product() where one of the inputs has       */
 /*   already been split.  Avoids redundant splitting.                        */
 
 #define Two_Product_Presplit(a, b, bhi, blo, x, y) \
-  x = (REAL) (a * b); \
+  x = (TRIANGLE_MACRO_REAL) (a * b); \
   Split(a, ahi, alo); \
   err1 = x - (ahi * bhi); \
   err2 = err1 - (alo * bhi); \
@@ -120,7 +120,7 @@ REAL o3derrboundA, o3derrboundB, o3derrboundC;
   y = (alo * alo) - err3
 
 #define Square(a, x, y) \
-  x = (REAL) (a * a); \
+  x = (TRIANGLE_MACRO_REAL) (a * a); \
   Square_Tail(a, x, y)
 
 /* Macros for summing expansions of various fixed lengths.  These are all    */
@@ -172,8 +172,8 @@ REAL o3derrboundA, o3derrboundB, o3derrboundC;
 
 void exactinit()
 {
-  REAL half;
-  REAL check, lastcheck;
+  TRIANGLE_MACRO_REAL half;
+  TRIANGLE_MACRO_REAL check, lastcheck;
   int every_other;
 #ifdef LINUX
   int cword;
@@ -243,15 +243,15 @@ void exactinit()
 /*                                                                           */
 /*****************************************************************************/
 
-int fast_expansion_sum_zeroelim(int elen, REAL *e, int flen, REAL *f, REAL *h)
+int fast_expansion_sum_zeroelim(int elen, TRIANGLE_MACRO_REAL *e, int flen, TRIANGLE_MACRO_REAL *f, TRIANGLE_MACRO_REAL *h)
 {
-  REAL Q;
-  INEXACT REAL Qnew;
-  INEXACT REAL hh;
-  INEXACT REAL bvirt;
-  REAL avirt, bround, around;
+  TRIANGLE_MACRO_REAL Q;
+  INEXACT TRIANGLE_MACRO_REAL Qnew;
+  INEXACT TRIANGLE_MACRO_REAL hh;
+  INEXACT TRIANGLE_MACRO_REAL bvirt;
+  TRIANGLE_MACRO_REAL avirt, bround, around;
   int eindex, findex, hindex;
-  REAL enow, fnow;
+  TRIANGLE_MACRO_REAL enow, fnow;
 
   enow = e[0];
   fnow = f[0];
@@ -327,20 +327,20 @@ int fast_expansion_sum_zeroelim(int elen, REAL *e, int flen, REAL *f, REAL *h)
 /*                                                                           */
 /*****************************************************************************/
 
-int scale_expansion_zeroelim(int elen, REAL *e, REAL b, REAL *h)
+int scale_expansion_zeroelim(int elen, TRIANGLE_MACRO_REAL *e, TRIANGLE_MACRO_REAL b, TRIANGLE_MACRO_REAL *h)
 {
-  INEXACT REAL Q, sum;
-  REAL hh;
-  INEXACT REAL product1;
-  REAL product0;
+  INEXACT TRIANGLE_MACRO_REAL Q, sum;
+  TRIANGLE_MACRO_REAL hh;
+  INEXACT TRIANGLE_MACRO_REAL product1;
+  TRIANGLE_MACRO_REAL product0;
   int eindex, hindex;
-  REAL enow;
-  INEXACT REAL bvirt;
-  REAL avirt, bround, around;
-  INEXACT REAL c;
-  INEXACT REAL abig;
-  REAL ahi, alo, bhi, blo;
-  REAL err1, err2, err3;
+  TRIANGLE_MACRO_REAL enow;
+  INEXACT TRIANGLE_MACRO_REAL bvirt;
+  TRIANGLE_MACRO_REAL avirt, bround, around;
+  INEXACT TRIANGLE_MACRO_REAL c;
+  INEXACT TRIANGLE_MACRO_REAL abig;
+  TRIANGLE_MACRO_REAL ahi, alo, bhi, blo;
+  TRIANGLE_MACRO_REAL err1, err2, err3;
 
   Split(b, bhi, blo);
   Two_Product_Presplit(e[0], b, bhi, blo, Q, hh);
@@ -374,9 +374,9 @@ int scale_expansion_zeroelim(int elen, REAL *e, REAL b, REAL *h)
 /*                                                                           */
 /*****************************************************************************/
 
-REAL estimate(int elen, REAL *e)
+TRIANGLE_MACRO_REAL estimate(int elen, TRIANGLE_MACRO_REAL *e)
 {
-  REAL Q;
+  TRIANGLE_MACRO_REAL Q;
   int eindex;
 
   Q = e[0];
@@ -406,34 +406,34 @@ REAL estimate(int elen, REAL *e)
 /*                                                                           */
 /*****************************************************************************/
 
-REAL counterclockwiseadapt(vertex pa, vertex pb, vertex pc, REAL detsum)
+TRIANGLE_MACRO_REAL counterclockwiseadapt(vertex pa, vertex pb, vertex pc, TRIANGLE_MACRO_REAL detsum)
 {
-  INEXACT REAL acx, acy, bcx, bcy;
-  REAL acxtail, acytail, bcxtail, bcytail;
-  INEXACT REAL detleft, detright;
-  REAL detlefttail, detrighttail;
-  REAL det, errbound;
-  REAL B[5], C1[8], C2[12], D[16];
-  INEXACT REAL B3;
+  INEXACT TRIANGLE_MACRO_REAL acx, acy, bcx, bcy;
+  TRIANGLE_MACRO_REAL acxtail, acytail, bcxtail, bcytail;
+  INEXACT TRIANGLE_MACRO_REAL detleft, detright;
+  TRIANGLE_MACRO_REAL detlefttail, detrighttail;
+  TRIANGLE_MACRO_REAL det, errbound;
+  TRIANGLE_MACRO_REAL B[5], C1[8], C2[12], D[16];
+  INEXACT TRIANGLE_MACRO_REAL B3;
   int C1length, C2length, Dlength;
-  REAL u[5];
-  INEXACT REAL u3;
-  INEXACT REAL s1, t1;
-  REAL s0, t0;
+  TRIANGLE_MACRO_REAL u[5];
+  INEXACT TRIANGLE_MACRO_REAL u3;
+  INEXACT TRIANGLE_MACRO_REAL s1, t1;
+  TRIANGLE_MACRO_REAL s0, t0;
 
-  INEXACT REAL bvirt;
-  REAL avirt, bround, around;
-  INEXACT REAL c;
-  INEXACT REAL abig;
-  REAL ahi, alo, bhi, blo;
-  REAL err1, err2, err3;
-  INEXACT REAL _i, _j;
-  REAL _0;
+  INEXACT TRIANGLE_MACRO_REAL bvirt;
+  TRIANGLE_MACRO_REAL avirt, bround, around;
+  INEXACT TRIANGLE_MACRO_REAL c;
+  INEXACT TRIANGLE_MACRO_REAL abig;
+  TRIANGLE_MACRO_REAL ahi, alo, bhi, blo;
+  TRIANGLE_MACRO_REAL err1, err2, err3;
+  INEXACT TRIANGLE_MACRO_REAL _i, _j;
+  TRIANGLE_MACRO_REAL _0;
 
-  acx = (REAL) (pa[0] - pc[0]);
-  bcx = (REAL) (pb[0] - pc[0]);
-  acy = (REAL) (pa[1] - pc[1]);
-  bcy = (REAL) (pb[1] - pc[1]);
+  acx = (TRIANGLE_MACRO_REAL) (pa[0] - pc[0]);
+  bcx = (TRIANGLE_MACRO_REAL) (pb[0] - pc[0]);
+  acy = (TRIANGLE_MACRO_REAL) (pa[1] - pc[1]);
+  bcy = (TRIANGLE_MACRO_REAL) (pb[1] - pc[1]);
 
   Two_Product(acx, bcy, detleft, detlefttail);
   Two_Product(acy, bcx, detright, detrighttail);
@@ -486,11 +486,11 @@ REAL counterclockwiseadapt(vertex pa, vertex pb, vertex pc, REAL detsum)
   return(D[Dlength - 1]);
 }
 
-REAL counterclockwise(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL counterclockwise(mesh *m, behavior *b,
                       vertex pa, vertex pb, vertex pc)
 {
-  REAL detleft, detright, det;
-  REAL detsum, errbound;
+  TRIANGLE_MACRO_REAL detleft, detright, det;
+  TRIANGLE_MACRO_REAL detsum, errbound;
 
   m->counterclockcount++;
 
@@ -545,75 +545,75 @@ REAL counterclockwise(mesh *m, behavior *b,
 /*                                                                           */
 /*****************************************************************************/
 
-REAL incircleadapt(vertex pa, vertex pb, vertex pc, vertex pd, REAL permanent)
+TRIANGLE_MACRO_REAL incircleadapt(vertex pa, vertex pb, vertex pc, vertex pd, TRIANGLE_MACRO_REAL permanent)
 {
-  INEXACT REAL adx, bdx, cdx, ady, bdy, cdy;
-  REAL det, errbound;
+  INEXACT TRIANGLE_MACRO_REAL adx, bdx, cdx, ady, bdy, cdy;
+  TRIANGLE_MACRO_REAL det, errbound;
 
-  INEXACT REAL bdxcdy1, cdxbdy1, cdxady1, adxcdy1, adxbdy1, bdxady1;
-  REAL bdxcdy0, cdxbdy0, cdxady0, adxcdy0, adxbdy0, bdxady0;
-  REAL bc[4], ca[4], ab[4];
-  INEXACT REAL bc3, ca3, ab3;
-  REAL axbc[8], axxbc[16], aybc[8], ayybc[16], adet[32];
+  INEXACT TRIANGLE_MACRO_REAL bdxcdy1, cdxbdy1, cdxady1, adxcdy1, adxbdy1, bdxady1;
+  TRIANGLE_MACRO_REAL bdxcdy0, cdxbdy0, cdxady0, adxcdy0, adxbdy0, bdxady0;
+  TRIANGLE_MACRO_REAL bc[4], ca[4], ab[4];
+  INEXACT TRIANGLE_MACRO_REAL bc3, ca3, ab3;
+  TRIANGLE_MACRO_REAL axbc[8], axxbc[16], aybc[8], ayybc[16], adet[32];
   int axbclen, axxbclen, aybclen, ayybclen, alen;
-  REAL bxca[8], bxxca[16], byca[8], byyca[16], bdet[32];
+  TRIANGLE_MACRO_REAL bxca[8], bxxca[16], byca[8], byyca[16], bdet[32];
   int bxcalen, bxxcalen, bycalen, byycalen, blen;
-  REAL cxab[8], cxxab[16], cyab[8], cyyab[16], cdet[32];
+  TRIANGLE_MACRO_REAL cxab[8], cxxab[16], cyab[8], cyyab[16], cdet[32];
   int cxablen, cxxablen, cyablen, cyyablen, clen;
-  REAL abdet[64];
+  TRIANGLE_MACRO_REAL abdet[64];
   int ablen;
-  REAL fin1[1152], fin2[1152];
-  REAL *finnow, *finother, *finswap;
+  TRIANGLE_MACRO_REAL fin1[1152], fin2[1152];
+  TRIANGLE_MACRO_REAL *finnow, *finother, *finswap;
   int finlength;
 
-  REAL adxtail, bdxtail, cdxtail, adytail, bdytail, cdytail;
-  INEXACT REAL adxadx1, adyady1, bdxbdx1, bdybdy1, cdxcdx1, cdycdy1;
-  REAL adxadx0, adyady0, bdxbdx0, bdybdy0, cdxcdx0, cdycdy0;
-  REAL aa[4], bb[4], cc[4];
-  INEXACT REAL aa3, bb3, cc3;
-  INEXACT REAL ti1, tj1;
-  REAL ti0, tj0;
-  REAL u[5], v[5];
-  INEXACT REAL u3, v3;
-  REAL temp8[8], temp16a[16], temp16b[16], temp16c[16];
-  REAL temp32a[32], temp32b[32], temp48[48], temp64[64];
+  TRIANGLE_MACRO_REAL adxtail, bdxtail, cdxtail, adytail, bdytail, cdytail;
+  INEXACT TRIANGLE_MACRO_REAL adxadx1, adyady1, bdxbdx1, bdybdy1, cdxcdx1, cdycdy1;
+  TRIANGLE_MACRO_REAL adxadx0, adyady0, bdxbdx0, bdybdy0, cdxcdx0, cdycdy0;
+  TRIANGLE_MACRO_REAL aa[4], bb[4], cc[4];
+  INEXACT TRIANGLE_MACRO_REAL aa3, bb3, cc3;
+  INEXACT TRIANGLE_MACRO_REAL ti1, tj1;
+  TRIANGLE_MACRO_REAL ti0, tj0;
+  TRIANGLE_MACRO_REAL u[5], v[5];
+  INEXACT TRIANGLE_MACRO_REAL u3, v3;
+  TRIANGLE_MACRO_REAL temp8[8], temp16a[16], temp16b[16], temp16c[16];
+  TRIANGLE_MACRO_REAL temp32a[32], temp32b[32], temp48[48], temp64[64];
   int temp8len, temp16alen, temp16blen, temp16clen;
   int temp32alen, temp32blen, temp48len, temp64len;
-  REAL axtbb[8], axtcc[8], aytbb[8], aytcc[8];
+  TRIANGLE_MACRO_REAL axtbb[8], axtcc[8], aytbb[8], aytcc[8];
   int axtbblen, axtcclen, aytbblen, aytcclen;
-  REAL bxtaa[8], bxtcc[8], bytaa[8], bytcc[8];
+  TRIANGLE_MACRO_REAL bxtaa[8], bxtcc[8], bytaa[8], bytcc[8];
   int bxtaalen, bxtcclen, bytaalen, bytcclen;
-  REAL cxtaa[8], cxtbb[8], cytaa[8], cytbb[8];
+  TRIANGLE_MACRO_REAL cxtaa[8], cxtbb[8], cytaa[8], cytbb[8];
   int cxtaalen, cxtbblen, cytaalen, cytbblen;
-  REAL axtbc[8], aytbc[8], bxtca[8], bytca[8], cxtab[8], cytab[8];
+  TRIANGLE_MACRO_REAL axtbc[8], aytbc[8], bxtca[8], bytca[8], cxtab[8], cytab[8];
   int axtbclen, aytbclen, bxtcalen, bytcalen, cxtablen, cytablen;
-  REAL axtbct[16], aytbct[16], bxtcat[16], bytcat[16], cxtabt[16], cytabt[16];
+  TRIANGLE_MACRO_REAL axtbct[16], aytbct[16], bxtcat[16], bytcat[16], cxtabt[16], cytabt[16];
   int axtbctlen, aytbctlen, bxtcatlen, bytcatlen, cxtabtlen, cytabtlen;
-  REAL axtbctt[8], aytbctt[8], bxtcatt[8];
-  REAL bytcatt[8], cxtabtt[8], cytabtt[8];
+  TRIANGLE_MACRO_REAL axtbctt[8], aytbctt[8], bxtcatt[8];
+  TRIANGLE_MACRO_REAL bytcatt[8], cxtabtt[8], cytabtt[8];
   int axtbcttlen, aytbcttlen, bxtcattlen, bytcattlen, cxtabttlen, cytabttlen;
-  REAL abt[8], bct[8], cat[8];
+  TRIANGLE_MACRO_REAL abt[8], bct[8], cat[8];
   int abtlen, bctlen, catlen;
-  REAL abtt[4], bctt[4], catt[4];
+  TRIANGLE_MACRO_REAL abtt[4], bctt[4], catt[4];
   int abttlen, bcttlen, cattlen;
-  INEXACT REAL abtt3, bctt3, catt3;
-  REAL negate;
+  INEXACT TRIANGLE_MACRO_REAL abtt3, bctt3, catt3;
+  TRIANGLE_MACRO_REAL negate;
 
-  INEXACT REAL bvirt;
-  REAL avirt, bround, around;
-  INEXACT REAL c;
-  INEXACT REAL abig;
-  REAL ahi, alo, bhi, blo;
-  REAL err1, err2, err3;
-  INEXACT REAL _i, _j;
-  REAL _0;
+  INEXACT TRIANGLE_MACRO_REAL bvirt;
+  TRIANGLE_MACRO_REAL avirt, bround, around;
+  INEXACT TRIANGLE_MACRO_REAL c;
+  INEXACT TRIANGLE_MACRO_REAL abig;
+  TRIANGLE_MACRO_REAL ahi, alo, bhi, blo;
+  TRIANGLE_MACRO_REAL err1, err2, err3;
+  INEXACT TRIANGLE_MACRO_REAL _i, _j;
+  TRIANGLE_MACRO_REAL _0;
 
-  adx = (REAL) (pa[0] - pd[0]);
-  bdx = (REAL) (pb[0] - pd[0]);
-  cdx = (REAL) (pc[0] - pd[0]);
-  ady = (REAL) (pa[1] - pd[1]);
-  bdy = (REAL) (pb[1] - pd[1]);
-  cdy = (REAL) (pc[1] - pd[1]);
+  adx = (TRIANGLE_MACRO_REAL) (pa[0] - pd[0]);
+  bdx = (TRIANGLE_MACRO_REAL) (pb[0] - pd[0]);
+  cdx = (TRIANGLE_MACRO_REAL) (pc[0] - pd[0]);
+  ady = (TRIANGLE_MACRO_REAL) (pa[1] - pd[1]);
+  bdy = (TRIANGLE_MACRO_REAL) (pb[1] - pd[1]);
+  cdy = (TRIANGLE_MACRO_REAL) (pc[1] - pd[1]);
 
   Two_Product(bdx, cdy, bdxcdy1, bdxcdy0);
   Two_Product(cdx, bdy, cdxbdy1, cdxbdy0);
@@ -1114,14 +1114,14 @@ REAL incircleadapt(vertex pa, vertex pb, vertex pc, vertex pd, REAL permanent)
   return finnow[finlength - 1];
 }
 
-REAL incircle(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL incircle(mesh *m, behavior *b,
               vertex pa, vertex pb, vertex pc, vertex pd)
 {
-  REAL adx, bdx, cdx, ady, bdy, cdy;
-  REAL bdxcdy, cdxbdy, cdxady, adxcdy, adxbdy, bdxady;
-  REAL alift, blift, clift;
-  REAL det;
-  REAL permanent, errbound;
+  TRIANGLE_MACRO_REAL adx, bdx, cdx, ady, bdy, cdy;
+  TRIANGLE_MACRO_REAL bdxcdy, cdxbdy, cdxady, adxcdy, adxbdy, bdxady;
+  TRIANGLE_MACRO_REAL alift, blift, clift;
+  TRIANGLE_MACRO_REAL det;
+  TRIANGLE_MACRO_REAL permanent, errbound;
 
   m->incirclecount++;
 
@@ -1185,70 +1185,70 @@ REAL incircle(mesh *m, behavior *b,
 /*                                                                           */
 /*****************************************************************************/
 
-REAL orient3dadapt(vertex pa, vertex pb, vertex pc, vertex pd,
-                   REAL aheight, REAL bheight, REAL cheight, REAL dheight,
-                   REAL permanent)
+TRIANGLE_MACRO_REAL orient3dadapt(vertex pa, vertex pb, vertex pc, vertex pd,
+                   TRIANGLE_MACRO_REAL aheight, TRIANGLE_MACRO_REAL bheight, TRIANGLE_MACRO_REAL cheight, TRIANGLE_MACRO_REAL dheight,
+                   TRIANGLE_MACRO_REAL permanent)
 {
-  INEXACT REAL adx, bdx, cdx, ady, bdy, cdy, adheight, bdheight, cdheight;
-  REAL det, errbound;
+  INEXACT TRIANGLE_MACRO_REAL adx, bdx, cdx, ady, bdy, cdy, adheight, bdheight, cdheight;
+  TRIANGLE_MACRO_REAL det, errbound;
 
-  INEXACT REAL bdxcdy1, cdxbdy1, cdxady1, adxcdy1, adxbdy1, bdxady1;
-  REAL bdxcdy0, cdxbdy0, cdxady0, adxcdy0, adxbdy0, bdxady0;
-  REAL bc[4], ca[4], ab[4];
-  INEXACT REAL bc3, ca3, ab3;
-  REAL adet[8], bdet[8], cdet[8];
+  INEXACT TRIANGLE_MACRO_REAL bdxcdy1, cdxbdy1, cdxady1, adxcdy1, adxbdy1, bdxady1;
+  TRIANGLE_MACRO_REAL bdxcdy0, cdxbdy0, cdxady0, adxcdy0, adxbdy0, bdxady0;
+  TRIANGLE_MACRO_REAL bc[4], ca[4], ab[4];
+  INEXACT TRIANGLE_MACRO_REAL bc3, ca3, ab3;
+  TRIANGLE_MACRO_REAL adet[8], bdet[8], cdet[8];
   int alen, blen, clen;
-  REAL abdet[16];
+  TRIANGLE_MACRO_REAL abdet[16];
   int ablen;
-  REAL *finnow, *finother, *finswap;
-  REAL fin1[192], fin2[192];
+  TRIANGLE_MACRO_REAL *finnow, *finother, *finswap;
+  TRIANGLE_MACRO_REAL fin1[192], fin2[192];
   int finlength;
 
-  REAL adxtail, bdxtail, cdxtail;
-  REAL adytail, bdytail, cdytail;
-  REAL adheighttail, bdheighttail, cdheighttail;
-  INEXACT REAL at_blarge, at_clarge;
-  INEXACT REAL bt_clarge, bt_alarge;
-  INEXACT REAL ct_alarge, ct_blarge;
-  REAL at_b[4], at_c[4], bt_c[4], bt_a[4], ct_a[4], ct_b[4];
+  TRIANGLE_MACRO_REAL adxtail, bdxtail, cdxtail;
+  TRIANGLE_MACRO_REAL adytail, bdytail, cdytail;
+  TRIANGLE_MACRO_REAL adheighttail, bdheighttail, cdheighttail;
+  INEXACT TRIANGLE_MACRO_REAL at_blarge, at_clarge;
+  INEXACT TRIANGLE_MACRO_REAL bt_clarge, bt_alarge;
+  INEXACT TRIANGLE_MACRO_REAL ct_alarge, ct_blarge;
+  TRIANGLE_MACRO_REAL at_b[4], at_c[4], bt_c[4], bt_a[4], ct_a[4], ct_b[4];
   int at_blen, at_clen, bt_clen, bt_alen, ct_alen, ct_blen;
-  INEXACT REAL bdxt_cdy1, cdxt_bdy1, cdxt_ady1;
-  INEXACT REAL adxt_cdy1, adxt_bdy1, bdxt_ady1;
-  REAL bdxt_cdy0, cdxt_bdy0, cdxt_ady0;
-  REAL adxt_cdy0, adxt_bdy0, bdxt_ady0;
-  INEXACT REAL bdyt_cdx1, cdyt_bdx1, cdyt_adx1;
-  INEXACT REAL adyt_cdx1, adyt_bdx1, bdyt_adx1;
-  REAL bdyt_cdx0, cdyt_bdx0, cdyt_adx0;
-  REAL adyt_cdx0, adyt_bdx0, bdyt_adx0;
-  REAL bct[8], cat[8], abt[8];
+  INEXACT TRIANGLE_MACRO_REAL bdxt_cdy1, cdxt_bdy1, cdxt_ady1;
+  INEXACT TRIANGLE_MACRO_REAL adxt_cdy1, adxt_bdy1, bdxt_ady1;
+  TRIANGLE_MACRO_REAL bdxt_cdy0, cdxt_bdy0, cdxt_ady0;
+  TRIANGLE_MACRO_REAL adxt_cdy0, adxt_bdy0, bdxt_ady0;
+  INEXACT TRIANGLE_MACRO_REAL bdyt_cdx1, cdyt_bdx1, cdyt_adx1;
+  INEXACT TRIANGLE_MACRO_REAL adyt_cdx1, adyt_bdx1, bdyt_adx1;
+  TRIANGLE_MACRO_REAL bdyt_cdx0, cdyt_bdx0, cdyt_adx0;
+  TRIANGLE_MACRO_REAL adyt_cdx0, adyt_bdx0, bdyt_adx0;
+  TRIANGLE_MACRO_REAL bct[8], cat[8], abt[8];
   int bctlen, catlen, abtlen;
-  INEXACT REAL bdxt_cdyt1, cdxt_bdyt1, cdxt_adyt1;
-  INEXACT REAL adxt_cdyt1, adxt_bdyt1, bdxt_adyt1;
-  REAL bdxt_cdyt0, cdxt_bdyt0, cdxt_adyt0;
-  REAL adxt_cdyt0, adxt_bdyt0, bdxt_adyt0;
-  REAL u[4], v[12], w[16];
-  INEXACT REAL u3;
+  INEXACT TRIANGLE_MACRO_REAL bdxt_cdyt1, cdxt_bdyt1, cdxt_adyt1;
+  INEXACT TRIANGLE_MACRO_REAL adxt_cdyt1, adxt_bdyt1, bdxt_adyt1;
+  TRIANGLE_MACRO_REAL bdxt_cdyt0, cdxt_bdyt0, cdxt_adyt0;
+  TRIANGLE_MACRO_REAL adxt_cdyt0, adxt_bdyt0, bdxt_adyt0;
+  TRIANGLE_MACRO_REAL u[4], v[12], w[16];
+  INEXACT TRIANGLE_MACRO_REAL u3;
   int vlength, wlength;
-  REAL negate;
+  TRIANGLE_MACRO_REAL negate;
 
-  INEXACT REAL bvirt;
-  REAL avirt, bround, around;
-  INEXACT REAL c;
-  INEXACT REAL abig;
-  REAL ahi, alo, bhi, blo;
-  REAL err1, err2, err3;
-  INEXACT REAL _i, _j, _k;
-  REAL _0;
+  INEXACT TRIANGLE_MACRO_REAL bvirt;
+  TRIANGLE_MACRO_REAL avirt, bround, around;
+  INEXACT TRIANGLE_MACRO_REAL c;
+  INEXACT TRIANGLE_MACRO_REAL abig;
+  TRIANGLE_MACRO_REAL ahi, alo, bhi, blo;
+  TRIANGLE_MACRO_REAL err1, err2, err3;
+  INEXACT TRIANGLE_MACRO_REAL _i, _j, _k;
+  TRIANGLE_MACRO_REAL _0;
 
-  adx = (REAL) (pa[0] - pd[0]);
-  bdx = (REAL) (pb[0] - pd[0]);
-  cdx = (REAL) (pc[0] - pd[0]);
-  ady = (REAL) (pa[1] - pd[1]);
-  bdy = (REAL) (pb[1] - pd[1]);
-  cdy = (REAL) (pc[1] - pd[1]);
-  adheight = (REAL) (aheight - dheight);
-  bdheight = (REAL) (bheight - dheight);
-  cdheight = (REAL) (cheight - dheight);
+  adx = (TRIANGLE_MACRO_REAL) (pa[0] - pd[0]);
+  bdx = (TRIANGLE_MACRO_REAL) (pb[0] - pd[0]);
+  cdx = (TRIANGLE_MACRO_REAL) (pc[0] - pd[0]);
+  ady = (TRIANGLE_MACRO_REAL) (pa[1] - pd[1]);
+  bdy = (TRIANGLE_MACRO_REAL) (pb[1] - pd[1]);
+  cdy = (TRIANGLE_MACRO_REAL) (pc[1] - pd[1]);
+  adheight = (TRIANGLE_MACRO_REAL) (aheight - dheight);
+  bdheight = (TRIANGLE_MACRO_REAL) (bheight - dheight);
+  cdheight = (TRIANGLE_MACRO_REAL) (cheight - dheight);
 
   Two_Product(bdx, cdy, bdxcdy1, bdxcdy0);
   Two_Product(cdx, bdy, cdxbdy1, cdxbdy0);
@@ -1595,14 +1595,14 @@ REAL orient3dadapt(vertex pa, vertex pb, vertex pc, vertex pd,
   return finnow[finlength - 1];
 }
 
-REAL orient3d(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL orient3d(mesh *m, behavior *b,
               vertex pa, vertex pb, vertex pc, vertex pd,
-              REAL aheight, REAL bheight, REAL cheight, REAL dheight)
+              TRIANGLE_MACRO_REAL aheight, TRIANGLE_MACRO_REAL bheight, TRIANGLE_MACRO_REAL cheight, TRIANGLE_MACRO_REAL dheight)
 {
-  REAL adx, bdx, cdx, ady, bdy, cdy, adheight, bdheight, cdheight;
-  REAL bdxcdy, cdxbdy, cdxady, adxcdy, adxbdy, bdxady;
-  REAL det;
-  REAL permanent, errbound;
+  TRIANGLE_MACRO_REAL adx, bdx, cdx, ady, bdy, cdy, adheight, bdheight, cdheight;
+  TRIANGLE_MACRO_REAL bdxcdy, cdxbdy, cdxady, adxcdy, adxbdy, bdxady;
+  TRIANGLE_MACRO_REAL det;
+  TRIANGLE_MACRO_REAL permanent, errbound;
 
   m->orient3dcount++;
 
@@ -1663,7 +1663,7 @@ REAL orient3d(mesh *m, behavior *b,
 /*                                                                           */
 /*****************************************************************************/
 
-REAL nonregular(mesh *m, behavior *b,
+TRIANGLE_MACRO_REAL nonregular(mesh *m, behavior *b,
                 vertex pa, vertex pb, vertex pc, vertex pd)
 {
   if (b->weighted == 0) {
@@ -1695,12 +1695,12 @@ REAL nonregular(mesh *m, behavior *b,
 
 void findcircumcenter(mesh *m, behavior *b,
                       vertex torg, vertex tdest, vertex tapex,
-                      vertex circumcenter, REAL *xi, REAL *eta, int offcenter)
+                      vertex circumcenter, TRIANGLE_MACRO_REAL *xi, TRIANGLE_MACRO_REAL *eta, int offcenter)
 {
-  REAL xdo, ydo, xao, yao;
-  REAL dodist, aodist, dadist;
-  REAL denominator;
-  REAL dx, dy, dxoff, dyoff;
+  TRIANGLE_MACRO_REAL xdo, ydo, xao, yao;
+  TRIANGLE_MACRO_REAL dodist, aodist, dadist;
+  TRIANGLE_MACRO_REAL denominator;
+  TRIANGLE_MACRO_REAL dx, dy, dxoff, dyoff;
 
   m->circumcentercount++;
 

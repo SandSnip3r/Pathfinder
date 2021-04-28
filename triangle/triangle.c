@@ -201,11 +201,16 @@
 #include <math.h>
 
 #include "triangle.h"
+#include "triangle_macros.h"
 
 #include "private/predicates.h"
 
 #ifndef NO_ACUTE
 #include "private/acute.h"
+#endif
+
+#ifdef __cplusplus
+namespace triangle {
 #endif
 
 /* Random number seed is not constant, but I've made it global anyway.       */
@@ -230,10 +235,10 @@ int minus1mod3[3] = {2, 0, 1};
 
 void interpolate(vertex newvertex, vertex org, vertex dest, vertex apex, int nextras)
 {
-  REAL xdo, ydo, xao, yao;
-  REAL denominator;
-  REAL dx, dy;
-  REAL xi, eta;
+  TRIANGLE_MACRO_REAL xdo, ydo, xao, yao;
+  TRIANGLE_MACRO_REAL denominator;
+  TRIANGLE_MACRO_REAL dx, dy;
+  TRIANGLE_MACRO_REAL xi, eta;
   int i;
 
   xdo = dest[0] - org[0];
@@ -308,19 +313,19 @@ void triexit(int status)
   exit(status);
 }
 
-VOID *trimalloc(int size)
+TRIANGLE_MACRO_VOID *trimalloc(int size)
 {
-  VOID *memptr;
+  TRIANGLE_MACRO_VOID *memptr;
 
-  memptr = (VOID *) malloc((unsigned int) size);
-  if (memptr == (VOID *) NULL) {
+  memptr = (TRIANGLE_MACRO_VOID *) malloc((unsigned int) size);
+  if (memptr == (TRIANGLE_MACRO_VOID *) NULL) {
     printf("Error:  Out of memory.\n");
     triexit(1);
   }
   return(memptr);
 }
 
-void trifree(VOID *memptr)
+void trifree(TRIANGLE_MACRO_VOID *memptr)
 {
   free(memptr);
 }
@@ -399,7 +404,7 @@ void parsecommandline(char *options, behavior *b)
           k++;
         }
         workstring[k] = '\0';
-        b->minangle = (REAL) strtod(workstring, (char **) NULL);
+        b->minangle = (TRIANGLE_MACRO_REAL) strtod(workstring, (char **) NULL);
       } else {
         b->minangle = 20.0;
       }
@@ -417,7 +422,7 @@ void parsecommandline(char *options, behavior *b)
           k++;
         }
         workstring[k] = '\0';
-        b->maxangle = (REAL) strtod(workstring, (char **) NULL);
+        b->maxangle = (TRIANGLE_MACRO_REAL) strtod(workstring, (char **) NULL);
       } else {
         b->maxangle = 140.0;
       }
@@ -436,7 +441,7 @@ void parsecommandline(char *options, behavior *b)
           k++;
         }
         workstring[k] = '\0';
-        b->maxarea = (REAL) strtod(workstring, (char **) NULL);
+        b->maxarea = (TRIANGLE_MACRO_REAL) strtod(workstring, (char **) NULL);
       } else {
         b->vararea = 1;
       }
@@ -570,27 +575,27 @@ void printtriangle(mesh *m, behavior *b, struct otri *t)
   struct osub printsh;
   vertex printvertex;
 
-  printf("triangle x"LX" with orientation %d:\n", (ULONG_PTR) t->tri,
+  printf("triangle x"LX" with orientation %d:\n", (TRIANGLE_MACRO_ULONG_PTR) t->tri,
          t->orient);
   decode(t->tri[0], printtri);
   if (printtri.tri == m->dummytri) {
     printf("    [0] = Outer space\n");
   } else {
-    printf("    [0] = x"LX"  %d\n", (ULONG_PTR) printtri.tri,
+    printf("    [0] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printtri.tri,
            printtri.orient);
   }
   decode(t->tri[1], printtri);
   if (printtri.tri == m->dummytri) {
     printf("    [1] = Outer space\n");
   } else {
-    printf("    [1] = x"LX"  %d\n", (ULONG_PTR) printtri.tri,
+    printf("    [1] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printtri.tri,
            printtri.orient);
   }
   decode(t->tri[2], printtri);
   if (printtri.tri == m->dummytri) {
     printf("    [2] = Outer space\n");
   } else {
-    printf("    [2] = x"LX"  %d\n", (ULONG_PTR) printtri.tri,
+    printf("    [2] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printtri.tri,
            printtri.orient);
   }
 
@@ -599,37 +604,37 @@ void printtriangle(mesh *m, behavior *b, struct otri *t)
     printf("    Origin[%d] = NULL\n", (t->orient + 1) % 3 + 3);
   else
     printf("    Origin[%d] = x"LX"  (%.12g, %.12g)\n",
-           (t->orient + 1) % 3 + 3, (ULONG_PTR) printvertex,
+           (t->orient + 1) % 3 + 3, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
   dest(*t, printvertex);
   if (printvertex == (vertex) NULL)
     printf("    Dest  [%d] = NULL\n", (t->orient + 2) % 3 + 3);
   else
     printf("    Dest  [%d] = x"LX"  (%.12g, %.12g)\n",
-           (t->orient + 2) % 3 + 3, (ULONG_PTR) printvertex,
+           (t->orient + 2) % 3 + 3, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
   apex(*t, printvertex);
   if (printvertex == (vertex) NULL)
     printf("    Apex  [%d] = NULL\n", t->orient + 3);
   else
     printf("    Apex  [%d] = x"LX"  (%.12g, %.12g)\n",
-           t->orient + 3, (ULONG_PTR) printvertex,
+           t->orient + 3, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
 
   if (b->usesegments) {
     sdecode(t->tri[6], printsh);
     if (printsh.ss != m->dummysub) {
-      printf("    [6] = x"LX"  %d\n", (ULONG_PTR) printsh.ss,
+      printf("    [6] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printsh.ss,
              printsh.ssorient);
     }
     sdecode(t->tri[7], printsh);
     if (printsh.ss != m->dummysub) {
-      printf("    [7] = x"LX"  %d\n", (ULONG_PTR) printsh.ss,
+      printf("    [7] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printsh.ss,
              printsh.ssorient);
     }
     sdecode(t->tri[8], printsh);
     if (printsh.ss != m->dummysub) {
-      printf("    [8] = x"LX"  %d\n", (ULONG_PTR) printsh.ss,
+      printf("    [8] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printsh.ss,
              printsh.ssorient);
     }
   }
@@ -657,19 +662,19 @@ void printsubseg(mesh *m, behavior *b, struct osub *s)
   vertex printvertex;
 
   printf("subsegment x"LX" with orientation %d and mark %d:\n",
-         (ULONG_PTR) s->ss, s->ssorient, mark(*s));
+         (TRIANGLE_MACRO_ULONG_PTR) s->ss, s->ssorient, mark(*s));
   sdecode(s->ss[0], printsh);
   if (printsh.ss == m->dummysub) {
     printf("    [0] = No subsegment\n");
   } else {
-    printf("    [0] = x"LX"  %d\n", (ULONG_PTR) printsh.ss,
+    printf("    [0] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printsh.ss,
            printsh.ssorient);
   }
   sdecode(s->ss[1], printsh);
   if (printsh.ss == m->dummysub) {
     printf("    [1] = No subsegment\n");
   } else {
-    printf("    [1] = x"LX"  %d\n", (ULONG_PTR) printsh.ss,
+    printf("    [1] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printsh.ss,
            printsh.ssorient);
   }
 
@@ -678,28 +683,28 @@ void printsubseg(mesh *m, behavior *b, struct osub *s)
     printf("    Origin[%d] = NULL\n", 2 + s->ssorient);
   else
     printf("    Origin[%d] = x"LX"  (%.12g, %.12g)\n",
-           2 + s->ssorient, (ULONG_PTR) printvertex,
+           2 + s->ssorient, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
   sdest(*s, printvertex);
   if (printvertex == (vertex) NULL)
     printf("    Dest  [%d] = NULL\n", 3 - s->ssorient);
   else
     printf("    Dest  [%d] = x"LX"  (%.12g, %.12g)\n",
-           3 - s->ssorient, (ULONG_PTR) printvertex,
+           3 - s->ssorient, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
 
   decode(s->ss[6], printtri);
   if (printtri.tri == m->dummytri) {
     printf("    [6] = Outer space\n");
   } else {
-    printf("    [6] = x"LX"  %d\n", (ULONG_PTR) printtri.tri,
+    printf("    [6] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printtri.tri,
            printtri.orient);
   }
   decode(s->ss[7], printtri);
   if (printtri.tri == m->dummytri) {
     printf("    [7] = Outer space\n");
   } else {
-    printf("    [7] = x"LX"  %d\n", (ULONG_PTR) printtri.tri,
+    printf("    [7] = x"LX"  %d\n", (TRIANGLE_MACRO_ULONG_PTR) printtri.tri,
            printtri.orient);
   }
 
@@ -708,14 +713,14 @@ void printsubseg(mesh *m, behavior *b, struct osub *s)
     printf("    Segment origin[%d] = NULL\n", 4 + s->ssorient);
   else
     printf("    Segment origin[%d] = x"LX"  (%.12g, %.12g)\n",
-           4 + s->ssorient, (ULONG_PTR) printvertex,
+           4 + s->ssorient, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
   segdest(*s, printvertex);
   if (printvertex == (vertex) NULL)
     printf("    Segment dest  [%d] = NULL\n", 5 - s->ssorient);
   else
     printf("    Segment dest  [%d] = x"LX"  (%.12g, %.12g)\n",
-           5 - s->ssorient, (ULONG_PTR) printvertex,
+           5 - s->ssorient, (TRIANGLE_MACRO_ULONG_PTR) printvertex,
            printvertex[0], printvertex[1]);
 }
 
@@ -738,12 +743,12 @@ void printsubseg(mesh *m, behavior *b, struct osub *s)
 
 void poolzero(struct memorypool *pool)
 {
-  pool->firstblock = (VOID **) NULL;
-  pool->nowblock = (VOID **) NULL;
-  pool->nextitem = (VOID *) NULL;
-  pool->deaditemstack = (VOID *) NULL;
-  pool->pathblock = (VOID **) NULL;
-  pool->pathitem = (VOID *) NULL;
+  pool->firstblock = (TRIANGLE_MACRO_VOID **) NULL;
+  pool->nowblock = (TRIANGLE_MACRO_VOID **) NULL;
+  pool->nextitem = (TRIANGLE_MACRO_VOID *) NULL;
+  pool->deaditemstack = (TRIANGLE_MACRO_VOID *) NULL;
+  pool->pathblock = (TRIANGLE_MACRO_VOID **) NULL;
+  pool->pathitem = (TRIANGLE_MACRO_VOID *) NULL;
   pool->alignbytes = 0;
   pool->itembytes = 0;
   pool->itemsperblock = 0;
@@ -766,23 +771,23 @@ void poolzero(struct memorypool *pool)
 
 void poolrestart(struct memorypool *pool)
 {
-  ULONG_PTR alignptr;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
 
   pool->items = 0;
   pool->maxitems = 0;
 
   /* Set the currently active block. */
   pool->nowblock = pool->firstblock;
-  /* Find the first item in the pool.  Increment by the size of (VOID *). */
-  alignptr = (ULONG_PTR) (pool->nowblock + 1);
+  /* Find the first item in the pool.  Increment by the size of (TRIANGLE_MACRO_VOID *). */
+  alignptr = (TRIANGLE_MACRO_ULONG_PTR) (pool->nowblock + 1);
   /* Align the item on an `alignbytes'-byte boundary. */
-  pool->nextitem = (VOID *)
-    (alignptr + (ULONG_PTR) pool->alignbytes -
-     (alignptr % (ULONG_PTR) pool->alignbytes));
+  pool->nextitem = (TRIANGLE_MACRO_VOID *)
+    (alignptr + (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes -
+     (alignptr % (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes));
   /* There are lots of unallocated items left in this block. */
   pool->unallocateditems = pool->itemsfirstblock;
   /* The stack of deallocated items is empty. */
-  pool->deaditemstack = (VOID *) NULL;
+  pool->deaditemstack = (TRIANGLE_MACRO_VOID *) NULL;
 }
 
 /*****************************************************************************/
@@ -809,12 +814,12 @@ void poolinit(struct memorypool *pool, int bytecount, int itemcount,
 {
   /* Find the proper alignment, which must be at least as large as:   */
   /*   - The parameter `alignment'.                                   */
-  /*   - sizeof(VOID *), so the stack of dead items can be maintained */
+  /*   - sizeof(TRIANGLE_MACRO_VOID *), so the stack of dead items can be maintained */
   /*       without unaligned accesses.                                */
-  if (alignment > sizeof(VOID *)) {
+  if (alignment > sizeof(TRIANGLE_MACRO_VOID *)) {
     pool->alignbytes = alignment;
   } else {
-    pool->alignbytes = sizeof(VOID *);
+    pool->alignbytes = sizeof(TRIANGLE_MACRO_VOID *);
   }
   pool->itembytes = ((bytecount - 1) / pool->alignbytes + 1) *
                     pool->alignbytes;
@@ -828,11 +833,11 @@ void poolinit(struct memorypool *pool, int bytecount, int itemcount,
   /* Allocate a block of items.  Space for `itemsfirstblock' items and one  */
   /*   pointer (to point to the next block) are allocated, as well as space */
   /*   to ensure alignment of the items.                                    */
-  pool->firstblock = (VOID **)
-    trimalloc(pool->itemsfirstblock * pool->itembytes + (int) sizeof(VOID *) +
+  pool->firstblock = (TRIANGLE_MACRO_VOID **)
+    trimalloc(pool->itemsfirstblock * pool->itembytes + (int) sizeof(TRIANGLE_MACRO_VOID *) +
               pool->alignbytes);
   /* Set the next block pointer to NULL. */
-  *(pool->firstblock) = (VOID *) NULL;
+  *(pool->firstblock) = (TRIANGLE_MACRO_VOID *) NULL;
   poolrestart(pool);
 }
 
@@ -844,9 +849,9 @@ void poolinit(struct memorypool *pool, int bytecount, int itemcount,
 
 void pooldeinit(struct memorypool *pool)
 {
-  while (pool->firstblock != (VOID **) NULL) {
-    pool->nowblock = (VOID **) *(pool->firstblock);
-    trifree((VOID *) pool->firstblock);
+  while (pool->firstblock != (TRIANGLE_MACRO_VOID **) NULL) {
+    pool->nowblock = (TRIANGLE_MACRO_VOID **) *(pool->firstblock);
+    trifree((TRIANGLE_MACRO_VOID *) pool->firstblock);
     pool->firstblock = pool->nowblock;
   }
 }
@@ -857,40 +862,40 @@ void pooldeinit(struct memorypool *pool)
 /*                                                                           */
 /*****************************************************************************/
 
-VOID *poolalloc(struct memorypool *pool)
+TRIANGLE_MACRO_VOID *poolalloc(struct memorypool *pool)
 {
-  VOID *newitem;
-  VOID **newblock;
-  ULONG_PTR alignptr;
+  TRIANGLE_MACRO_VOID *newitem;
+  TRIANGLE_MACRO_VOID **newblock;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
 
   /* First check the linked list of dead items.  If the list is not   */
   /*   empty, allocate an item from the list rather than a fresh one. */
-  if (pool->deaditemstack != (VOID *) NULL) {
+  if (pool->deaditemstack != (TRIANGLE_MACRO_VOID *) NULL) {
     newitem = pool->deaditemstack;               /* Take first item in list. */
-    pool->deaditemstack = * (VOID **) pool->deaditemstack;
+    pool->deaditemstack = * (TRIANGLE_MACRO_VOID **) pool->deaditemstack;
   } else {
     /* Check if there are any free items left in the current block. */
     if (pool->unallocateditems == 0) {
       /* Check if another block must be allocated. */
-      if (*(pool->nowblock) == (VOID *) NULL) {
+      if (*(pool->nowblock) == (TRIANGLE_MACRO_VOID *) NULL) {
         /* Allocate a new block of items, pointed to by the previous block. */
-        newblock = (VOID **) trimalloc(pool->itemsperblock * pool->itembytes +
-                                       (int) sizeof(VOID *) +
+        newblock = (TRIANGLE_MACRO_VOID **) trimalloc(pool->itemsperblock * pool->itembytes +
+                                       (int) sizeof(TRIANGLE_MACRO_VOID *) +
                                        pool->alignbytes);
-        *(pool->nowblock) = (VOID *) newblock;
+        *(pool->nowblock) = (TRIANGLE_MACRO_VOID *) newblock;
         /* The next block pointer is NULL. */
-        *newblock = (VOID *) NULL;
+        *newblock = (TRIANGLE_MACRO_VOID *) NULL;
       }
 
       /* Move to the new block. */
-      pool->nowblock = (VOID **) *(pool->nowblock);
+      pool->nowblock = (TRIANGLE_MACRO_VOID **) *(pool->nowblock);
       /* Find the first item in the block.    */
-      /*   Increment by the size of (VOID *). */
-      alignptr = (ULONG_PTR) (pool->nowblock + 1);
+      /*   Increment by the size of (TRIANGLE_MACRO_VOID *). */
+      alignptr = (TRIANGLE_MACRO_ULONG_PTR) (pool->nowblock + 1);
       /* Align the item on an `alignbytes'-byte boundary. */
-      pool->nextitem = (VOID *)
-        (alignptr + (ULONG_PTR) pool->alignbytes -
-         (alignptr % (ULONG_PTR) pool->alignbytes));
+      pool->nextitem = (TRIANGLE_MACRO_VOID *)
+        (alignptr + (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes -
+         (alignptr % (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes));
       /* There are lots of unallocated items left in this block. */
       pool->unallocateditems = pool->itemsperblock;
     }
@@ -898,7 +903,7 @@ VOID *poolalloc(struct memorypool *pool)
     /* Allocate a new item. */
     newitem = pool->nextitem;
     /* Advance `nextitem' pointer to next free item in block. */
-    pool->nextitem = (VOID *) ((char *) pool->nextitem + pool->itembytes);
+    pool->nextitem = (TRIANGLE_MACRO_VOID *) ((char *) pool->nextitem + pool->itembytes);
     pool->unallocateditems--;
     pool->maxitems++;
   }
@@ -914,10 +919,10 @@ VOID *poolalloc(struct memorypool *pool)
 /*                                                                           */
 /*****************************************************************************/
 
-void pooldealloc(struct memorypool *pool, VOID *dyingitem)
+void pooldealloc(struct memorypool *pool, TRIANGLE_MACRO_VOID *dyingitem)
 {
   /* Push freshly killed item onto stack. */
-  *((VOID **) dyingitem) = pool->deaditemstack;
+  *((TRIANGLE_MACRO_VOID **) dyingitem) = pool->deaditemstack;
   pool->deaditemstack = dyingitem;
   pool->items--;
 }
@@ -932,16 +937,16 @@ void pooldealloc(struct memorypool *pool, VOID *dyingitem)
 
 void traversalinit(struct memorypool *pool)
 {
-  ULONG_PTR alignptr;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
 
   /* Begin the traversal in the first block. */
   pool->pathblock = pool->firstblock;
-  /* Find the first item in the block.  Increment by the size of (VOID *). */
-  alignptr = (ULONG_PTR) (pool->pathblock + 1);
+  /* Find the first item in the block.  Increment by the size of (TRIANGLE_MACRO_VOID *). */
+  alignptr = (TRIANGLE_MACRO_ULONG_PTR) (pool->pathblock + 1);
   /* Align with item on an `alignbytes'-byte boundary. */
-  pool->pathitem = (VOID *)
-    (alignptr + (ULONG_PTR) pool->alignbytes -
-     (alignptr % (ULONG_PTR) pool->alignbytes));
+  pool->pathitem = (TRIANGLE_MACRO_VOID *)
+    (alignptr + (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes -
+     (alignptr % (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes));
   /* Set the number of items left in the current block. */
   pool->pathitemsleft = pool->itemsfirstblock;
 }
@@ -960,33 +965,33 @@ void traversalinit(struct memorypool *pool)
 /*                                                                           */
 /*****************************************************************************/
 
-VOID *traverse(struct memorypool *pool)
+TRIANGLE_MACRO_VOID *traverse(struct memorypool *pool)
 {
-  VOID *newitem;
-  ULONG_PTR alignptr;
+  TRIANGLE_MACRO_VOID *newitem;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
 
   /* Stop upon exhausting the list of items. */
   if (pool->pathitem == pool->nextitem) {
-    return (VOID *) NULL;
+    return (TRIANGLE_MACRO_VOID *) NULL;
   }
 
   /* Check whether any untraversed items remain in the current block. */
   if (pool->pathitemsleft == 0) {
     /* Find the next block. */
-    pool->pathblock = (VOID **) *(pool->pathblock);
-    /* Find the first item in the block.  Increment by the size of (VOID *). */
-    alignptr = (ULONG_PTR) (pool->pathblock + 1);
+    pool->pathblock = (TRIANGLE_MACRO_VOID **) *(pool->pathblock);
+    /* Find the first item in the block.  Increment by the size of (TRIANGLE_MACRO_VOID *). */
+    alignptr = (TRIANGLE_MACRO_ULONG_PTR) (pool->pathblock + 1);
     /* Align with item on an `alignbytes'-byte boundary. */
-    pool->pathitem = (VOID *)
-      (alignptr + (ULONG_PTR) pool->alignbytes -
-       (alignptr % (ULONG_PTR) pool->alignbytes));
+    pool->pathitem = (TRIANGLE_MACRO_VOID *)
+      (alignptr + (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes -
+       (alignptr % (TRIANGLE_MACRO_ULONG_PTR) pool->alignbytes));
     /* Set the number of items left in the current block. */
     pool->pathitemsleft = pool->itemsperblock;
   }
 
   newitem = pool->pathitem;
   /* Find the next item in the block. */
-  pool->pathitem = (VOID *) ((char *) pool->pathitem + pool->itembytes);
+  pool->pathitem = (TRIANGLE_MACRO_VOID *) ((char *) pool->pathitem + pool->itembytes);
   pool->pathitemsleft--;
   return newitem;
 }
@@ -1022,16 +1027,16 @@ VOID *traverse(struct memorypool *pool)
 void dummyinit(mesh *m, behavior *b, int trianglebytes,
                int subsegbytes)
 {
-  ULONG_PTR alignptr;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
 
   /* Set up `dummytri', the `triangle' that occupies "outer space." */
   m->dummytribase = (triangle *) trimalloc(trianglebytes +
                                            m->triangles.alignbytes);
   /* Align `dummytri' on a `triangles.alignbytes'-byte boundary. */
-  alignptr = (ULONG_PTR) m->dummytribase;
+  alignptr = (TRIANGLE_MACRO_ULONG_PTR) m->dummytribase;
   m->dummytri = (triangle *)
-    (alignptr + (ULONG_PTR) m->triangles.alignbytes -
-     (alignptr % (ULONG_PTR) m->triangles.alignbytes));
+    (alignptr + (TRIANGLE_MACRO_ULONG_PTR) m->triangles.alignbytes -
+     (alignptr % (TRIANGLE_MACRO_ULONG_PTR) m->triangles.alignbytes));
   /* Initialize the three adjoining triangles to be "outer space."  These  */
   /*   will eventually be changed by various bonding operations, but their */
   /*   values don't really matter, as long as they can legally be          */
@@ -1051,10 +1056,10 @@ void dummyinit(mesh *m, behavior *b, int trianglebytes,
     m->dummysubbase = (subseg *) trimalloc(subsegbytes +
                                            m->subsegs.alignbytes);
     /* Align `dummysub' on a `subsegs.alignbytes'-byte boundary. */
-    alignptr = (ULONG_PTR) m->dummysubbase;
+    alignptr = (TRIANGLE_MACRO_ULONG_PTR) m->dummysubbase;
     m->dummysub = (subseg *)
-      (alignptr + (ULONG_PTR) m->subsegs.alignbytes -
-       (alignptr % (ULONG_PTR) m->subsegs.alignbytes));
+      (alignptr + (TRIANGLE_MACRO_ULONG_PTR) m->subsegs.alignbytes -
+       (alignptr % (TRIANGLE_MACRO_ULONG_PTR) m->subsegs.alignbytes));
     /* Initialize the two adjoining subsegments to be the omnipresent      */
     /*   subsegment.  These will eventually be changed by various bonding  */
     /*   operations, but their values don't really matter, as long as they */
@@ -1097,7 +1102,7 @@ void initializevertexpool(mesh *m, behavior *b)
   /* The index within each vertex at which the boundary marker is found,    */
   /*   followed by the vertex type.  Ensure the vertex marker is aligned to */
   /*   a sizeof(int)-byte address.                                          */
-  m->vertexmarkindex = ((m->mesh_dim + m->nextras) * sizeof(REAL) +
+  m->vertexmarkindex = ((m->mesh_dim + m->nextras) * sizeof(TRIANGLE_MACRO_REAL) +
                         sizeof(int) - 1) /
                        sizeof(int);
   vertexsize = (m->vertexmarkindex + 2) * sizeof(int);
@@ -1112,7 +1117,7 @@ void initializevertexpool(mesh *m, behavior *b)
   /* Initialize the pool of vertices. */
   poolinit(&m->vertices, vertexsize, VERTEXPERBLOCK,
            m->invertices > VERTEXPERBLOCK ? m->invertices : VERTEXPERBLOCK,
-           sizeof(REAL));
+           sizeof(TRIANGLE_MACRO_REAL));
 }
 
 /*****************************************************************************/
@@ -1140,7 +1145,7 @@ void initializetrisubpools(mesh *m, behavior *b)
             sizeof(triangle);
   /* The index within each triangle at which its attributes are found, */
   /*   where the index is measured in REALs.                           */
-  m->elemattribindex = (trisize + sizeof(REAL) - 1) / sizeof(REAL);
+  m->elemattribindex = (trisize + sizeof(TRIANGLE_MACRO_REAL) - 1) / sizeof(TRIANGLE_MACRO_REAL);
   /* The index within each triangle at which the maximum area constraint  */
   /*   is found, where the index is measured in REALs.  Note that if the  */
   /*   `regionattrib' flag is set, an additional attribute will be added. */
@@ -1148,9 +1153,9 @@ void initializetrisubpools(mesh *m, behavior *b)
   /* If triangle attributes or an area bound are needed, increase the number */
   /*   of bytes occupied by a triangle.                                      */
   if (b->vararea) {
-    trisize = (m->areaboundindex + 1) * sizeof(REAL);
+    trisize = (m->areaboundindex + 1) * sizeof(TRIANGLE_MACRO_REAL);
   } else if (m->eextras + b->regionattrib > 0) {
-    trisize = m->areaboundindex * sizeof(REAL);
+    trisize = m->areaboundindex * sizeof(TRIANGLE_MACRO_REAL);
   }
   /* If a Voronoi diagram or triangle neighbor graph is requested, make    */
   /*   sure there's room to store an integer index in each triangle.  This */
@@ -1191,7 +1196,7 @@ void triangledealloc(mesh *m, triangle *dyingtriangle)
   /* Mark the triangle as dead.  This makes it possible to detect dead */
   /*   triangles when traversing the list of all triangles.            */
   killtri(dyingtriangle);
-  pooldealloc(&m->triangles, (VOID *) dyingtriangle);
+  pooldealloc(&m->triangles, (TRIANGLE_MACRO_VOID *) dyingtriangle);
 }
 
 /*****************************************************************************/
@@ -1224,7 +1229,7 @@ void subsegdealloc(mesh *m, subseg *dyingsubseg)
   /* Mark the subsegment as dead.  This makes it possible to detect dead */
   /*   subsegments when traversing the list of all subsegments.          */
   killsubseg(dyingsubseg);
-  pooldealloc(&m->subsegs, (VOID *) dyingsubseg);
+  pooldealloc(&m->subsegs, (TRIANGLE_MACRO_VOID *) dyingsubseg);
 }
 
 /*****************************************************************************/
@@ -1257,7 +1262,7 @@ void vertexdealloc(mesh *m, vertex dyingvertex)
   /* Mark the vertex as dead.  This makes it possible to detect dead */
   /*   vertices when traversing the list of all vertices.            */
   setvertextype(dyingvertex, DEADVERTEX);
-  pooldealloc(&m->vertices, (VOID *) dyingvertex);
+  pooldealloc(&m->vertices, (TRIANGLE_MACRO_VOID *) dyingvertex);
 }
 
 /*****************************************************************************/
@@ -1293,7 +1298,7 @@ void badsubsegdealloc(mesh *m, struct badsubseg *dyingseg)
   /* Set subsegment's origin to NULL.  This makes it possible to detect dead */
   /*   badsubsegs when traversing the list of all badsubsegs             .   */
   dyingseg->subsegorg = (vertex) NULL;
-  pooldealloc(&m->badsubsegs, (VOID *) dyingseg);
+  pooldealloc(&m->badsubsegs, (TRIANGLE_MACRO_VOID *) dyingseg);
 }
 
 #endif /* not CDT_ONLY */
@@ -1335,9 +1340,9 @@ struct badsubseg *badsubsegtraverse(mesh *m)
 
 vertex getvertex(mesh *m, behavior *b, int number)
 {
-  VOID **getblock;
+  TRIANGLE_MACRO_VOID **getblock;
   char *foundvertex;
-  ULONG_PTR alignptr;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
   int current;
 
   getblock = m->vertices.firstblock;
@@ -1345,18 +1350,18 @@ vertex getvertex(mesh *m, behavior *b, int number)
 
   /* Find the right block. */
   if (current + m->vertices.itemsfirstblock <= number) {
-    getblock = (VOID **) *getblock;
+    getblock = (TRIANGLE_MACRO_VOID **) *getblock;
     current += m->vertices.itemsfirstblock;
     while (current + m->vertices.itemsperblock <= number) {
-      getblock = (VOID **) *getblock;
+      getblock = (TRIANGLE_MACRO_VOID **) *getblock;
       current += m->vertices.itemsperblock;
     }
   }
 
   /* Now find the right vertex. */
-  alignptr = (ULONG_PTR) (getblock + 1);
-  foundvertex = (char *) (alignptr + (ULONG_PTR) m->vertices.alignbytes -
-                          (alignptr % (ULONG_PTR) m->vertices.alignbytes));
+  alignptr = (TRIANGLE_MACRO_ULONG_PTR) (getblock + 1);
+  foundvertex = (char *) (alignptr + (TRIANGLE_MACRO_ULONG_PTR) m->vertices.alignbytes -
+                          (alignptr % (TRIANGLE_MACRO_ULONG_PTR) m->vertices.alignbytes));
   return (vertex) (foundvertex + m->vertices.itembytes * (number - current));
 }
 
@@ -1369,10 +1374,10 @@ vertex getvertex(mesh *m, behavior *b, int number)
 void triangledeinit(mesh *m, behavior *b)
 {
   pooldeinit(&m->triangles);
-  trifree((VOID *) m->dummytribase);
+  trifree((TRIANGLE_MACRO_VOID *) m->dummytribase);
   if (b->usesegments) {
     pooldeinit(&m->subsegs);
-    trifree((VOID *) m->dummysubbase);
+    trifree((TRIANGLE_MACRO_VOID *) m->dummysubbase);
   }
   pooldeinit(&m->vertices);
 #ifndef CDT_ONLY
@@ -1705,7 +1710,7 @@ int checkdelaunay(mesh *m, behavior *b)
 void enqueuebadtriang(mesh *m, behavior *b,
                       struct badtriang *badtri)
 {
-  REAL length, multiplier;
+  TRIANGLE_MACRO_REAL length, multiplier;
   int exponent, expincrement;
   int queuenumber;
   int posexponent;
@@ -1793,7 +1798,7 @@ void enqueuebadtriang(mesh *m, behavior *b,
 #ifndef CDT_ONLY
 
 void enqueuebadtri(mesh *m, behavior *b, struct otri *enqtri,
-                   REAL minedge, vertex enqapex, vertex enqorg, vertex enqdest)
+                   TRIANGLE_MACRO_REAL minedge, vertex enqapex, vertex enqorg, vertex enqdest)
 {
   struct badtriang *newbad;
 
@@ -1870,7 +1875,7 @@ int checkseg4encroach(mesh *m, behavior *b,
   struct otri neighbortri;
   struct osub testsym;
   struct badsubseg *encroachedseg;
-  REAL dotproduct;
+  TRIANGLE_MACRO_REAL dotproduct;
   int encroached;
   int sides;
   vertex eorg, edest, eapex;
@@ -1972,14 +1977,14 @@ void testtriangle(mesh *m, behavior *b, struct otri *testtri)
   vertex base1, base2;
   vertex org1, dest1, org2, dest2;
   vertex joinvertex;
-  REAL dxod, dyod, dxda, dyda, dxao, dyao;
-  REAL dxod2, dyod2, dxda2, dyda2, dxao2, dyao2;
-  REAL apexlen, orglen, destlen, minedge;
-  REAL angle;
-  REAL area;
-  REAL dist1, dist2;
+  TRIANGLE_MACRO_REAL dxod, dyod, dxda, dyda, dxao, dyao;
+  TRIANGLE_MACRO_REAL dxod2, dyod2, dxda2, dyda2, dxao2, dyao2;
+  TRIANGLE_MACRO_REAL apexlen, orglen, destlen, minedge;
+  TRIANGLE_MACRO_REAL angle;
+  TRIANGLE_MACRO_REAL area;
+  TRIANGLE_MACRO_REAL dist1, dist2;
 #ifndef NO_ACUTE
-  REAL maxedge, maxangle;
+  TRIANGLE_MACRO_REAL maxedge, maxangle;
 #endif
   subseg sptr;                      /* Temporary variable used by tspivot(). */
   triangle ptr;           /* Temporary variable used by oprev() and dnext(). */
@@ -2261,7 +2266,7 @@ enum locateresult preciselocate(mesh *m, behavior *b,
   struct otri backtracktri;
   struct osub checkedge;
   vertex forg, fdest, fapex;
-  REAL orgorient, destorient;
+  TRIANGLE_MACRO_REAL orgorient, destorient;
   int moveleft;
   triangle ptr;                         /* Temporary variable used by sym(). */
   subseg sptr;                      /* Temporary variable used by tspivot(). */
@@ -2383,13 +2388,13 @@ enum locateresult preciselocate(mesh *m, behavior *b,
 enum locateresult locate(mesh *m, behavior *b,
                          vertex searchpoint, struct otri *searchtri)
 {
-  VOID **sampleblock;
+  TRIANGLE_MACRO_VOID **sampleblock;
   char *firsttri;
   struct otri sampletri;
   vertex torg, tdest;
-  ULONG_PTR alignptr;
-  REAL searchdist, dist;
-  REAL ahead;
+  TRIANGLE_MACRO_ULONG_PTR alignptr;
+  TRIANGLE_MACRO_REAL searchdist, dist;
+  TRIANGLE_MACRO_REAL ahead;
   long samplesperblock, totalsamplesleft, samplesleft;
   long population, totalpopulation;
   triangle ptr;                         /* Temporary variable used by sym(). */
@@ -2447,11 +2452,11 @@ enum locateresult locate(mesh *m, behavior *b,
       population = totalpopulation;
     }
     /* Find a pointer to the first triangle in the block. */
-    alignptr = (ULONG_PTR) (sampleblock + 1);
+    alignptr = (TRIANGLE_MACRO_ULONG_PTR) (sampleblock + 1);
     firsttri = (char *) (alignptr +
-                         (ULONG_PTR) m->triangles.alignbytes -
+                         (TRIANGLE_MACRO_ULONG_PTR) m->triangles.alignbytes -
                          (alignptr %
-                          (ULONG_PTR) m->triangles.alignbytes));
+                          (TRIANGLE_MACRO_ULONG_PTR) m->triangles.alignbytes));
 
     /* Choose `samplesleft' randomly sampled triangles in this block. */
     do {
@@ -2473,7 +2478,7 @@ enum locateresult locate(mesh *m, behavior *b,
     } while ((samplesleft > 0) && (totalsamplesleft > 0));
 
     if (totalsamplesleft > 0) {
-      sampleblock = (VOID **) *sampleblock;
+      sampleblock = (TRIANGLE_MACRO_VOID **) *sampleblock;
       samplesleft = samplesperblock;
       totalpopulation -= population;
       population = TRIPERBLOCK;
@@ -2899,8 +2904,8 @@ enum insertvertexresult insertvertex(mesh *m, behavior *b,
   vertex first;
   vertex leftvertex, rightvertex, botvertex, topvertex, farvertex;
   vertex segmentorg, segmentdest;
-  REAL attrib;
-  REAL area;
+  TRIANGLE_MACRO_REAL attrib;
+  TRIANGLE_MACRO_REAL area;
   enum insertvertexresult success;
   enum locateresult intersect;
   int doflip;
@@ -3811,7 +3816,7 @@ void vertexsort(vertex *sortarray, int arraysize)
 {
   int left, right;
   int pivot;
-  REAL pivotx, pivoty;
+  TRIANGLE_MACRO_REAL pivotx, pivoty;
   vertex temp;
 
   if (arraysize == 2) {
@@ -3878,7 +3883,7 @@ void vertexmedian(vertex *sortarray, int arraysize, int median, int axis)
 {
   int left, right;
   int pivot;
-  REAL pivot1, pivot2;
+  TRIANGLE_MACRO_REAL pivot1, pivot2;
   vertex temp;
 
   if (arraysize == 2) {
@@ -4309,7 +4314,7 @@ void divconqrecurse(mesh *m, behavior *b, vertex *sortarray,
 {
   struct otri midtri, tri1, tri2, tri3;
   struct otri innerleft, innerright;
-  REAL area;
+  TRIANGLE_MACRO_REAL area;
   int divider;
 
   if (vertices == 2) {
@@ -4531,7 +4536,7 @@ long divconqdelaunay(mesh *m, behavior *b)
 
   /* Form the Delaunay triangulation. */
   divconqrecurse(m, b, sortarray, i, 0, &hullleft, &hullright);
-  trifree((VOID *) sortarray);
+  trifree((TRIANGLE_MACRO_VOID *) sortarray);
 
   return removeghosts(m, b, &hullleft);
 }
@@ -4560,7 +4565,7 @@ long divconqdelaunay(mesh *m, behavior *b)
 void boundingbox(mesh *m, behavior *b)
 {
   struct otri inftri;          /* Handle for the triangular bounding box. */
-  REAL width;
+  TRIANGLE_MACRO_REAL width;
 
   /* Find the width (or height, whichever is larger) of the triangulation. */
   width = m->xmax - m->xmin;
@@ -4678,9 +4683,9 @@ long removebox(mesh *m, behavior *b)
   }
   triangledealloc(m, finaledge.tri);
 
-  trifree((VOID *) m->infvertex1);  /* Deallocate the bounding box vertices. */
-  trifree((VOID *) m->infvertex2);
-  trifree((VOID *) m->infvertex3);
+  trifree((TRIANGLE_MACRO_VOID *) m->infvertex1);  /* Deallocate the bounding box vertices. */
+  trifree((TRIANGLE_MACRO_VOID *) m->infvertex2);
+  trifree((TRIANGLE_MACRO_VOID *) m->infvertex3);
 
   return hullsize;
 }
@@ -4739,7 +4744,7 @@ long incrementaldelaunay(mesh *m, behavior *b)
 
 void eventheapinsert(struct event **heap, int heapsize, struct event *newevent)
 {
-  REAL eventx, eventy;
+  TRIANGLE_MACRO_REAL eventx, eventy;
   int eventnum;
   int parent;
   int notdone;
@@ -4773,7 +4778,7 @@ void eventheapinsert(struct event **heap, int heapsize, struct event *newevent)
 void eventheapify(struct event **heap, int heapsize, int eventnum)
 {
   struct event *thisevent;
-  REAL eventx, eventy;
+  TRIANGLE_MACRO_REAL eventx, eventy;
   int leftchild, rightchild;
   int smallest;
   int notdone;
@@ -4821,7 +4826,7 @@ void eventheapify(struct event **heap, int heapsize, int eventnum)
 void eventheapdelete(struct event **heap, int heapsize, int eventnum)
 {
   struct event *moveevent;
-  REAL eventx, eventy;
+  TRIANGLE_MACRO_REAL eventx, eventy;
   int parent;
   int notdone;
 
@@ -4867,14 +4872,14 @@ void createeventheap(mesh *m, struct event ***eventheap,
   traversalinit(&m->vertices);
   for (i = 0; i < m->invertices; i++) {
     thisvertex = vertextraverse(m);
-    (*events)[i].eventptr = (VOID *) thisvertex;
+    (*events)[i].eventptr = (TRIANGLE_MACRO_VOID *) thisvertex;
     (*events)[i].xkey = thisvertex[0];
     (*events)[i].ykey = thisvertex[1];
     eventheapinsert(*eventheap, i, *events + i);
   }
   *freeevents = (struct event *) NULL;
   for (i = maxevents - 1; i >= m->invertices; i--) {
-    (*events)[i].eventptr = (VOID *) *freeevents;
+    (*events)[i].eventptr = (TRIANGLE_MACRO_VOID *) *freeevents;
     *freeevents = *events + i;
   }
 }
@@ -4886,7 +4891,7 @@ void createeventheap(mesh *m, struct event ***eventheap,
 int rightofhyperbola(mesh *m, struct otri *fronttri, vertex newsite)
 {
   vertex leftvertex, rightvertex;
-  REAL dxa, dya, dxb, dyb;
+  TRIANGLE_MACRO_REAL dxa, dya, dxb, dyb;
 
   m->hyperbolacount++;
 
@@ -4914,10 +4919,10 @@ int rightofhyperbola(mesh *m, struct otri *fronttri, vertex newsite)
 
 #ifndef REDUCED
 
-REAL circletop(mesh *m, vertex pa, vertex pb, vertex pc, REAL ccwabc)
+TRIANGLE_MACRO_REAL circletop(mesh *m, vertex pa, vertex pb, vertex pc, TRIANGLE_MACRO_REAL ccwabc)
 {
-  REAL xac, yac, xbc, ybc, xab, yab;
-  REAL aclen2, bclen2, ablen2;
+  TRIANGLE_MACRO_REAL xac, yac, xbc, ybc, xab, yab;
+  TRIANGLE_MACRO_REAL aclen2, bclen2, ablen2;
 
   m->circletopcount++;
 
@@ -4949,7 +4954,7 @@ void check4deadevent(struct otri *checktri, struct event **freeevents,
   if (eventvertex != (vertex) NULL) {
     deadevent = (struct event *) eventvertex;
     eventnum = deadevent->heapposition;
-    deadevent->eventptr = (VOID *) *freeevents;
+    deadevent->eventptr = (TRIANGLE_MACRO_VOID *) *freeevents;
     *freeevents = deadevent;
     eventheapdelete(eventheap, *heapsize, eventnum);
     (*heapsize)--;
@@ -5042,7 +5047,7 @@ struct splaynode *splay(mesh *m, struct splaynode *splaytree,
     lefttree = splay(m, splaytree->lchild, searchpoint, searchtri);
     righttree = splay(m, splaytree->rchild, searchpoint, searchtri);
 
-    pooldealloc(&m->splaynodes, (VOID *) splaytree);
+    pooldealloc(&m->splaynodes, (TRIANGLE_MACRO_VOID *) splaytree);
     if (lefttree == (struct splaynode *) NULL) {
       return righttree;
     } else if (righttree == (struct splaynode *) NULL) {
@@ -5101,12 +5106,12 @@ struct splaynode *splayinsert(mesh *m, struct splaynode *splayroot,
 struct splaynode *circletopinsert(mesh *m, behavior *b,
                                   struct splaynode *splayroot,
                                   struct otri *newkey,
-                                  vertex pa, vertex pb, vertex pc, REAL topy)
+                                  vertex pa, vertex pb, vertex pc, TRIANGLE_MACRO_REAL topy)
 {
-  REAL ccwabc;
-  REAL xac, yac, xbc, ybc;
-  REAL aclen2, bclen2;
-  REAL searchpoint[2];
+  TRIANGLE_MACRO_REAL ccwabc;
+  TRIANGLE_MACRO_REAL xac, yac, xbc, ybc;
+  TRIANGLE_MACRO_REAL aclen2, bclen2;
+  TRIANGLE_MACRO_REAL searchpoint[2];
   struct otri dummytri;
 
   ccwabc = counterclockwise(m, b, pa, pb, pc);
@@ -5166,7 +5171,7 @@ long sweeplinedelaunay(mesh *m, behavior *b)
   vertex nextvertex, lastvertex;
   vertex connectvertex;
   vertex leftvertex, midvertex, rightvertex;
-  REAL lefttest, righttest;
+  TRIANGLE_MACRO_REAL lefttest, righttest;
   int heapsize;
   int check4events, farrightflag;
   triangle ptr;   /* Temporary variable used by sym(), onext(), and oprev(). */
@@ -5188,7 +5193,7 @@ long sweeplinedelaunay(mesh *m, behavior *b)
   lprevself(righttri);
   bond(lefttri, righttri);
   firstvertex = (vertex) eventheap[0]->eventptr;
-  eventheap[0]->eventptr = (VOID *) freeevents;
+  eventheap[0]->eventptr = (TRIANGLE_MACRO_VOID *) freeevents;
   freeevents = eventheap[0];
   eventheapdelete(eventheap, heapsize, 0);
   heapsize--;
@@ -5198,7 +5203,7 @@ long sweeplinedelaunay(mesh *m, behavior *b)
       return TRI_INPUT;
     }
     secondvertex = (vertex) eventheap[0]->eventptr;
-    eventheap[0]->eventptr = (VOID *) freeevents;
+    eventheap[0]->eventptr = (TRIANGLE_MACRO_VOID *) freeevents;
     freeevents = eventheap[0];
     eventheapdelete(eventheap, heapsize, 0);
     heapsize--;
@@ -5308,7 +5313,7 @@ long sweeplinedelaunay(mesh *m, behavior *b)
         }
       }
     }
-    nextevent->eventptr = (VOID *) freeevents;
+    nextevent->eventptr = (TRIANGLE_MACRO_VOID *) freeevents;
     freeevents = nextevent;
 
     if (check4events) {
@@ -5322,7 +5327,7 @@ long sweeplinedelaunay(mesh *m, behavior *b)
         newevent->xkey = m->xminextreme;
         newevent->ykey = circletop(m, leftvertex, midvertex, rightvertex,
                                    lefttest);
-        newevent->eventptr = (VOID *) encode(lefttri);
+        newevent->eventptr = (TRIANGLE_MACRO_VOID *) encode(lefttri);
         eventheapinsert(eventheap, heapsize, newevent);
         heapsize++;
         setorg(lefttri, newevent);
@@ -5337,7 +5342,7 @@ long sweeplinedelaunay(mesh *m, behavior *b)
         newevent->xkey = m->xminextreme;
         newevent->ykey = circletop(m, leftvertex, midvertex, rightvertex,
                                    righttest);
-        newevent->eventptr = (VOID *) encode(farrighttri);
+        newevent->eventptr = (TRIANGLE_MACRO_VOID *) encode(farrighttri);
         eventheapinsert(eventheap, heapsize, newevent);
         heapsize++;
         setorg(farrighttri, newevent);
@@ -5421,7 +5426,7 @@ long delaunay(mesh *m, behavior *b)
 #ifndef CDT_ONLY
 
 int reconstruct(mesh *m, behavior *b, int *trianglelist,
-                REAL *triangleattriblist, REAL *trianglearealist,
+                TRIANGLE_MACRO_REAL *triangleattriblist, TRIANGLE_MACRO_REAL *trianglearealist,
                 int elements, int corners, int attribs,
                 int *segmentlist,int *segmentmarkerlist, int numberofsegments)
 {
@@ -5441,7 +5446,7 @@ int reconstruct(mesh *m, behavior *b, int *trianglelist,
   vertex shorg;
   vertex killvertex;
   vertex segmentorg, segmentdest;
-  REAL area;
+  TRIANGLE_MACRO_REAL area;
   int corner[3];
   int end[2];
   int killvertexindex;
@@ -5682,7 +5687,7 @@ int reconstruct(mesh *m, behavior *b, int *trianglelist,
     }
   }
 
-  trifree((VOID *) vertexarray);
+  trifree((TRIANGLE_MACRO_VOID *) vertexarray);
   return hullsize;
 }
 
@@ -5720,7 +5725,7 @@ enum finddirectionresult finddirection(mesh *m, behavior *b,
   struct otri checktri;
   vertex startvertex;
   vertex leftvertex, rightvertex;
-  REAL leftccw, rightccw;
+  TRIANGLE_MACRO_REAL leftccw, rightccw;
   int leftflag, rightflag;
   triangle ptr;           /* Temporary variable used by onext() and oprev(). */
 
@@ -5808,10 +5813,10 @@ void segmentintersection(mesh *m, behavior *b,
   vertex newvertex;
   enum insertvertexresult success;
   enum finddirectionresult collinear;
-  REAL ex, ey;
-  REAL tx, ty;
-  REAL etx, ety;
-  REAL split, denom;
+  TRIANGLE_MACRO_REAL ex, ey;
+  TRIANGLE_MACRO_REAL tx, ty;
+  TRIANGLE_MACRO_REAL etx, ety;
+  TRIANGLE_MACRO_REAL split, denom;
   int i;
   triangle ptr;                       /* Temporary variable used by onext(). */
   subseg sptr;                        /* Temporary variable used by snext(). */
@@ -6222,7 +6227,7 @@ void constrainededge(mesh *m, behavior *b,
   struct osub crosssubseg;
   vertex endpoint1;
   vertex farvertex;
-  REAL area;
+  TRIANGLE_MACRO_REAL area;
   int collision;
   int done;
   triangle ptr;             /* Temporary variable used by sym() and oprev(). */
@@ -6772,7 +6777,7 @@ void plague(mesh *m, behavior *b)
 /*****************************************************************************/
 
 void regionplague(mesh *m, behavior *b,
-                  REAL attribute, REAL area)
+                  TRIANGLE_MACRO_REAL attribute, TRIANGLE_MACRO_REAL area)
 {
   struct otri testtri;
   struct otri neighbor;
@@ -6849,8 +6854,8 @@ void regionplague(mesh *m, behavior *b,
 /*                                                                           */
 /*****************************************************************************/
 
-void carveholes(mesh *m, behavior *b, REAL *holelist, int holes,
-                REAL *regionlist, int regions)
+void carveholes(mesh *m, behavior *b, TRIANGLE_MACRO_REAL *holelist, int holes,
+                TRIANGLE_MACRO_REAL *regionlist, int regions)
 {
   struct otri searchtri;
   struct otri triangleloop;
@@ -6993,7 +6998,7 @@ void carveholes(mesh *m, behavior *b, REAL *holelist, int holes,
     pooldeinit(&m->viri);
   }
   if (regions > 0) {
-    trifree((VOID *) regiontris);
+    trifree((TRIANGLE_MACRO_VOID *) regiontris);
   }
 }
 
@@ -7078,9 +7083,9 @@ void splitencsegs(mesh *m, behavior *b, int triflaws, int *status)
   vertex eorg, edest, eapex;
   vertex newvertex;
   enum insertvertexresult success;
-  REAL segmentlength, nearestpoweroftwo;
-  REAL split;
-  REAL multiplier, divisor;
+  TRIANGLE_MACRO_REAL segmentlength, nearestpoweroftwo;
+  TRIANGLE_MACRO_REAL split;
+  TRIANGLE_MACRO_REAL multiplier, divisor;
   int acuteorg, acuteorg2, acutedest, acutedest2;
   int dummy;
   int i;
@@ -7296,7 +7301,7 @@ void splittriangle(mesh *m, behavior *b,
   struct otri badotri;
   vertex borg, bdest, bapex;
   vertex newvertex;
-  REAL xi, eta;
+  TRIANGLE_MACRO_REAL xi, eta;
   enum insertvertexresult success;
   int errorflag;
 
@@ -7460,7 +7465,7 @@ void enforcequality(mesh *m, behavior *b, int *status)
         if (*status < 0) return;
       } else {
         /* Return the bad triangle to the pool. */
-        pooldealloc(&m->badtriangles, (VOID *) badtri);
+        pooldealloc(&m->badtriangles, (TRIANGLE_MACRO_VOID *) badtri);
       }
     }
   }
@@ -7513,7 +7518,7 @@ void highorder(mesh *m, behavior *b)
   /*   order elements.  This ensures that the primary nodes (at the     */
   /*   corners of elements) will occur earlier in the output files, and */
   /*   have lower indices, than the extra nodes.                        */
-  m->vertices.deaditemstack = (VOID *) NULL;
+  m->vertices.deaditemstack = (TRIANGLE_MACRO_VOID *) NULL;
 
   traversalinit(&m->triangles);
   triangleloop.tri = triangletraverse(m);
@@ -7571,12 +7576,12 @@ void highorder(mesh *m, behavior *b)
 /*                                                                           */
 /*****************************************************************************/
 
-int transfernodes(mesh *m, behavior *b, REAL *pointlist,
-                   REAL *pointattriblist, int *pointmarkerlist,
+int transfernodes(mesh *m, behavior *b, TRIANGLE_MACRO_REAL *pointlist,
+                   TRIANGLE_MACRO_REAL *pointattriblist, int *pointmarkerlist,
                    int numberofpoints, int numberofpointattribs)
 {
   vertex vertexloop;
-  REAL x, y;
+  TRIANGLE_MACRO_REAL x, y;
   int i, j;
   int coordindex;
   int attribindex;
@@ -7642,11 +7647,11 @@ int transfernodes(mesh *m, behavior *b, REAL *pointlist,
 /*                                                                           */
 /*****************************************************************************/
 
-void writenodes(mesh *m, behavior *b, REAL **pointlist,
-                REAL **pointattriblist, int **pointmarkerlist)
+void writenodes(mesh *m, behavior *b, TRIANGLE_MACRO_REAL **pointlist,
+                TRIANGLE_MACRO_REAL **pointattriblist, int **pointmarkerlist)
 {
-  REAL *plist;
-  REAL *palist;
+  TRIANGLE_MACRO_REAL *plist;
+  TRIANGLE_MACRO_REAL *palist;
   int *pmlist;
   int coordindex;
   int attribindex;
@@ -7662,13 +7667,13 @@ void writenodes(mesh *m, behavior *b, REAL **pointlist,
   }
 
   /* Allocate memory for output vertices if necessary. */
-  if (*pointlist == (REAL *) NULL) {
-    *pointlist = (REAL *) trimalloc((int) (outvertices * 2 * sizeof(REAL)));
+  if (*pointlist == (TRIANGLE_MACRO_REAL *) NULL) {
+    *pointlist = (TRIANGLE_MACRO_REAL *) trimalloc((int) (outvertices * 2 * sizeof(TRIANGLE_MACRO_REAL)));
   }
   /* Allocate memory for output vertex attributes if necessary. */
-  if ((m->nextras > 0) && (*pointattriblist == (REAL *) NULL)) {
-    *pointattriblist = (REAL *) trimalloc((int) (outvertices * m->nextras *
-                                                 sizeof(REAL)));
+  if ((m->nextras > 0) && (*pointattriblist == (TRIANGLE_MACRO_REAL *) NULL)) {
+    *pointattriblist = (TRIANGLE_MACRO_REAL *) trimalloc((int) (outvertices * m->nextras *
+                                                 sizeof(TRIANGLE_MACRO_REAL)));
   }
   /* Allocate memory for output vertex markers if necessary. */
   if (!b->nobound && (*pointmarkerlist == (int *) NULL)) {
@@ -7738,10 +7743,10 @@ void numbernodes(mesh *m, behavior *b)
 /*****************************************************************************/
 
 void writeelements(mesh *m, behavior *b,
-                   int **trianglelist, REAL **triangleattriblist)
+                   int **trianglelist, TRIANGLE_MACRO_REAL **triangleattriblist)
 {
   int *tlist;
-  REAL *talist;
+  TRIANGLE_MACRO_REAL *talist;
   int vertexindex;
   int attribindex;
   struct otri triangleloop;
@@ -7757,10 +7762,10 @@ void writeelements(mesh *m, behavior *b,
                                               2) * sizeof(int)));
   }
   /* Allocate memory for output triangle attributes if necessary. */
-  if ((m->eextras > 0) && (*triangleattriblist == (REAL *) NULL)) {
-    *triangleattriblist = (REAL *) trimalloc((int) (m->triangles.items *
+  if ((m->eextras > 0) && (*triangleattriblist == (TRIANGLE_MACRO_REAL *) NULL)) {
+    *triangleattriblist = (TRIANGLE_MACRO_REAL *) trimalloc((int) (m->triangles.items *
                                                     m->eextras *
-                                                    sizeof(REAL)));
+                                                    sizeof(TRIANGLE_MACRO_REAL)));
   }
   tlist = *trianglelist;
   talist = *triangleattriblist;
@@ -7938,34 +7943,34 @@ void writeedges(mesh *m, behavior *b,
 /*                                                                           */
 /*****************************************************************************/
 
-void writevoronoi(mesh *m, behavior *b, REAL **vpointlist,
-                  REAL **vpointattriblist, int **vpointmarkerlist,
-                  int **vedgelist, int **vedgemarkerlist, REAL **vnormlist) {
+void writevoronoi(mesh *m, behavior *b, TRIANGLE_MACRO_REAL **vpointlist,
+                  TRIANGLE_MACRO_REAL **vpointattriblist, int **vpointmarkerlist,
+                  int **vedgelist, int **vedgemarkerlist, TRIANGLE_MACRO_REAL **vnormlist) {
 
-  REAL *plist;
-  REAL *palist;
+  TRIANGLE_MACRO_REAL *plist;
+  TRIANGLE_MACRO_REAL *palist;
   int *elist;
-  REAL *normlist;
+  TRIANGLE_MACRO_REAL *normlist;
   int coordindex;
   int attribindex;
   struct otri triangleloop, trisym;
   vertex torg, tdest, tapex;
-  REAL circumcenter[2];
-  REAL xi, eta;
+  TRIANGLE_MACRO_REAL circumcenter[2];
+  TRIANGLE_MACRO_REAL xi, eta;
   long vnodenumber, vedgenumber;
   int p1, p2;
   int i;
   triangle ptr;                         /* Temporary variable used by sym(). */
 
   /* Allocate memory for Voronoi vertices if necessary. */
-  if (*vpointlist == (REAL *) NULL) {
-    *vpointlist = (REAL *) trimalloc((int) (m->triangles.items * 2 *
-                                            sizeof(REAL)));
+  if (*vpointlist == (TRIANGLE_MACRO_REAL *) NULL) {
+    *vpointlist = (TRIANGLE_MACRO_REAL *) trimalloc((int) (m->triangles.items * 2 *
+                                            sizeof(TRIANGLE_MACRO_REAL)));
   }
   /* Allocate memory for Voronoi vertex attributes if necessary. */
-  if (*vpointattriblist == (REAL *) NULL) {
-    *vpointattriblist = (REAL *) trimalloc((int) (m->triangles.items *
-                                                  m->nextras * sizeof(REAL)));
+  if (*vpointattriblist == (TRIANGLE_MACRO_REAL *) NULL) {
+    *vpointattriblist = (TRIANGLE_MACRO_REAL *) trimalloc((int) (m->triangles.items *
+                                                  m->nextras * sizeof(TRIANGLE_MACRO_REAL)));
   }
   *vpointmarkerlist = (int *) NULL;
   plist = *vpointlist;
@@ -8002,8 +8007,8 @@ void writevoronoi(mesh *m, behavior *b, REAL **vpointlist,
   }
   *vedgemarkerlist = (int *) NULL;
   /* Allocate memory for output Voronoi norms if necessary. */
-  if (*vnormlist == (REAL *) NULL) {
-    *vnormlist = (REAL *) trimalloc((int) (m->edges * 2 * sizeof(REAL)));
+  if (*vnormlist == (TRIANGLE_MACRO_REAL *) NULL) {
+    *vnormlist = (TRIANGLE_MACRO_REAL *) trimalloc((int) (m->edges * 2 * sizeof(TRIANGLE_MACRO_REAL)));
   }
   elist = *vedgelist;
   normlist = *vnormlist;
@@ -8148,22 +8153,22 @@ int quality_statistics(mesh *m, behavior *b, quality *q)
 {
   struct otri triangleloop;
   vertex p[3];
-  REAL cossquaretable[8];
-  REAL ratiotable[16];
-  REAL dx[3], dy[3];
-  REAL edgelength[3];
-  REAL dotproduct;
-  REAL cossquare;
-  REAL triarea;
-  REAL trilongest2;
-  REAL triminaltitude2;
-  REAL triaspect2;
-  REAL radconst, degconst;
-  REAL shortest, longest;
-  REAL smallestarea, biggestarea;
-  REAL smallestangle, biggestangle;
-  REAL minaltitude;
-  REAL worstaspect;
+  TRIANGLE_MACRO_REAL cossquaretable[8];
+  TRIANGLE_MACRO_REAL ratiotable[16];
+  TRIANGLE_MACRO_REAL dx[3], dy[3];
+  TRIANGLE_MACRO_REAL edgelength[3];
+  TRIANGLE_MACRO_REAL dotproduct;
+  TRIANGLE_MACRO_REAL cossquare;
+  TRIANGLE_MACRO_REAL triarea;
+  TRIANGLE_MACRO_REAL trilongest2;
+  TRIANGLE_MACRO_REAL triminaltitude2;
+  TRIANGLE_MACRO_REAL triaspect2;
+  TRIANGLE_MACRO_REAL radconst, degconst;
+  TRIANGLE_MACRO_REAL shortest, longest;
+  TRIANGLE_MACRO_REAL smallestarea, biggestarea;
+  TRIANGLE_MACRO_REAL smallestangle, biggestangle;
+  TRIANGLE_MACRO_REAL minaltitude;
+  TRIANGLE_MACRO_REAL worstaspect;
   int aspectindex;
   int tendegree;
   int acutebiggest;
@@ -8172,7 +8177,7 @@ int quality_statistics(mesh *m, behavior *b, quality *q)
   radconst = PI / 18.0;
   degconst = 180.0 / PI;
   for (i = 0; i < 8; i++) {
-    cossquaretable[i] = cos(radconst * (REAL) (i + 1));
+    cossquaretable[i] = cos(radconst * (TRIANGLE_MACRO_REAL) (i + 1));
     cossquaretable[i] = cossquaretable[i] * cossquaretable[i];
   }
   for (i = 0; i < 18; i++) {
@@ -8315,3 +8320,6 @@ int quality_statistics(mesh *m, behavior *b, quality *q)
   return 0;
 }
 
+#ifdef __cplusplus
+} // namespace triangle
+#endif
