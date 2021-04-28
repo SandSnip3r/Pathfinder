@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+namespace pathfinder {
+
 BehaviorBuilder::BehaviorBuilder() {
   // Set a bunch of default behavior
 
@@ -112,7 +114,7 @@ BehaviorBuilder::BehaviorBuilder() {
 
 }
 
-behavior BehaviorBuilder::getBehavior() const {
+triangle::behavior BehaviorBuilder::getBehavior() const {
   return behavior_;
 }
 
@@ -170,3 +172,5 @@ void BehaviorBuilder::setEnforceMinimumArea(bool val, float area) {
 void BehaviorBuilder::setMinimumArea(float area) {
   behavior_.maxarea = area;
 }
+
+} // namespace pathfinder

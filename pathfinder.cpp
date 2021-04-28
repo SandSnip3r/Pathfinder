@@ -10,11 +10,13 @@
 #include <set>
 #include <string>
 
+namespace pathfinder {
+
 std::vector<int> rebuildPath(State state, const std::map<State, State> &previous);
 
 PathSegment::~PathSegment() {}
 
-Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {
+Pathfinder::Pathfinder(const triangle::triangleio &triangleData, const triangle::triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {
   // Initialize debug logger
   DebugLogger::instance().setPointToIndexFunction(std::bind(&Pathfinder::pointToIndex, std::cref(*this), std::placeholders::_1));
 
@@ -61,7 +63,7 @@ Pathfinder::Pathfinder(const triangleio &triangleData, const triangleio &triangl
   }
 }
 
-PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const Vector &goalPoint) {
+PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const Vector &goalPoint) const {
   int startTriangle = findTriangleForPoint(startPoint);
   int goalTriangle = findTriangleForPoint(goalPoint);
   PathfindingResult result;
@@ -98,7 +100,7 @@ PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const V
   return result;
 }
 
-bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) {
+bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) const {
   // Use breadth-first search to try to quickly find if a path exists between these two triangles
 
   std::set<int> visitedTriangles;
@@ -814,3 +816,5 @@ void PathfindingResult::clear() {
   aStarInfo.trianglesSearched.clear();
   aStarInfo.trianglesDiscovered.clear();
 }
+
+} // namespace pathfinder

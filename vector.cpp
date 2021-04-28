@@ -1,5 +1,7 @@
 #include "vector.h"
 
+namespace pathfinder {
+
 Vector::Vector(const double x, const double y) : x_(x), y_(y) {
 
 }
@@ -27,3 +29,5 @@ double Vector::x() const {
 double Vector::y() const {
   return y_;
 }
+
+} // namespace pathfinder

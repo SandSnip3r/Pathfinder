@@ -1,6 +1,8 @@
 #ifndef VECTOR_H_
 #define VECTOR_H_
 
+namespace pathfinder {
+
 class Vector {
 private:
   double x_, y_;
@@ -16,5 +18,7 @@ public:
   double x() const;
   double y() const;
 };
+
+} // namespace pathfinder
 
 #endif // VECTOR_H_

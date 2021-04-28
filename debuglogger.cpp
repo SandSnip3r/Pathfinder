@@ -4,6 +4,8 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace pathfinder {
+
 DebugLogger& DebugLogger::instance() {
   static DebugLogger thisInstance = DebugLogger();
   return thisInstance;
@@ -82,3 +84,5 @@ std::string DebugLogger::apexToString(const Apex &apex) const {
   result += ")";
   return result;
 }
+
+} // namespace pathfinder

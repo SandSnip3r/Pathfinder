@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
+
+namespace pathfinder {
 
 namespace math {
   
@@ -274,7 +277,13 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
     const auto distanceBetweenPoints = math::distance(point1, point2);
     if (math::lessThan(distanceBetweenPoints, circleRadius)) {
       // TODO: point2 is inside point1's circle. Handle
-      // std::cout << "point2 is inside point1's circle" << std::endl;
+      // I dont know why this happens
+      double dx = point2.x() - point1.x();
+      double dy = point2.y() - point1.y();
+      Vector pointOnCircumference;
+      pointOnCircumference.setX(point1.x() + dx * circleRadius/distanceBetweenPoints);
+      pointOnCircumference.setY(point1.y() + dy * circleRadius/distanceBetweenPoints);
+      return {pointOnCircumference, pointOnCircumference};
     } else if (math::equal(distanceBetweenPoints, circleRadius)) {
       // point2 on the circumference of point1's circle
       // the line is really not a line
@@ -289,7 +298,15 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
     const auto distanceBetweenPoints = math::distance(point1, point2);
     if (math::lessThan(distanceBetweenPoints, circleRadius)) {
       // TODO: point1 is inside point2's circle. Handle
-      // std::cout << "point1 is inside point2's circle" << std::endl;
+      // I think this is the case of a path starting within the radius of a vertex
+      // Current idea is to return a line that is from point1 to the closest point on point2's circle's circumference
+      // I think in reality, I should disallow pathing from such a location
+      double dx = point1.x() - point2.x();
+      double dy = point1.y() - point2.y();
+      Vector pointOnCircumference;
+      pointOnCircumference.setX(point2.x() + dx * circleRadius/distanceBetweenPoints);
+      pointOnCircumference.setY(point2.y() + dy * circleRadius/distanceBetweenPoints);
+      return {pointOnCircumference, pointOnCircumference};
     } else if (math::equal(distanceBetweenPoints, circleRadius)) {
       // point1 on the circumference of point2's circle
       // the line is really not a line
@@ -368,3 +385,5 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
 }
 
 } // namespace math
+
+} // namespace pathfinder

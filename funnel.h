@@ -1,5 +1,5 @@
-#ifndef FUNNEL_H
-#define FUNNEL_H
+#ifndef FUNNEL_H_
+#define FUNNEL_H_
 
 #include "math_helpers.h"
 #include "vector.h"
@@ -7,6 +7,8 @@
 #include <memory>
 #include <optional>
 #include <vector>
+
+namespace pathfinder {
 
 struct Apex {
   Vector apexPoint;
@@ -268,4 +270,6 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
   }
 }
 
-#endif // FUNNEL_H
+} // namespace pathfinder
+
+#endif // FUNNEL_H_

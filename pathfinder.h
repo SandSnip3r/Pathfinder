@@ -1,9 +1,10 @@
-#ifndef FILE_H_
-#define FILE_H_
+#ifndef PATHFINDER_H_
+#define PATHFINDER_H_
 
 #include "funnel.h"
 #include "math_helpers.h"
 #include "vector.h"
+
 #include "triangle/triangle_api.h"
 
 #include <array>
@@ -13,6 +14,8 @@
 #include <optional>
 #include <set>
 #include <vector>
+
+namespace pathfinder {
 
 struct State {
   int triangleNum{-1}, entryEdge{-1};
@@ -38,14 +41,14 @@ struct PathfindingResult {
 
 class Pathfinder {
 public:
-  Pathfinder(const triangleio &triangleData, const triangleio &triangleVoronoiData);
-  PathfindingResult findShortestPath(const Vector &startPoint, const Vector &goalPoint);
+  Pathfinder(const triangle::triangleio &triangleData, const triangle::triangleio &triangleVoronoiData);
+  PathfindingResult findShortestPath(const Vector &startPoint, const Vector &goalPoint) const;
   void setCharacterRadius(double value);
   int pointToIndex(const Vector &point) const;
 private:
   double characterRadius_{0};
   // Triangle data
-  triangleio triangleData_, triangleVoronoiData_;
+  triangle::triangleio triangleData_, triangleVoronoiData_;
   
   // Pre-computed data from triangle data
   std::vector<std::array<int,3>> triangleEdges_;
@@ -65,9 +68,11 @@ private:
   PathfindingAStarInfo triangleAStar(const Vector &startPoint, int startTriangle, const Vector &goalPoint, int goalTriangle) const;
   std::vector<State> getSuccessors(const State &state, int goalTriangle) const;
 
-  bool pathCanExist(int startTriangle, int goalTriangle);
+  bool pathCanExist(int startTriangle, int goalTriangle) const;
   int getSharedEdge(const int triangle1Num, const int triangle2Num) const;
   std::vector<std::pair<Vector,Vector>> buildCorridor(const std::vector<int> &trianglesInCorridor) const;
 };
 
-#endif // FILE_H_
+} // namespace pathfinder
+
+#endif // PATHFINDER_H_

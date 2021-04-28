@@ -7,6 +7,8 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace pathfinder {
+
 BaseFunnel::BaseFunnel(const double agentRadius) : agentRadius_(agentRadius) {}
 
 void BaseFunnel::funnelWithGoal(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint, const Vector &goalPoint) {
@@ -166,6 +168,7 @@ void BaseFunnel::addRight(const Vector &point, const bool isGoal) {
 
 void BaseFunnel::finishFunnel() {
   // NOTE: Assumes that the goal was previously added to the right of the funnel
+  // std::cout << "Finishing funnel" << std::endl; //DEBUGPRINTS
   AngleDirection t1 = funnel_.apex_type();
   AngleDirection t2 = AngleDirection::kClockwise;
   for (int i=funnel_.apex_index(); i<funnel_.size()-1;) {
@@ -174,6 +177,7 @@ void BaseFunnel::finishFunnel() {
       t2 = AngleDirection::kNoDirection;
     }
     std::pair<Vector, Vector> newEdge = math::createCircleConsciousLine(funnel_.at(i), t1, funnel_.at(i+1), t2, agentRadius_);
+    // std::cout << "  New edge: " << newEdge.first.x() << ',' << newEdge.first.y() << "->" << newEdge.second.x() << ',' << newEdge.second.y() << std::endl; //DEBUGPRINTS
     addSegment(Apex{funnel_.at(i), t1}, newEdge, Apex{funnel_.at(i+1), t2});
     t1 = AngleDirection::kClockwise;
     i += 1;
@@ -513,3 +517,5 @@ Funnel Funnel::cloneButSpaceFor1More() const {
     return *this;
   }
 }
+
+} // namespace pathfinder

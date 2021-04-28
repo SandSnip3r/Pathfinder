@@ -8,6 +8,8 @@
 #include <optional>
 #include <string>
 
+namespace pathfinder {
+
 class DebugLogger {
 public:
   static DebugLogger& instance();
@@ -29,5 +31,7 @@ private:
   DebugLogger();
   std::string apexToString(const Apex &apex) const;
 };
+
+} // namespace pathfinder
 
 #endif // DEBUGLOGGER_H

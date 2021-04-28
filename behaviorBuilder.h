@@ -3,11 +3,13 @@
 
 #include "triangle/triangle.h"
 
+namespace pathfinder {
+
 class BehaviorBuilder {
 public:
   BehaviorBuilder();
 
-  behavior getBehavior() const;
+  triangle::behavior getBehavior() const;
 
   void setConformingDelaunay(bool val);
   void setEnforceMinimumAngle(bool val, float angle=20.0);
@@ -16,7 +18,9 @@ public:
   void setMinimumArea(float area);
 
 private:
-  behavior behavior_;
+  triangle::behavior behavior_;
 };
+
+} // namespace pathfinder
 
 #endif // BEHAVIOR_BUILDER_H_

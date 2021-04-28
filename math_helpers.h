@@ -5,6 +5,8 @@
 
 #include <utility>
 
+namespace pathfinder {
+
 enum class AngleDirection {
   kNoDirection,
   kCounterclockwise,
@@ -36,5 +38,7 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
 
 
 } // namespace math
+
+} // namespace pathfinder
 
 #endif // MATH_HELPERS_H
