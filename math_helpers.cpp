@@ -10,6 +10,7 @@ namespace math {
   
 const double kPi = 3.141592653589793;
 const double k2Pi = 6.283185307179586;
+const double kDoublePrecisionTolerance = 0.000001;
 
 Vector polarToVector(const double r, const double theta) {
   return {r*cos(theta), r*sin(theta)};
@@ -45,8 +46,8 @@ bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const
   return ((b1 == b2) && (b2 == b3));
 }
 
-bool lessThan(const double d1, const double d2) {
-  return (d2-d1 > 0.000001);
+bool lessThan(const double d1, const double d2, const double tolerance) {
+  return (d2-d1 > tolerance);
 }
 
 bool equal(const double d1, const double d2) {
