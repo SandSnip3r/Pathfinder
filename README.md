@@ -30,7 +30,7 @@ cd build
 cmake ../Pathfinder/
 ```
 
-1. Build using Make
+3. Build using Make
 
 ```bash
 make
