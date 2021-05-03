@@ -17,13 +17,14 @@ namespace math {
 
 extern const double kPi;
 extern const double k2Pi;
+extern const double kDoublePrecisionTolerance;
 
 Vector polarToVector(const double r, const double theta);
 double distance(const Vector &p1, const Vector &p2);
 double crossProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2);
 double dotProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2);
 bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3);
-bool lessThan(const double d1, const double d2);
+bool lessThan(const double d1, const double d2, const double tolerance = kDoublePrecisionTolerance);
 bool equal(const double d1, const double d2);
 double angle(const Vector &point1, const Vector &point2);
 double angleBetweenVectors(const Vector &v1Start, const Vector &v1End, const Vector &v2Start, const Vector &v2End);
