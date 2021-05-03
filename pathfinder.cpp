@@ -65,7 +65,13 @@ Pathfinder::Pathfinder(const triangle::triangleio &triangleData, const triangle:
 
 PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const Vector &goalPoint) const {
   int startTriangle = findTriangleForPoint(startPoint);
+  if (collidesWithConstraint(startPoint, startTriangle)) {
+    throw std::runtime_error("The chosen start point is overlapping with a constraint. Pathing not possible");
+  }
   int goalTriangle = findTriangleForPoint(goalPoint);
+  if (collidesWithConstraint(goalPoint, goalTriangle)) {
+    throw std::runtime_error("The chosen goal point is overlapping with a constraint. Pathing not possible");
+  }
   PathfindingResult result;
   if (startTriangle == goalTriangle) {
     // Only one triangle involved
@@ -221,6 +227,37 @@ bool Pathfinder::pointIsInTriangle(const Vector &point, const int triangleNum) c
 
   // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
   return math::isPointInTriangle(point, vertexA, vertexB, vertexC);
+}
+
+bool Pathfinder::collidesWithConstraint(const Vector &point, const int triangleIndex) const {
+  if (triangleIndex < 0) {
+    throw std::runtime_error("Trying to check for collision for non-existent triangle");
+  }
+
+  const int vertexAIndex = triangleData_.trianglelist[triangleIndex*3];
+  const int vertexBIndex = triangleData_.trianglelist[triangleIndex*3+1];
+  const int vertexCIndex = triangleData_.trianglelist[triangleIndex*3+2];
+  if (vertexAIndex >= triangleData_.numberofpoints ||
+      vertexBIndex >= triangleData_.numberofpoints ||
+      vertexCIndex >= triangleData_.numberofpoints) {
+    throw std::runtime_error("Triangle references vertex which does not exist");
+  }
+
+  // Assuming that data is self-consistent (i.e. no vertex index is <0)
+  // TODO: Verify beforehand
+
+  for (const int vertexIndex : {vertexAIndex, vertexBIndex, vertexCIndex}) {
+    const auto marker = triangleData_.pointmarkerlist[vertexIndex];
+    if (marker != 0) {
+      // Constraint vertex
+      const Vector vertex{triangleData_.pointlist[vertexIndex*2], triangleData_.pointlist[vertexIndex*2+1]};
+      if (math::lessThan(math::distance(point, vertex), characterRadius_)) {
+        // Point is too close to vertex
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 int Pathfinder::findTriangleForPoint(const Vector &point) const {
@@ -500,7 +537,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
   std::vector<State> result;
   constexpr const bool kAvoidObstacles = true;
   constexpr const bool kCareAboutCharacterRadius = true;
-  auto characterFitsThroughTriangle = [this, &kCareAboutCharacterRadius](const int entryEdge, const int exitEdge) -> bool {
+  auto agentFitsThroughTriangle = [this, &kCareAboutCharacterRadius](const int entryEdge, const int exitEdge) -> bool {
     // TODO: Need to improve
     //  Some of these edges might not be constrained
     //  See C:\Users\Victor\Documents\ShareX\Screenshots\2021-02\drawPolygon_lYhSzArwEG.png
@@ -508,10 +545,28 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
     if (!kCareAboutCharacterRadius || characterRadius_ == 0.0) {
       return true;
     }
-    if (entryEdge < 0 || exitEdge < 0) {
+
+    // Get the exiting edge for this triangle
+    if (exitEdge < 0) {
       throw std::runtime_error("Invalid edge given");
     }
-    if (entryEdge >= triangleData_.numberofedges || exitEdge >= triangleData_.numberofedges) {
+    if (exitEdge >= triangleData_.numberofedges) {
+      throw std::runtime_error("Edge number is not within the triangle data");
+    }
+    const auto exitEdgeVertexAIndex = triangleData_.edgelist[exitEdge*2];
+    const auto exitEdgeVertexBIndex = triangleData_.edgelist[exitEdge*2+1];
+    if (exitEdgeVertexAIndex >= triangleData_.numberofpoints || exitEdgeVertexBIndex >= triangleData_.numberofpoints) {
+      throw std::runtime_error("Exit edge references points which do not exist");
+    }
+    const Vector exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
+    const Vector exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
+
+    if (entryEdge < 0) {
+      // The agent already is inside this triangle, the only check we can to is make sure that the diameter is less than the width of the exit edge
+      return math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2);
+    }
+
+    if (entryEdge >= triangleData_.numberofedges) {
       throw std::runtime_error("Edge number is not within the triangle data");
     }
     const auto entryEdgeVertexAIndex = triangleData_.edgelist[entryEdge*2];
@@ -519,16 +574,9 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
     if (entryEdgeVertexAIndex >= triangleData_.numberofpoints || entryEdgeVertexBIndex >= triangleData_.numberofpoints) {
       throw std::runtime_error("Entry edge references points which do not exist");
     }
-    const auto exitEdgeVertexAIndex = triangleData_.edgelist[exitEdge*2];
-    const auto exitEdgeVertexBIndex = triangleData_.edgelist[exitEdge*2+1];
-    if (exitEdgeVertexAIndex >= triangleData_.numberofpoints || exitEdgeVertexBIndex >= triangleData_.numberofpoints) {
-      throw std::runtime_error("Exit edge references points which do not exist");
-    }
     
     const Vector entryEdgeVertexA{triangleData_.pointlist[entryEdgeVertexAIndex*2], triangleData_.pointlist[entryEdgeVertexAIndex*2+1]};
     const Vector entryEdgeVertexB{triangleData_.pointlist[entryEdgeVertexBIndex*2], triangleData_.pointlist[entryEdgeVertexBIndex*2+1]};
-    const Vector exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
-    const Vector exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
 
     return ((math::distance(entryEdgeVertexA, entryEdgeVertexB) >= (characterRadius_*2)) && math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2));
     // TODO: This is a better approximation until the below code handles unconstrained edges
@@ -568,7 +616,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
         // Is a valid edge and isn't the entry edge
         if (!(kAvoidObstacles && triangleData_.edgemarkerlist[sharedEdge] != 0)) {
           // Non-constraint edge
-          if (state.entryEdge < 0 || characterFitsThroughTriangle(state.entryEdge, sharedEdge)) {
+          if (agentFitsThroughTriangle(state.entryEdge, sharedEdge)) {
             State successor;
             successor.entryEdge = sharedEdge;
             successor.triangleNum = neighborTriangleNum;

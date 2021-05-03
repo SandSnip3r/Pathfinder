@@ -12,6 +12,7 @@ namespace pathfinder {
 BaseFunnel::BaseFunnel(const double agentRadius) : agentRadius_(agentRadius) {}
 
 void BaseFunnel::funnelWithGoal(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint, const Vector &goalPoint) {
+  // std::cout << ">>>>BaseFunnel::funnelWithGoal" << std::endl; //DEBUGPRINTS
   initializeForFunnelAlgorithm(corridor.size(), startPoint, &goalPoint);
   funnelForCorridor(corridor, startPoint);
   finishFunnelWithGoal(goalPoint);
@@ -116,7 +117,7 @@ void BaseFunnel::funnelForCorridor(const std::vector<std::pair<Vector,Vector>> &
     // incorrect order (left is actually right), swap
     std::swap(left, right);
   }
-  // std::cout << "=============================================" << std::endl; //DEBUGPRINTS
+  // std::cout << "==========BaseFunnel::funnelForCorridor" << std::endl; //DEBUGPRINTS
   // std::cout << "Starting funnel: "; //DEBUGPRINTS
   // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
 
@@ -300,7 +301,8 @@ double LengthFunnel::funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, con
 Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastEdgeOfCorridor) const {
   std::optional<Vector> result;
 
-  // std::cout << "  Need to find goal for funnel" << std::endl; //DEBUGPRINTS
+  // std::cout << "  Need to find goal for funnel: "; //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
   // No goal given, this must mean we're funneling inside of the A* algorithm
   // We dont know where we want the goal point of the funnel to be
   //  It should be the closest point to the last apex of the funnel
@@ -326,6 +328,7 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
     if (currentFunnelPoint == funnel_.apex_point()) {
       // We've reached the apex of the funnel, there are no more points left on the left of the funnel
       funnelApexAngleDirection = funnel_.apex_type();
+      // std::cout << "  Evaluating apex of funnel" << std::endl; //DEBUGPRINTS
     }
     // Test that, if this was the final apex, would it result in the shortest path
     Vector potentialGoal;
@@ -367,6 +370,7 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
     }
 
     const double remainingPathLength = funnelLengthForAgentWithRadius(*this, potentialGoal);
+    // std::cout << "  Remaining path length: " << remainingPathLength << std::endl; //DEBUGPRINTS
     const double pathLength = pathLengthThusFar + remainingPathLength;
     if (pathLength < shortestPathLength) {
       shortestPathLength = pathLength;
@@ -379,9 +383,9 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
       funnelApexAngleDirection = AngleDirection::kClockwise;
     }
   }
-  // std::cout << "Funnel ends with a segment from apex " << DebugLogger::instance().pointToString(funnel.apex_point()) << " to " << DebugLogger::instance().pointToString(goalPointToUse) << std::endl; //DEBUGPRINTS
 
   if (result) {
+    // std::cout << "Funnel ends with a segment from apex " << DebugLogger::instance().pointToString(funnel_.apex_point()) << " to " << DebugLogger::instance().pointToString(*result) << std::endl; //DEBUGPRINTS
     return *result;
   } else {
     throw std::runtime_error("No point found!");

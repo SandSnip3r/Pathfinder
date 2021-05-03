@@ -56,6 +56,12 @@ private:
   mutable std::map<State, LengthFunnel> lengthFunnelCache_; // TODO: Dont use mutable
 
   bool pointIsInTriangle(const Vector &point, const int triangleNum) const;
+
+  // Checks if the given point collides with any of the constraint vertices of the triangle
+  // If the distance to a constraint vertex is exactly the agent radius, then it will not collide
+  // TODO: Does not check if the given point collides with edges of the triangle
+  bool collidesWithConstraint(const Vector &point, const int triangleIndex) const;
+
   int findTriangleForPoint(const Vector &point) const;
   Vector midpointOfEdge(int edgeNum) const;
   double lengthOfEdge(int edgeNum) const;

@@ -220,7 +220,10 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
     while (apex_index() == 0 && funnel_.size() >= 2) {
       const auto &currentApexPoint = at(0);
       std::pair<Vector, Vector> newWedge = math::createCircleConsciousLine(currentApexPoint, getApexType(), point, (isGoal ? AngleDirection::kNoDirection : direction), agentRadius_);
+      // std::cout << "newWedge is " << DebugLogger::instance().pointToString(currentApexPoint) << (getApexType() == AngleDirection::kNoDirection ? " point" : (getApexType() == AngleDirection::kClockwise ? " right" : " left")) << " -> " << DebugLogger::instance().pointToString(point) << ' ' << (isGoal ? "point" : directionString()) << std::endl; //DEBUGPRINTS
       std::pair<Vector, Vector> firstEdgeInOtherDirection = math::createCircleConsciousLine(currentApexPoint, getApexType(), at(1), oppositeDirection, agentRadius_);
+      // std::cout << "firstEdgeInOtherDirection is " << DebugLogger::instance().pointToString(currentApexPoint) << (getApexType() == AngleDirection::kNoDirection ? " point" : (getApexType() == AngleDirection::kClockwise ? " right" : " left")) << " -> " << DebugLogger::instance().pointToString(at(1)) << ' ' << (oppositeDirection == AngleDirection::kNoDirection ? " point" : (oppositeDirection == AngleDirection::kClockwise ? " right" : " left")) << std::endl; //DEBUGPRINTS
+      // std::cout << "Comparing newWedge " << newWedge.first.x() << ',' << newWedge.first.y() << "->" << newWedge.second.x() << ',' << newWedge.second.y() << " to firstEdgeInOtherDirection " << firstEdgeInOtherDirection.first.x() << ',' << firstEdgeInOtherDirection.first.y() << "->" << firstEdgeInOtherDirection.second.x() << ',' << firstEdgeInOtherDirection.second.y() << std::endl; //DEBUGPRINTS
       if (rotatesInwardsViaCrossProduct(newWedge.first, newWedge.second, firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second)) {
         // New point crosses over apex
         // std::cout << "    << New point crosses over apex" << std::endl; //DEBUGPRINTS
