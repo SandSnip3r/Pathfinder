@@ -50,8 +50,8 @@ bool lessThan(const double d1, const double d2, const double tolerance) {
   return (d2-d1 > tolerance);
 }
 
-bool equal(const double d1, const double d2) {
-  return std::abs(d2-d1) < 0.000001;
+bool equal(const double d1, const double d2, const double tolerance) {
+  return std::abs(d2-d1) < tolerance;
 }
 
 double angle(const Vector &point1, const Vector &point2) {
@@ -265,7 +265,7 @@ double angle(const Vector &point1, const AngleDirection point1Direction, const V
 }
 
 std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const AngleDirection &point1Direction, const Vector &point2, const AngleDirection &point2Direction, const double circleRadius) {
-  if (circleRadius < 0.001) {
+  if (equal(circleRadius, 0.0, 0.001)) {
     return {point1, point2};
   }
   Vector lineStart, lineEnd;
@@ -277,8 +277,12 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
     // Does point2 lie within the first circle?
     const auto distanceBetweenPoints = math::distance(point1, point2);
     if (math::lessThan(distanceBetweenPoints, circleRadius)) {
-      // TODO: point2 is inside point1's circle. Handle
-      throw std::runtime_error("createCircleConsciousLine: point2 is inside point1's circle");
+      if (point2Direction != AngleDirection::kNoDirection) {
+        // Both are circles, this is ok
+      } else {
+        // TODO: point2 is inside point1's circle. Handle
+        throw std::runtime_error("createCircleConsciousLine: point2 is inside point1's circle");
+      }
     } else if (math::equal(distanceBetweenPoints, circleRadius)) {
       // point2 on the circumference of point1's circle
       // the line is really not a line
@@ -292,8 +296,12 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
     // Does point1 lie within the first circle?
     const auto distanceBetweenPoints = math::distance(point1, point2);
     if (math::lessThan(distanceBetweenPoints, circleRadius)) {
-      // TODO: point1 is inside point2's circle. Handle
-      throw std::runtime_error("createCircleConsciousLine: point1 is inside point2's circle");
+      if (point1Direction != AngleDirection::kNoDirection) {
+        // Both are circles, this is ok
+      } else {
+        // TODO: point1 is inside point2's circle. Handle
+        throw std::runtime_error("createCircleConsciousLine: point1 is inside point2's circle");
+      }
     } else if (math::equal(distanceBetweenPoints, circleRadius)) {
       // point1 on the circumference of point2's circle
       // the line is really not a line
@@ -369,6 +377,68 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
   }
 
   return {lineStart, lineEnd};
+}
+
+int lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSegmentEndPoint, Vector centerOfCircle, const double circleRadius, Vector *intersectionPoint1, Vector *intersectionPoint2) {
+  // First, shift the points over so that the circle is at the origin
+  lineSegmentStartPoint.setX(lineSegmentStartPoint.x() - centerOfCircle.x());
+  lineSegmentStartPoint.setY(lineSegmentStartPoint.y() - centerOfCircle.y());
+  lineSegmentEndPoint.setX(lineSegmentEndPoint.x() - centerOfCircle.x());
+  lineSegmentEndPoint.setY(lineSegmentEndPoint.y() - centerOfCircle.y());
+  // ax -= cx;
+  // ay -= cy;
+  // bx -= cx;
+  // by -= cy;
+
+  // Now, calculate coefficients of quadratic equation
+  const double dx = lineSegmentEndPoint.x() - lineSegmentStartPoint.x();
+  const double dy = lineSegmentEndPoint.y() - lineSegmentStartPoint.y();
+  const double a = dx*dx + dy*dy;
+  const double b = 2 * (lineSegmentStartPoint.x()*dx + lineSegmentStartPoint.y()*dy);
+  const double c = lineSegmentStartPoint.x()*lineSegmentStartPoint.x() + lineSegmentStartPoint.y()*lineSegmentStartPoint.y() - circleRadius*circleRadius;
+  // a = (bx - ax)^2 + (by - ay)^2;
+  // b = 2*(ax*(bx - ax) + ay*(by - ay));
+  // c = ax^2 + ay^2 - r^2;
+
+  // Now, calculate the discriminant
+  const double discriminant = b*b - 4*a*c;
+  if (discriminant < 0) {
+    return 0;
+  }
+  const double sqrtDiscriminant = sqrt(discriminant);
+  // disc = b^2 - 4*a*c;
+  // if(disc <= 0) return false;
+  // sqrtdisc = sqrt(disc);
+
+  // Finally, calculate the points of intersection
+  const double t1 = (-b + sqrtDiscriminant) / (2*a);
+  const double t2 = (-b - sqrtDiscriminant) / (2*a);
+  int intersectionCount{0};
+  if (0 < t1 && t1 < 1) {
+    if (intersectionPoint1 != nullptr) {
+      intersectionPoint1->setX(lineSegmentStartPoint.x() + dx*t1 + centerOfCircle.x());
+      intersectionPoint1->setY(lineSegmentStartPoint.y() + dy*t1 + centerOfCircle.y());
+    }
+    ++intersectionCount;
+  }
+  if ((discriminant > 0) && (0 < t2 && t2 < 1)) {
+    Vector **point;
+    if (intersectionCount == 0) {
+      point = &intersectionPoint1;
+    } else {
+      point = &intersectionPoint2;
+    }
+    if (*point != nullptr) {
+      (*point)->setX(lineSegmentStartPoint.x() + dx*t2 + centerOfCircle.x());
+      (*point)->setY(lineSegmentStartPoint.y() + dy*t2 + centerOfCircle.y());
+    }
+    ++intersectionCount;
+  }
+  return intersectionCount;
+  // t1 = (-b + sqrtdisc)/(2*a);
+  // t2 = (-b - sqrtdisc)/(2*a);
+  // if((0 < t1 && t1 < 1) || (0 < t2 && t2 < 1)) return true;
+  // return false;
 }
 
 } // namespace math

@@ -25,7 +25,7 @@ double crossProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, 
 double dotProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2);
 bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3);
 bool lessThan(const double d1, const double d2, const double tolerance = kDoublePrecisionTolerance);
-bool equal(const double d1, const double d2);
+bool equal(const double d1, const double d2, const double tolerance = kDoublePrecisionTolerance);
 double angle(const Vector &point1, const Vector &point2);
 double angleBetweenVectors(const Vector &v1Start, const Vector &v1End, const Vector &v2Start, const Vector &v2End);
 double arcAngle(const double startAngle, const double endAngle, AngleDirection direction);
@@ -36,7 +36,7 @@ double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const Vector &po
 std::pair<Vector, Vector> intersectionsPointsOfTangentLinesToCircle(const Vector &point, const Vector &centerOfCircle, const double circleRadius);
 double angle(const Vector &point1, const AngleDirection point1Direction, const Vector &point2, const AngleDirection point2Direction, const double circleRadius);
 std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const AngleDirection &point1Direction, const Vector &point2, const AngleDirection &point2Direction, const double circleRadius);
-
+int lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSegmentEndPoint, Vector centerOfCircle, const double circleRadius, Vector *intersectionPoint1=nullptr, Vector *intersectionPoint2=nullptr);
 
 } // namespace math
 

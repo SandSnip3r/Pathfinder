@@ -177,8 +177,11 @@ void BaseFunnel::finishFunnel() {
       // Next point is the end of the last right edge
       t2 = AngleDirection::kNoDirection;
     }
+    // std::cout << "newWedge is " << DebugLogger::instance().pointToString(funnel_.at(i))   << ' ' << (t1 == AngleDirection::kNoDirection ? " point" : (t1 == AngleDirection::kClockwise ? " right" : " left")) << " -> " //DEBUGPRINTS
+                                // << DebugLogger::instance().pointToString(funnel_.at(i+1)) << ' ' << (t2 == AngleDirection::kNoDirection ? " point" : (t2 == AngleDirection::kClockwise ? " right" : " left")) << std::endl; //DEBUGPRINTS
     std::pair<Vector, Vector> newEdge = math::createCircleConsciousLine(funnel_.at(i), t1, funnel_.at(i+1), t2, agentRadius_);
-    // std::cout << "  New edge: " << newEdge.first.x() << ',' << newEdge.first.y() << "->" << newEdge.second.x() << ',' << newEdge.second.y() << std::endl; //DEBUGPRINTS
+    // std::cout << "  New edge: " << newEdge.first.x()  << ',' << newEdge.first.y() << "->" //DEBUGPRINTS
+                                // << newEdge.second.x() << ',' << newEdge.second.y() << std::endl; //DEBUGPRINTS
     addSegment(Apex{funnel_.at(i), t1}, newEdge, Apex{funnel_.at(i+1), t2});
     t1 = AngleDirection::kClockwise;
     i += 1;
@@ -303,6 +306,7 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
 
   // std::cout << "  Need to find goal for funnel: "; //DEBUGPRINTS
   // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
+  // std::cout << "  Final edge: " << DebugLogger::instance().pointToString(lastEdgeOfCorridor.first) << ',' << DebugLogger::instance().pointToString(lastEdgeOfCorridor.second) << std::endl; //DEBUGPRINTS
   // No goal given, this must mean we're funneling inside of the A* algorithm
   // We dont know where we want the goal point of the funnel to be
   //  It should be the closest point to the last apex of the funnel
@@ -319,7 +323,114 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
   double shortestPathLength = std::numeric_limits<double>::max();
 
   // Save the final edge, we will reference it many times
-  const auto [edgeStart, edgeEnd] = lastEdgeOfCorridor;
+  Vector edgeStart = lastEdgeOfCorridor.first;
+  Vector edgeEnd = lastEdgeOfCorridor.second;
+
+  if (funnel_.size() < 2) {
+    throw std::runtime_error("Funnel too small to find a goal");
+  }
+  if (edgeStart == funnel_.at(0) && edgeEnd == funnel_.at(funnel_.size()-1)) {
+  } else if (edgeEnd == funnel_.at(0) && edgeStart == funnel_.at(funnel_.size()-1)) {
+    // Opposite orientation that we are expecting, flip it
+    std::swap(edgeStart, edgeEnd);
+  } else {
+    throw std::runtime_error("Ends of the funnel are not the target edge!");
+  }
+
+  if (!math::equal(agentRadius_, 0.0)) {
+    // Lets trim the final edge so that no invalid points can be chosen
+    // TODO: This algorithm would change once non-constraint vertices are allowed
+    {
+      // Move start of edge over
+      const double edgeDx = edgeEnd.x()-edgeStart.x();
+      const double edgeDy = edgeEnd.y()-edgeStart.y();
+      const double edgeLength = std::sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
+      const double ratio = agentRadius_/edgeLength;
+      edgeStart.setX(edgeStart.x()+edgeDx*ratio);
+      edgeStart.setY(edgeStart.y()+edgeDy*ratio);
+    }
+    {
+      // Move end of edge over
+      const double edgeDx = edgeStart.x()-edgeEnd.x();
+      const double edgeDy = edgeStart.y()-edgeEnd.y();
+      const double edgeLength = std::sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
+      const double ratio = agentRadius_/edgeLength;
+      edgeEnd.setX(edgeEnd.x()+edgeDx*ratio);
+      edgeEnd.setY(edgeEnd.y()+edgeDy*ratio);
+    }
+
+    // We know that the first and last point of the funnel are the start and end of the final edge, no point in checking
+    // First, move the start over so that it isnt touching any of the left vertices
+    for (int tmpFunnelIndex=1; tmpFunnelIndex<funnel_.apex_index(); ++tmpFunnelIndex) {
+      const Vector &tmpFunnelPoint = funnel_.at(tmpFunnelIndex);
+      Vector intersectionPoint1, intersectionPoint2;
+      const int intersectionCount = math::lineSegmentIntersectsWithCircle(edgeStart, edgeEnd, tmpFunnelPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+      if (intersectionCount > 0) {
+        // Intersects with a point of another vertex, need to move it further
+        if (intersectionCount == 1) {
+          if (math::lessThan(math::distance(intersectionPoint1, edgeEnd), math::distance(edgeStart, edgeEnd))) {
+            // New point is closer to the end, need to move
+            edgeStart = intersectionPoint1;
+          }
+        } else {
+          // Must be 2 intersections, choose the one even further from the start
+          if (math::lessThan(math::distance(intersectionPoint1, edgeEnd), math::distance(intersectionPoint2, edgeEnd))) {
+            edgeStart = intersectionPoint1;
+          } else {
+            edgeStart = intersectionPoint2;
+          }
+        }
+      }
+    }
+    {
+      if (funnel_.apex_type() != AngleDirection::kNoDirection) {
+        // If the apex type is "kNoDirection" then that means its the start point of the algorithm and we dont care about it intersecting with the goal edge
+        const Vector &apexPoint = funnel_.at(funnel_.apex_index());
+        const auto distanceToPoint = math::distance(apexPoint, edgeEnd);
+        if (math::lessThan(distanceToPoint, agentRadius_)) {
+          Vector intersectionPoint1, intersectionPoint2;
+          const int intersectionCount = math::lineSegmentIntersectsWithCircle(edgeStart, edgeEnd, apexPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+          if (intersectionCount > 0) {
+            // Depending on the direction of rotation around this apex, either throw away the left or the right of the goal edge
+            // If clockwise, throw away right (move end)
+            Vector &pointToChange = (funnel_.apex_type() == AngleDirection::kClockwise ? edgeEnd : edgeStart);
+            // Intersects with a point of another vertex, need to move it further
+            if (intersectionCount == 1) {
+              pointToChange = intersectionPoint1;
+            } else {
+              // Must be 2 intersections, choose the one even further from the end
+              if (math::lessThan(math::distance(intersectionPoint1, pointToChange), math::distance(intersectionPoint2, pointToChange))) {
+                edgeEnd = intersectionPoint2;
+              } else {
+                edgeEnd = intersectionPoint1;
+              }
+            }
+          }
+        }
+      }
+    }
+    for (int tmpFunnelIndex=funnel_.size()-2; tmpFunnelIndex>funnel_.apex_index(); --tmpFunnelIndex) {
+      const Vector &tmpFunnelPoint = funnel_.at(tmpFunnelIndex);
+      Vector intersectionPoint1, intersectionPoint2;
+      const int intersectionCount = math::lineSegmentIntersectsWithCircle(edgeStart, edgeEnd, tmpFunnelPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+      if (intersectionCount > 0) {
+        // Intersects with a point of another vertex, need to move it further
+        if (intersectionCount == 1) {
+          if (math::lessThan(math::distance(intersectionPoint1, edgeStart), math::distance(edgeEnd, edgeStart))) {
+            // New point is closer to the start, need to move
+            edgeEnd = intersectionPoint1;
+          }
+        } else {
+          // Must be 2 intersections, choose the one even further from the end
+          if (math::lessThan(math::distance(intersectionPoint1, edgeStart), math::distance(intersectionPoint2, edgeStart))) {
+            edgeEnd = intersectionPoint1;
+          } else {
+            edgeEnd = intersectionPoint2;
+          }
+        }
+      }
+    }
+  }
 
   // For each point in the funnel, find the closest point on the target edge, then check what the overall funnel length is
   AngleDirection funnelApexAngleDirection = AngleDirection::kCounterclockwise;
@@ -331,43 +442,9 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
       // std::cout << "  Evaluating apex of funnel" << std::endl; //DEBUGPRINTS
     }
     // Test that, if this was the final apex, would it result in the shortest path
+    // std::cout << "  Checking distance from a point on the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") to the target (trimmed) edge (" << DebugLogger::instance().pointToString(edgeStart) << "->" << DebugLogger::instance().pointToString(edgeEnd) << ")" << std::endl; //DEBUGPRINTS
     Vector potentialGoal;
-    if (currentFunnelPoint == edgeStart) {
-      // This point of the funnel is the start of the edge, need to move it over by the character radius
-      // std::cout << "  This point of the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") is the start of the edge. Need to move" << std::endl; //DEBUGPRINTS
-      potentialGoal = edgeStart;
-    } else if (currentFunnelPoint == edgeEnd) {
-      // This point of the funnel is the end of the edge, need to move it over by the character radius
-      // std::cout << "  This point of the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") is the end of the edge. Need to move" << std::endl; //DEBUGPRINTS
-      potentialGoal = edgeEnd;
-    } else {
-      // This point of the funnel is not one of the ends of the edge
-      // std::cout << "  Checking distance from a point on the funnel (" << DebugLogger::instance().pointToString(currentFunnelPoint) << ") to the target edge (" << DebugLogger::instance().pointToString(edgeStart) << "->" << DebugLogger::instance().pointToString(edgeEnd) << ")" << std::endl; //DEBUGPRINTS
-      math::distanceBetweenEdgeAndCircleTangentIntersectionPoint(edgeStart, edgeEnd, currentFunnelPoint, agentRadius_, funnelApexAngleDirection, &potentialGoal);
-    }
-    bool moved = false;
-    if (agentRadius_ > 0 && math::distance(edgeStart, potentialGoal) < agentRadius_) {
-      // Need to move the point towards the other end of the edge
-      // std::cout << "  Moving point towards edgeEnd" << std::endl; //DEBUGPRINTS
-      const double edgeDx = edgeEnd.x()-edgeStart.x();
-      const double edgeDy = edgeEnd.y()-edgeStart.y();
-      const double edgeLength = std::sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
-      const double ratio = agentRadius_/edgeLength;
-      potentialGoal = Vector{edgeStart.x()+edgeDx*ratio, edgeStart.y()+edgeDy*ratio};
-      moved = true;
-    } else if (agentRadius_ > 0 && math::distance(edgeEnd, potentialGoal) < agentRadius_) {
-      // Need to move the point towards the other end of the edge
-      // std::cout << "  Moving point towards edgeStart" << std::endl; //DEBUGPRINTS
-      const double edgeDx = edgeStart.x()-edgeEnd.x();
-      const double edgeDy = edgeStart.y()-edgeEnd.y();
-      const double edgeLength = std::sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
-      const double ratio = agentRadius_/edgeLength;
-      potentialGoal = Vector{edgeEnd.x()+edgeDx*ratio, edgeEnd.y()+edgeDy*ratio};
-      moved = true;
-    }
-    if (moved) {
-      // std::cout << "  Moved point result: " << DebugLogger::instance().pointToString(potentialGoal) << std::endl; //DEBUGPRINTS
-    }
+    math::distanceBetweenEdgeAndCircleTangentIntersectionPoint(edgeStart, edgeEnd, currentFunnelPoint, agentRadius_, funnelApexAngleDirection, &potentialGoal);
 
     const double remainingPathLength = funnelLengthForAgentWithRadius(*this, potentialGoal);
     // std::cout << "  Remaining path length: " << remainingPathLength << std::endl; //DEBUGPRINTS

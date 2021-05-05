@@ -537,7 +537,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
   std::vector<State> result;
   constexpr const bool kAvoidObstacles = true;
   constexpr const bool kCareAboutCharacterRadius = true;
-  auto agentFitsThroughTriangle = [this, &kCareAboutCharacterRadius](const int entryEdge, const int exitEdge) -> bool {
+  auto agentFitsThroughTriangle = [this, &kCareAboutCharacterRadius](const int triangleIndex, const int entryEdgeIndex, const int exitEdgeIndex) -> bool {
     // TODO: Need to improve
     //  Some of these edges might not be constrained
     //  See C:\Users\Victor\Documents\ShareX\Screenshots\2021-02\drawPolygon_lYhSzArwEG.png
@@ -547,30 +547,27 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
     }
 
     // Get the exiting edge for this triangle
-    if (exitEdge < 0) {
+    if (exitEdgeIndex < 0 || exitEdgeIndex >= triangleData_.numberofedges) {
       throw std::runtime_error("Invalid edge given");
     }
-    if (exitEdge >= triangleData_.numberofedges) {
-      throw std::runtime_error("Edge number is not within the triangle data");
-    }
-    const auto exitEdgeVertexAIndex = triangleData_.edgelist[exitEdge*2];
-    const auto exitEdgeVertexBIndex = triangleData_.edgelist[exitEdge*2+1];
+    const auto exitEdgeVertexAIndex = triangleData_.edgelist[exitEdgeIndex*2];
+    const auto exitEdgeVertexBIndex = triangleData_.edgelist[exitEdgeIndex*2+1];
     if (exitEdgeVertexAIndex >= triangleData_.numberofpoints || exitEdgeVertexBIndex >= triangleData_.numberofpoints) {
       throw std::runtime_error("Exit edge references points which do not exist");
     }
     const Vector exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
     const Vector exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
 
-    if (entryEdge < 0) {
-      // The agent already is inside this triangle, the only check we can to is make sure that the diameter is less than the width of the exit edge
+    if (entryEdgeIndex < 0) {
+      // The agent already is inside this triangle, the only check we can do is make sure that the diameter is less than the width of the exit edge
       return math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2);
     }
 
-    if (entryEdge >= triangleData_.numberofedges) {
+    if (entryEdgeIndex >= triangleData_.numberofedges) {
       throw std::runtime_error("Edge number is not within the triangle data");
     }
-    const auto entryEdgeVertexAIndex = triangleData_.edgelist[entryEdge*2];
-    const auto entryEdgeVertexBIndex = triangleData_.edgelist[entryEdge*2+1];
+    const auto entryEdgeVertexAIndex = triangleData_.edgelist[entryEdgeIndex*2];
+    const auto entryEdgeVertexBIndex = triangleData_.edgelist[entryEdgeIndex*2+1];
     if (entryEdgeVertexAIndex >= triangleData_.numberofpoints || entryEdgeVertexBIndex >= triangleData_.numberofpoints) {
       throw std::runtime_error("Entry edge references points which do not exist");
     }
@@ -578,32 +575,111 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
     const Vector entryEdgeVertexA{triangleData_.pointlist[entryEdgeVertexAIndex*2], triangleData_.pointlist[entryEdgeVertexAIndex*2+1]};
     const Vector entryEdgeVertexB{triangleData_.pointlist[entryEdgeVertexBIndex*2], triangleData_.pointlist[entryEdgeVertexBIndex*2+1]};
 
-    return ((math::distance(entryEdgeVertexA, entryEdgeVertexB) >= (characterRadius_*2)) && math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2));
-    // TODO: This is a better approximation until the below code handles unconstrained edges
-
-    Vector sharedPoint, oppositeEdgeStart, oppositeEdgeEnd;
-
-    if (entryEdgeVertexAIndex == exitEdgeVertexAIndex) {
-      sharedPoint = entryEdgeVertexA;
-      oppositeEdgeStart = entryEdgeVertexB;
-      oppositeEdgeEnd = exitEdgeVertexB;
-    } else if (entryEdgeVertexAIndex == exitEdgeVertexBIndex) {
-      sharedPoint = entryEdgeVertexA;
-      oppositeEdgeStart = entryEdgeVertexB;
-      oppositeEdgeEnd = exitEdgeVertexA;
-    } else if (entryEdgeVertexBIndex == exitEdgeVertexAIndex) {
-      sharedPoint = entryEdgeVertexB;
-      oppositeEdgeStart = entryEdgeVertexA;
-      oppositeEdgeEnd = exitEdgeVertexB;
-    } else if (entryEdgeVertexBIndex == exitEdgeVertexBIndex) {
-      sharedPoint = entryEdgeVertexB;
-      oppositeEdgeStart = entryEdgeVertexA;
-      oppositeEdgeEnd = exitEdgeVertexA;
-    } else {
-      throw std::runtime_error("No shared point between these two edges");
+    if (triangleIndex < 0 || triangleIndex >= triangleData_.numberoftriangles) {
+      throw std::runtime_error("Referencing invalid triangle");
     }
 
-    return (math::distanceBetweenEdgeAndPoint(oppositeEdgeStart, oppositeEdgeEnd, sharedPoint) >= (characterRadius_*2));
+    {
+      // Check if all vertices of this triangle are part of constraints
+      const int vertexAIndex = triangleData_.trianglelist[triangleIndex*3];
+      const int vertexBIndex = triangleData_.trianglelist[triangleIndex*3+1];
+      const int vertexCIndex = triangleData_.trianglelist[triangleIndex*3+2];
+      if (vertexAIndex < 0 || vertexBIndex < 0 || vertexCIndex < 0) {
+        throw std::runtime_error("A triangle references a nonexistent vertex");
+      }
+      if (triangleData_.pointmarkerlist[vertexAIndex] == 0 ||
+          triangleData_.pointmarkerlist[vertexBIndex] == 0 ||
+          triangleData_.pointmarkerlist[vertexCIndex] == 0) {
+        // One of the vertices is not part of a constraint, not yet handling this case
+        // TODO
+        return true;
+      }
+    }
+
+    int vertexAIndex, vertexBIndex;
+    Vector vertexA, vertexB, vertexC;
+    if (entryEdgeVertexAIndex == exitEdgeVertexAIndex) {
+      vertexC = entryEdgeVertexA;
+
+      vertexB = entryEdgeVertexB;
+      vertexBIndex = entryEdgeVertexBIndex;
+
+      vertexA = exitEdgeVertexB;
+      vertexAIndex = exitEdgeVertexBIndex;
+    } else if (entryEdgeVertexAIndex == exitEdgeVertexBIndex) {
+      vertexC = entryEdgeVertexA;
+
+      vertexB = entryEdgeVertexB;
+      vertexBIndex = entryEdgeVertexBIndex;
+
+      vertexA = exitEdgeVertexA;
+      vertexAIndex = exitEdgeVertexAIndex;
+    } else if (entryEdgeVertexBIndex == exitEdgeVertexAIndex) {
+      vertexC = entryEdgeVertexB;
+
+      vertexB = entryEdgeVertexA;
+      vertexBIndex = entryEdgeVertexAIndex;
+
+      vertexA = exitEdgeVertexB;
+      vertexAIndex = exitEdgeVertexBIndex;
+    } else if (entryEdgeVertexBIndex == exitEdgeVertexBIndex) {
+      vertexC = entryEdgeVertexB;
+
+      vertexB = entryEdgeVertexA;
+      vertexBIndex = entryEdgeVertexAIndex;
+
+      vertexA = exitEdgeVertexA;
+      vertexAIndex = exitEdgeVertexAIndex;
+    } else {
+      throw std::runtime_error("No shared vertex between two edges in triangle");
+    }
+
+    // `vertexC` is the common vertex between the entry and exit edge of this triangle
+
+    if (math::crossProduct(vertexC, vertexA, vertexC, vertexB) < 0.0) {
+      // We want A to be to the right of B
+      std::swap(vertexA, vertexB);
+      std::swap(vertexAIndex, vertexBIndex);
+    }
+
+    // `entryEdge` and `exitEdge` are CA and CB (or swapped)
+    const double cabAngle = math::angleBetweenVectors(vertexA, vertexC, vertexA, vertexB);
+    const double cbaAngle = math::angleBetweenVectors(vertexB, vertexA, vertexB, vertexC);
+    if (cabAngle >= math::kPi/2.0) {
+      // Angle CAB is right or obtuse, the closest constraint is vertex A
+      return (math::distance(vertexC, vertexA) >= (characterRadius_*2));
+    } else if (cbaAngle >= math::kPi/2.0) {
+      // Angle CBA is right or obtuse, the closest constraint is vertex B
+      return (math::distance(vertexC, vertexB) >= (characterRadius_*2));
+    } else {
+      // Both CAB and CBA are acute
+      // Need to worry about colliding with edge opposite to common vertex
+      bool oppositeEdgeIsConstrained{false};
+      const auto &edgeIndices = triangleEdges_.at(triangleIndex);
+      for (const auto &edgeIndex : edgeIndices) {
+        if (edgeIndex >= 0) {
+          const auto edgeVertexA = triangleData_.edgelist[edgeIndex*2];
+          const auto edgeVertexB = triangleData_.edgelist[edgeIndex*2+1];
+          if (edgeVertexA == vertexBIndex && edgeVertexB == vertexAIndex ||
+              edgeVertexA == vertexAIndex && edgeVertexB == vertexBIndex) {
+            // This is the opposite edge
+            if (triangleData_.edgemarkerlist[edgeIndex] != 0) {
+              oppositeEdgeIsConstrained = true;
+            }
+            break;
+          }
+        }
+      }
+      if (oppositeEdgeIsConstrained) {
+        // Check if the agent fits betweeen the shared vertex and the edge
+        return (math::distanceBetweenEdgeAndPoint(vertexB, vertexA, vertexC) >= (characterRadius_*2));
+      } else {
+        // Opposite edge is not constrained, not yet handling this case
+        // TODO
+        // However, since the vertices are still constraints, we do know that these are upperbounds for the size of agent that can fit
+        return (math::distance(vertexC, vertexA) >= (characterRadius_*2)) && (math::distance(vertexC, vertexB) >= (characterRadius_*2));
+      }
+    }
   };
   
   // For each neighboring triangle index
@@ -616,7 +692,7 @@ std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangl
         // Is a valid edge and isn't the entry edge
         if (!(kAvoidObstacles && triangleData_.edgemarkerlist[sharedEdge] != 0)) {
           // Non-constraint edge
-          if (agentFitsThroughTriangle(state.entryEdge, sharedEdge)) {
+          if (agentFitsThroughTriangle(state.triangleNum, state.entryEdge, sharedEdge)) {
             State successor;
             successor.entryEdge = sharedEdge;
             successor.triangleNum = neighborTriangleNum;
@@ -713,14 +789,16 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
           fScores.emplace(successor, std::numeric_limits<double>::max());
         }
 
-        const bool kOptimalPath{true};
-        if (kOptimalPath) {
+        constexpr const bool kOptimalPath{true};
+        if constexpr (kOptimalPath) {
           // The heuristic scale factor allows this A* algorithm to be tailored more towards:
           //  1. Djikstra's search
           //    a. A scale factor < 1 will result in a potentially wider search area
           //    b. Will trend towards a globally optimal path when the heuristic is not admissible
           //  2. Greedy Best First search
           //    a. A scale factor > 1 will result in a more direct but potentially incorrect search
+          //  3. Perfect A*
+          //    a. A scale factor of 1 works optimally with a consistent and admissible heuristic
           const double kHeuristicScaleFactor = 0.50;
           const auto [gValueOfSuccessor, pointUsedForGValue, optionalFunnelCreated] = calculateGValue(successor, currentState, startPoint, goalPoint, previous);
           const double oldHValue = calculateHValue(successor, goalPoint);
