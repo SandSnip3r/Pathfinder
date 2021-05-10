@@ -12,63 +12,22 @@
 
 namespace pathfinder {
 
-std::vector<int> rebuildPath(State state, const std::map<State, State> &previous);
+std::vector<int> rebuildPath(navmesh::State state, const std::map<navmesh::State, navmesh::State> &previous);
 
 PathSegment::~PathSegment() {}
 
-Pathfinder::Pathfinder(const triangle::triangleio &triangleData, const triangle::triangleio &triangleVoronoiData) : triangleData_(triangleData), triangleVoronoiData_(triangleVoronoiData) {
+Pathfinder::Pathfinder(const navmesh::AStarNavmeshInterface &navmesh) : navmesh_(navmesh) {
   // Initialize debug logger
-  DebugLogger::instance().setPointToIndexFunction(std::bind(&Pathfinder::pointToIndex, std::cref(*this), std::placeholders::_1));
 
-  // TODO: Start by checking that the triangle data is consistent
-  if (triangleData_.trianglelist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when trianglelist is null");
-  }
-  if (triangleData_.pointlist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when pointlist is null");
-  }
-  if (triangleData_.edgelist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when edgelist is null");
-  }
-  if (triangleVoronoiData_.edgelist == nullptr) {
-    throw std::runtime_error("Cannot build corridor when voronoi edgelist is null");
-  }
-
-  // Given the triangle data, we will pre-compute the edges of each triangle
-  triangleEdges_.resize(triangleData_.numberoftriangles);
-  // Initialize all edges as -1
-  std::for_each(triangleEdges_.begin(), triangleEdges_.end(), [](auto &arr) {
-    arr[0] = -1;
-    arr[1] = -1;
-    arr[2] = -1;
-  });
-  auto addEdgeForTriangle = [](auto &edgeArray, const int edgeNumber) {
-    if (edgeArray[0] == -1) {
-      edgeArray[0] = edgeNumber;
-    } else if (edgeArray[1] == -1) {
-      edgeArray[1] = edgeNumber;
-    } else if (edgeArray[2] == -1) {
-      edgeArray[2] = edgeNumber;
-    }
-  };
-  for (int voronoiEdgeNum=0;voronoiEdgeNum<triangleVoronoiData_.numberofedges; ++voronoiEdgeNum) {
-    const int triangle1Number = triangleVoronoiData_.edgelist[voronoiEdgeNum*2];
-    const int triangle2Number = triangleVoronoiData_.edgelist[voronoiEdgeNum*2+1];
-    if (triangle1Number != -1) {
-      addEdgeForTriangle(triangleEdges_.at(triangle1Number), voronoiEdgeNum);
-    }
-    if (triangle2Number != -1) {
-      addEdgeForTriangle(triangleEdges_.at(triangle2Number), voronoiEdgeNum);
-    }
-  }
+  DebugLogger::instance().setPointToIndexFunction(std::bind(&navmesh::AStarNavmeshInterface::getVertexIndex, std::cref(navmesh_), std::placeholders::_1));
 }
 
 PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const Vector &goalPoint) const {
-  int startTriangle = findTriangleForPoint(startPoint);
+  int startTriangle = navmesh_.findTriangleForPoint(startPoint);
   if (collidesWithConstraint(startPoint, startTriangle)) {
     throw std::runtime_error("The chosen start point is overlapping with a constraint. Pathing not possible");
   }
-  int goalTriangle = findTriangleForPoint(goalPoint);
+  int goalTriangle = navmesh_.findTriangleForPoint(goalPoint);
   if (collidesWithConstraint(goalPoint, goalTriangle)) {
     throw std::runtime_error("The chosen goal point is overlapping with a constraint. Pathing not possible");
   }
@@ -111,26 +70,25 @@ bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) const {
 
   std::set<int> visitedTriangles;
   // Use a set for a quicker lookup to check if we've already queued a State rather than overfilling the queue
-  std::set<State> alreadyQueuedStates;
-  std::queue<State> stateQueue;
+  std::set<navmesh::State> alreadyQueuedStates;
+  std::queue<navmesh::State> stateQueue;
 
-  State startState;
-  startState.triangleNum = startTriangle;
+  navmesh::State startState(startTriangle);
 
   stateQueue.push(startState);
   alreadyQueuedStates.insert(startState);
 
   while (!stateQueue.empty()) {
-    State currentState = stateQueue.front();
+    navmesh::State currentState = stateQueue.front();
     stateQueue.pop();
 
-    const auto successors = getSuccessors(currentState, goalTriangle);
+    const auto successors = navmesh_.getSuccessors(currentState, goalTriangle, characterRadius_);
     for (const auto &successorState : successors) {
-      if (successorState.triangleNum == goalTriangle) {
+      if (successorState.getTriangleIndex() == goalTriangle) {
         // Found a path to the goal
         return true;
       }
-      if (visitedTriangles.find(successorState.triangleNum) == visitedTriangles.end()) {
+      if (visitedTriangles.find(successorState.getTriangleIndex()) == visitedTriangles.end()) {
         // Only care about triangles that we havent visited
         // TODO: Definitely this should be States rather than triangles (bridges and the area below them will share triangles)
         if (alreadyQueuedStates.find(successorState) == alreadyQueuedStates.end()) {
@@ -141,116 +99,42 @@ bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) const {
       }
     }
     // Mark current triangle as visited
-    visitedTriangles.insert(currentState.triangleNum);
+    visitedTriangles.insert(currentState.getTriangleIndex());
   }
 
   // Never found the goal triangle, must be impossible to reach
   return false;
 }
 
-int Pathfinder::getSharedEdge(const int triangle1Num, const int triangle2Num) const {
-  if (triangle1Num == -1 || triangle2Num == -1) {
-    throw std::runtime_error("Trying to get shared edge for non-existent triangle");
-  }
-  const auto &triangle1Edges = triangleEdges_.at(triangle1Num);
-  const auto &triangle2Edges = triangleEdges_.at(triangle2Num);
-  for (const int triangle1EdgeNum : triangle1Edges) {
-    if (triangle1EdgeNum != -1) {
-      for (const int triangle2EdgeNum : triangle2Edges) {
-        if (triangle2EdgeNum != -1) {
-          if (triangle1EdgeNum == triangle2EdgeNum) {
-            // Found the shared edge
-            return triangle1EdgeNum;
-          }
-        }
-      }
-    }
-  }
-  return -1;
-}
-
 std::vector<std::pair<Vector,Vector>> Pathfinder::buildCorridor(const std::vector<int> &trianglesInCorridor) const {
   std::vector<std::pair<Vector,Vector>> corridorSegments;
+  int triangle1Index, triangle2Index;
   for (int i=1; i<trianglesInCorridor.size(); ++i) {
     // find common edge between triangle i,i-1
-    const int triangleANum = trianglesInCorridor.at(i-1);
-    const int triangleBNum = trianglesInCorridor.at(i);
-    if (triangleANum >= triangleData_.numberoftriangles || triangleBNum >= triangleData_.numberoftriangles) {
-      throw std::runtime_error("Invalid triangle number while building corridor");
-    }
-    int sharedEdge = getSharedEdge(triangleANum, triangleBNum);
-    if (sharedEdge == -1) {
-      throw std::runtime_error("Unabled to find shared edge between two triangles");
-    }
-    if (sharedEdge >= triangleData_.numberofedges) {
-      throw std::runtime_error("Shared edge is not a valid edge");
-    }
-    // Get two points of edge
-    const auto sharedEdgeVertexAIndex = triangleData_.edgelist[sharedEdge*2];
-    const auto sharedEdgeVertexBIndex = triangleData_.edgelist[sharedEdge*2+1];
-    if (sharedEdgeVertexAIndex >= triangleData_.numberofpoints || sharedEdgeVertexBIndex >= triangleData_.numberofpoints) {
-      throw std::runtime_error("Shared edge references points which do not exist");
-    }
-    const Vector sharedEdgeVertexA{triangleData_.pointlist[sharedEdgeVertexAIndex*2], triangleData_.pointlist[sharedEdgeVertexAIndex*2+1]};
-    const Vector sharedEdgeVertexB{triangleData_.pointlist[sharedEdgeVertexBIndex*2], triangleData_.pointlist[sharedEdgeVertexBIndex*2+1]};
-    corridorSegments.emplace_back(sharedEdgeVertexA, sharedEdgeVertexB);
+    triangle1Index = trianglesInCorridor.at(i-1);
+    triangle2Index = trianglesInCorridor.at(i);
+    const auto sharedEdge = navmesh_.getSharedEdge(triangle1Index, triangle2Index);
+    corridorSegments.emplace_back(sharedEdge.first, sharedEdge.second);
   }
   return corridorSegments;
-}
-
-int Pathfinder::pointToIndex(const Vector &point) const {
-  // TODO: Remove once done debugging
-  for (int i=0; i<triangleData_.numberofpoints; ++i) {
-    if (point.x() == triangleData_.pointlist[i*2] && point.y() == triangleData_.pointlist[i*2+1]) {
-      return i;
-    }
-  }
-  throw std::runtime_error("Unknown point");
 }
 
 void Pathfinder::setCharacterRadius(double value) {
   characterRadius_ = value;
 }
 
-bool Pathfinder::pointIsInTriangle(const Vector &point, const int triangleNum) const {
-  const int vertexIndexA = triangleData_.trianglelist[triangleNum*3];
-  const int vertexIndexB = triangleData_.trianglelist[triangleNum*3+1];
-  const int vertexIndexC = triangleData_.trianglelist[triangleNum*3+2];
-  if (vertexIndexA >= triangleData_.numberofpoints ||
-      vertexIndexB >= triangleData_.numberofpoints ||
-      vertexIndexC >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Triangle references vertex which does not exist");
-  }
-  const Vector vertexA{triangleData_.pointlist[vertexIndexA*2], triangleData_.pointlist[vertexIndexA*2+1]};
-  const Vector vertexB{triangleData_.pointlist[vertexIndexB*2], triangleData_.pointlist[vertexIndexB*2+1]};
-  const Vector vertexC{triangleData_.pointlist[vertexIndexC*2], triangleData_.pointlist[vertexIndexC*2+1]};
-
-  // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
-  return math::isPointInTriangle(point, vertexA, vertexB, vertexC);
-}
-
 bool Pathfinder::collidesWithConstraint(const Vector &point, const int triangleIndex) const {
   if (triangleIndex < 0) {
-    throw std::runtime_error("Trying to check for collision for non-existent triangle");
+    throw std::runtime_error("Trying to check for collision for non-existent triangle ("+std::to_string(triangleIndex)+")");
   }
 
-  const int vertexAIndex = triangleData_.trianglelist[triangleIndex*3];
-  const int vertexBIndex = triangleData_.trianglelist[triangleIndex*3+1];
-  const int vertexCIndex = triangleData_.trianglelist[triangleIndex*3+2];
-  if (vertexAIndex >= triangleData_.numberofpoints ||
-      vertexBIndex >= triangleData_.numberofpoints ||
-      vertexCIndex >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Triangle references vertex which does not exist");
-  }
+  const auto &verticesIndices = navmesh_.getTriangleVertexIndices(triangleIndex);
 
-  // Assuming that data is self-consistent (i.e. no vertex index is <0)
-  // TODO: Verify beforehand
-
-  for (const int vertexIndex : {vertexAIndex, vertexBIndex, vertexCIndex}) {
-    const auto marker = triangleData_.pointmarkerlist[vertexIndex];
+  for (const int vertexIndex : {std::get<0>(verticesIndices), std::get<1>(verticesIndices), std::get<2>(verticesIndices)}) {
+    const auto marker = navmesh_.getVertexMarker(vertexIndex);
     if (marker != 0) {
       // Constraint vertex
-      const Vector vertex{triangleData_.pointlist[vertexIndex*2], triangleData_.pointlist[vertexIndex*2+1]};
+      const auto &vertex = navmesh_.getVertex(vertexIndex);
       if (math::lessThan(math::distance(point, vertex), characterRadius_)) {
         // Point is too close to vertex
         return true;
@@ -260,64 +144,27 @@ bool Pathfinder::collidesWithConstraint(const Vector &point, const int triangleI
   return false;
 }
 
-int Pathfinder::findTriangleForPoint(const Vector &point) const {
-  if (triangleData_.trianglelist == nullptr) {
-    throw std::runtime_error("Triangle list is null!");
-  }
-  if (triangleData_.pointlist == nullptr) {
-    throw std::runtime_error("Point list is null!");
-  }
-  // TODO: Check for more nulls in lists
-
-  // Loop over all triangles
-  for (int triangleNumber=0; triangleNumber<triangleData_.numberoftriangles; ++triangleNumber) {
-    if (pointIsInTriangle(point, triangleNumber)) {
-      return triangleNumber;
-    }
-  }
-  throw std::runtime_error("Unable to find triangle for point");
-}
-
-double Pathfinder::calculateArcLength(const int edge1, const int edge2) const {
+double Pathfinder::calculateArcLength(const int edge1Index, const int edge2Index) const {
   // Return the length of the arc from one edge to another (they share a vertex)
-  if (edge1 < 0 || edge2 < 0) {
-    throw std::runtime_error("Invalid edge given");
-  }
-  if (edge1 >= triangleData_.numberofedges || edge2 >= triangleData_.numberofedges) {
-    throw std::runtime_error("Edge number is not within the triangle data");
-  }
-  const auto edge1VertexAIndex = triangleData_.edgelist[edge1*2];
-  const auto edge1VertexBIndex = triangleData_.edgelist[edge1*2+1];
-  if (edge1VertexAIndex >= triangleData_.numberofpoints || edge1VertexBIndex >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Edge 1 references points which do not exist");
-  }
-  const auto edge2VertexAIndex = triangleData_.edgelist[edge2*2];
-  const auto edge2VertexBIndex = triangleData_.edgelist[edge2*2+1];
-  if (edge2VertexAIndex >= triangleData_.numberofpoints || edge2VertexBIndex >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Edge 2 references points which do not exist");
-  }
-  
-  const Vector edge1VertexA{triangleData_.pointlist[edge1VertexAIndex*2], triangleData_.pointlist[edge1VertexAIndex*2+1]};
-  const Vector edge1VertexB{triangleData_.pointlist[edge1VertexBIndex*2], triangleData_.pointlist[edge1VertexBIndex*2+1]};
-  const Vector edge2VertexA{triangleData_.pointlist[edge2VertexAIndex*2], triangleData_.pointlist[edge2VertexAIndex*2+1]};
-  const Vector edge2VertexB{triangleData_.pointlist[edge2VertexBIndex*2], triangleData_.pointlist[edge2VertexBIndex*2+1]};
-  const double angle = math::angleBetweenVectors(edge1VertexA, edge1VertexB, edge2VertexA, edge2VertexB);
+  const auto &[edge1Vertex1, edge1Vertex2] = navmesh_.getEdge(edge1Index);
+  const auto &[edge2Vertex1, edge2Vertex2] = navmesh_.getEdge(edge1Index);
+  const double angle = math::angleBetweenVectors(edge1Vertex1, edge1Vertex2, edge2Vertex1, edge2Vertex2);
   // TODO: Sometimes this arclength causes weird paths
   // return 0;
   // return 0.1 * characterRadius_ * angle;
   return characterRadius_ * angle; // Original from paper
 }
 
-double Pathfinder::calculateEstimateGValue(const State &state, const State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<State, double> &gScores) const {
+double Pathfinder::calculateEstimateGValue(const navmesh::State &state, const navmesh::State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<navmesh::State, double> &gScores) const {
   // The common edge between triangles `state` and `parentState`
-  const int commonEdge = state.entryEdge;
+  const int commonEdge = state.getEntryEdgeIndex();
   const double parentGValue = gScores.at(parentState);
   const double hValue = calculateHValue(state, goalPoint);
 
   // Max of {
   // 1. Distance between start and closest point on edge `commonEdge`
   double val1;
-  if (state.isGoal) {
+  if (state.isGoal()) {
     // Straight line from start to goal
     val1 = math::distance(startPoint, goalPoint);
   } else {
@@ -325,19 +172,19 @@ double Pathfinder::calculateEstimateGValue(const State &state, const State &pare
     val1 = distanceBetweenEdgeAndPoint(commonEdge, startPoint);
   }
 
-  // 2. parentState.gValue + (arc around vertex shared by parentState.entryEdge and `commonEdge`)
+  // 2. parentState.gValue + (arc around vertex shared by parentState.getEntryEdgeIndex() and `commonEdge`)
   double val2 = parentGValue;
-  if (state.isGoal) {
+  if (state.isGoal()) {
     // Need to add distance from entry edge to goal point
-    val2 += distanceBetweenEdgeAndPoint(state.entryEdge, goalPoint);
-  } else if (parentState.entryEdge != -1) {
+    val2 += distanceBetweenEdgeAndPoint(state.getEntryEdgeIndex(), goalPoint);
+  } else if (parentState.getEntryEdgeIndex() != -1) {
     // Can calculate arc-length
-    val2 += calculateArcLength(parentState.entryEdge, commonEdge);
+    val2 += calculateArcLength(parentState.getEntryEdgeIndex(), commonEdge);
   }
 
   // 3. parentState.gValue + (parentState.hValue - state.hValue)
   double parentHeuristicValue;
-  if (parentState.entryEdge == -1) {
+  if (parentState.getEntryEdgeIndex() == -1) {
     // This is the start
     parentHeuristicValue = math::distance(startPoint, goalPoint);
   } else {
@@ -351,11 +198,11 @@ double Pathfinder::calculateEstimateGValue(const State &state, const State &pare
   return std::max({val1, val2, val3});
 }
 
-std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGValue(const State &state, const State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<State, State> &previous) const {
+std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGValue(const navmesh::State &state, const navmesh::State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<navmesh::State, navmesh::State> &previous) const {
   // The common edge between triangles `state` and `parentState`
-  const int commonEdgeNum = state.entryEdge;
+  const int commonEdgeIndex = state.getEntryEdgeIndex();
 
-  if (state.isGoal) {
+  if (state.isGoal()) {
     // Find length of actual path from start to goal
     double result;
     std::vector<int> triangleCorridor = rebuildPath(parentState, previous);
@@ -394,19 +241,19 @@ std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGVa
   std::optional<LengthFunnel> optionalFunnelForCaching;
   std::vector<int> triangleCorridor = rebuildPath(parentState, previous);
   // Add the current triangle to the corridor
-  triangleCorridor.emplace_back(state.triangleNum);
+  triangleCorridor.emplace_back(state.getTriangleIndex());
 
   if (triangleCorridor.size() == 1) {
     // Only one triangle in corridor
-    result = distanceBetweenEdgeAndPoint(commonEdgeNum, startPoint, &pointUsed);
-    // std::cout << "  [G Value] (" << result << ") Straight line from start to edge " << commonEdgeNum << std::endl; //DEBUGPRINTS
+    result = distanceBetweenEdgeAndPoint(commonEdgeIndex, startPoint, &pointUsed);
+    // std::cout << "  [G Value] (" << result << ") Straight line from start to edge " << commonEdgeIndex << std::endl; //DEBUGPRINTS
   } else {
     // Funnel from startPoint to a point that minimizes g-value
     // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
 
     // ============================================================
     LengthFunnel lengthFunnel(characterRadius_);
-    const auto commonEdge = getEdge(commonEdgeNum);
+    const auto commonEdge = navmesh_.getEdge(commonEdgeIndex);
     const auto funnelCacheIt = lengthFunnelCache_.find(parentState);
     if (funnelCacheIt != lengthFunnelCache_.end()) {
       // We have a cached funnel for the parent state, lets copy that and extend it
@@ -441,268 +288,39 @@ std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGVa
     // std::cout << "]" << std::endl; //DEBUGPRINTS
 
     result = lengthFunnel.getLength();
-    // std::cout << "  Funneling for g(x) from start to edge " << commonEdgeNum << ", length: " << result << std::endl; //DEBUGPRINTS
+    // std::cout << "  Funneling for g(x) from start to edge " << commonEdgeIndex << ", length: " << result << std::endl; //DEBUGPRINTS
   }
   return {result, pointUsed, optionalFunnelForCaching};
 }
 
-Vector Pathfinder::midpointOfEdge(int edgeNum) const {
-  if (edgeNum < 0) {
-    throw std::runtime_error("Invalid edge");
-  }
-  if (edgeNum >= triangleData_.numberofedges) {
-    throw std::runtime_error("Edge number is not within the triangle data");
-  }
-  const auto vertexAIndex = triangleData_.edgelist[edgeNum*2];
-  const auto vertexBIndex = triangleData_.edgelist[edgeNum*2+1];
-  if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Edge references points which do not exist");
-  }
-  const Vector vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
-  const Vector vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
-  const auto dx = vertexB.x()-vertexA.x();
-  const auto dy = vertexB.y()-vertexA.y();
-  return Vector{vertexA.x()+dx/2, vertexB.y()+dy/2};
+Vector Pathfinder::midpointOfEdge(int edgeIndex) const {
+  const auto &[vertex1, vertex2] = navmesh_.getEdge(edgeIndex);
+  const auto dx = vertex2.x()-vertex1.x();
+  const auto dy = vertex2.y()-vertex1.y();
+  return Vector{vertex1.x()+dx/2, vertex2.y()+dy/2};
 }
 
-double Pathfinder::lengthOfEdge(int edgeNum) const {
-  if (edgeNum < 0) {
-    throw std::runtime_error("Invalid edge");
-  }
-  if (edgeNum >= triangleData_.numberofedges) {
-    throw std::runtime_error("Edge number is not within the triangle data");
-  }
-  const auto vertexAIndex = triangleData_.edgelist[edgeNum*2];
-  const auto vertexBIndex = triangleData_.edgelist[edgeNum*2+1];
-  if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Edge references points which do not exist");
-  }
-  const Vector vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
-  const Vector vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
-  return math::distance(vertexA, vertexB);
+double Pathfinder::lengthOfEdge(int edgeIndex) const {
+  const auto &[vertex1, vertex2] = navmesh_.getEdge(edgeIndex);
+  return math::distance(vertex1, vertex2);
 }
 
-std::pair<Vector,Vector> Pathfinder::getEdge(int edgeNum) const {
+double Pathfinder::distanceBetweenEdgeAndPoint(int edgeIndex, const Vector &point, Vector *pointUsedForDistanceCalculation) const {
   // Return the distance between the closest end of the given edge and the given point
-  if (edgeNum < 0) {
-    throw std::runtime_error("Invalid edge");
-  }
-  if (edgeNum >= triangleData_.numberofedges) {
-    throw std::runtime_error("Edge number is not within the triangle data");
-  }
-  const auto vertexAIndex = triangleData_.edgelist[edgeNum*2];
-  const auto vertexBIndex = triangleData_.edgelist[edgeNum*2+1];
-  if (vertexAIndex >= triangleData_.numberofpoints || vertexBIndex >= triangleData_.numberofpoints) {
-    throw std::runtime_error("Edge references points which do not exist");
-  }
-  const Vector vertexA{triangleData_.pointlist[vertexAIndex*2], triangleData_.pointlist[vertexAIndex*2+1]};
-  const Vector vertexB{triangleData_.pointlist[vertexBIndex*2], triangleData_.pointlist[vertexBIndex*2+1]};
-  return {vertexA, vertexB};
-}
-
-double Pathfinder::distanceBetweenEdgeAndPoint(int edgeNum, const Vector &point, Vector *pointUsedForDistanceCalculation) const {
-  // Return the distance between the closest end of the given edge and the given point
-  const auto [vertexA, vertexB] = getEdge(edgeNum);
+  const auto &[vertexA, vertexB] = navmesh_.getEdge(edgeIndex);
   return math::distanceBetweenEdgeAndPoint(vertexA, vertexB, point, pointUsedForDistanceCalculation);
 }
 
-double Pathfinder::calculateHValue(const State &state, const Vector &goalPoint) const {
+double Pathfinder::calculateHValue(const navmesh::State &state, const Vector &goalPoint) const {
   // The h-value is the Euclidean distance between the goalPoint and the closest point to it on this edge (entry edge)
-  if (state.entryEdge == -1) {
+  if (state.getEntryEdgeIndex() == -1) {
     throw std::runtime_error("Logic error, calculating h value for state which has no entry edge");
   }
-  if (state.isGoal) {
+  if (state.isGoal()) {
     // Heuristic from the goal to the goal is 0
     return 0;
   }
-  return distanceBetweenEdgeAndPoint(state.entryEdge, goalPoint);
-}
-
-std::vector<State> Pathfinder::getSuccessors(const State &state, int goalTriangle) const {
-  if (state.isGoal) {
-    throw std::runtime_error("Trying to get successors of goal");
-  }
-
-  if (state.triangleNum == goalTriangle) {
-    // This is the goal triangle, only successor is the goal point itself
-    State goalState{state};
-    goalState.isGoal = true;
-    return {goalState};
-  }
-
-  if (state.triangleNum >= triangleData_.numberoftriangles) {
-    throw std::runtime_error("Triangle is not in data");
-  }
-
-  std::vector<State> result;
-  constexpr const bool kAvoidObstacles = true;
-  constexpr const bool kCareAboutCharacterRadius = true;
-  auto agentFitsThroughTriangle = [this, &kCareAboutCharacterRadius](const int triangleIndex, const int entryEdgeIndex, const int exitEdgeIndex) -> bool {
-    // TODO: Need to improve
-    //  Some of these edges might not be constrained
-    //  See C:\Users\Victor\Documents\ShareX\Screenshots\2021-02\drawPolygon_lYhSzArwEG.png
-    //  Every point is on a constraint, but not necessarily every edge is
-    if (!kCareAboutCharacterRadius || characterRadius_ == 0.0) {
-      return true;
-    }
-
-    // Get the exiting edge for this triangle
-    if (exitEdgeIndex < 0 || exitEdgeIndex >= triangleData_.numberofedges) {
-      throw std::runtime_error("Invalid edge given");
-    }
-    const auto exitEdgeVertexAIndex = triangleData_.edgelist[exitEdgeIndex*2];
-    const auto exitEdgeVertexBIndex = triangleData_.edgelist[exitEdgeIndex*2+1];
-    if (exitEdgeVertexAIndex >= triangleData_.numberofpoints || exitEdgeVertexBIndex >= triangleData_.numberofpoints) {
-      throw std::runtime_error("Exit edge references points which do not exist");
-    }
-    const Vector exitEdgeVertexA{triangleData_.pointlist[exitEdgeVertexAIndex*2], triangleData_.pointlist[exitEdgeVertexAIndex*2+1]};
-    const Vector exitEdgeVertexB{triangleData_.pointlist[exitEdgeVertexBIndex*2], triangleData_.pointlist[exitEdgeVertexBIndex*2+1]};
-
-    if (entryEdgeIndex < 0) {
-      // The agent already is inside this triangle, the only check we can do is make sure that the diameter is less than the width of the exit edge
-      return math::distance(exitEdgeVertexA, exitEdgeVertexB) >= (characterRadius_*2);
-    }
-
-    if (entryEdgeIndex >= triangleData_.numberofedges) {
-      throw std::runtime_error("Edge number is not within the triangle data");
-    }
-    const auto entryEdgeVertexAIndex = triangleData_.edgelist[entryEdgeIndex*2];
-    const auto entryEdgeVertexBIndex = triangleData_.edgelist[entryEdgeIndex*2+1];
-    if (entryEdgeVertexAIndex >= triangleData_.numberofpoints || entryEdgeVertexBIndex >= triangleData_.numberofpoints) {
-      throw std::runtime_error("Entry edge references points which do not exist");
-    }
-    
-    const Vector entryEdgeVertexA{triangleData_.pointlist[entryEdgeVertexAIndex*2], triangleData_.pointlist[entryEdgeVertexAIndex*2+1]};
-    const Vector entryEdgeVertexB{triangleData_.pointlist[entryEdgeVertexBIndex*2], triangleData_.pointlist[entryEdgeVertexBIndex*2+1]};
-
-    if (triangleIndex < 0 || triangleIndex >= triangleData_.numberoftriangles) {
-      throw std::runtime_error("Referencing invalid triangle");
-    }
-
-    {
-      // Check if all vertices of this triangle are part of constraints
-      const int vertexAIndex = triangleData_.trianglelist[triangleIndex*3];
-      const int vertexBIndex = triangleData_.trianglelist[triangleIndex*3+1];
-      const int vertexCIndex = triangleData_.trianglelist[triangleIndex*3+2];
-      if (vertexAIndex < 0 || vertexBIndex < 0 || vertexCIndex < 0) {
-        throw std::runtime_error("A triangle references a nonexistent vertex");
-      }
-      if (triangleData_.pointmarkerlist[vertexAIndex] == 0 ||
-          triangleData_.pointmarkerlist[vertexBIndex] == 0 ||
-          triangleData_.pointmarkerlist[vertexCIndex] == 0) {
-        // One of the vertices is not part of a constraint, not yet handling this case
-        // TODO
-        return true;
-      }
-    }
-
-    int vertexAIndex, vertexBIndex;
-    Vector vertexA, vertexB, vertexC;
-    if (entryEdgeVertexAIndex == exitEdgeVertexAIndex) {
-      vertexC = entryEdgeVertexA;
-
-      vertexB = entryEdgeVertexB;
-      vertexBIndex = entryEdgeVertexBIndex;
-
-      vertexA = exitEdgeVertexB;
-      vertexAIndex = exitEdgeVertexBIndex;
-    } else if (entryEdgeVertexAIndex == exitEdgeVertexBIndex) {
-      vertexC = entryEdgeVertexA;
-
-      vertexB = entryEdgeVertexB;
-      vertexBIndex = entryEdgeVertexBIndex;
-
-      vertexA = exitEdgeVertexA;
-      vertexAIndex = exitEdgeVertexAIndex;
-    } else if (entryEdgeVertexBIndex == exitEdgeVertexAIndex) {
-      vertexC = entryEdgeVertexB;
-
-      vertexB = entryEdgeVertexA;
-      vertexBIndex = entryEdgeVertexAIndex;
-
-      vertexA = exitEdgeVertexB;
-      vertexAIndex = exitEdgeVertexBIndex;
-    } else if (entryEdgeVertexBIndex == exitEdgeVertexBIndex) {
-      vertexC = entryEdgeVertexB;
-
-      vertexB = entryEdgeVertexA;
-      vertexBIndex = entryEdgeVertexAIndex;
-
-      vertexA = exitEdgeVertexA;
-      vertexAIndex = exitEdgeVertexAIndex;
-    } else {
-      throw std::runtime_error("No shared vertex between two edges in triangle");
-    }
-
-    // `vertexC` is the common vertex between the entry and exit edge of this triangle
-
-    if (math::crossProduct(vertexC, vertexA, vertexC, vertexB) < 0.0) {
-      // We want A to be to the right of B
-      std::swap(vertexA, vertexB);
-      std::swap(vertexAIndex, vertexBIndex);
-    }
-
-    // `entryEdge` and `exitEdge` are CA and CB (or swapped)
-    const double cabAngle = math::angleBetweenVectors(vertexA, vertexC, vertexA, vertexB);
-    const double cbaAngle = math::angleBetweenVectors(vertexB, vertexA, vertexB, vertexC);
-    if (cabAngle >= math::kPi/2.0) {
-      // Angle CAB is right or obtuse, the closest constraint is vertex A
-      return (math::distance(vertexC, vertexA) >= (characterRadius_*2));
-    } else if (cbaAngle >= math::kPi/2.0) {
-      // Angle CBA is right or obtuse, the closest constraint is vertex B
-      return (math::distance(vertexC, vertexB) >= (characterRadius_*2));
-    } else {
-      // Both CAB and CBA are acute
-      // Need to worry about colliding with edge opposite to common vertex
-      bool oppositeEdgeIsConstrained{false};
-      const auto &edgeIndices = triangleEdges_.at(triangleIndex);
-      for (const auto &edgeIndex : edgeIndices) {
-        if (edgeIndex >= 0) {
-          const auto edgeVertexA = triangleData_.edgelist[edgeIndex*2];
-          const auto edgeVertexB = triangleData_.edgelist[edgeIndex*2+1];
-          if (edgeVertexA == vertexBIndex && edgeVertexB == vertexAIndex ||
-              edgeVertexA == vertexAIndex && edgeVertexB == vertexBIndex) {
-            // This is the opposite edge
-            if (triangleData_.edgemarkerlist[edgeIndex] != 0) {
-              oppositeEdgeIsConstrained = true;
-            }
-            break;
-          }
-        }
-      }
-      if (oppositeEdgeIsConstrained) {
-        // Check if the agent fits betweeen the shared vertex and the edge
-        return (math::distanceBetweenEdgeAndPoint(vertexB, vertexA, vertexC) >= (characterRadius_*2));
-      } else {
-        // Opposite edge is not constrained, not yet handling this case
-        // TODO
-        // However, since the vertices are still constraints, we do know that these are upperbounds for the size of agent that can fit
-        return (math::distance(vertexC, vertexA) >= (characterRadius_*2)) && (math::distance(vertexC, vertexB) >= (characterRadius_*2));
-      }
-    }
-  };
-  
-  // For each neighboring triangle index
-  for (int neighborNum=state.triangleNum*3; neighborNum<state.triangleNum*3+3; ++neighborNum) {
-    const auto neighborTriangleNum = triangleData_.neighborlist[neighborNum];
-    if (neighborTriangleNum != -1) {
-      // Neighbor exists
-      int sharedEdge = getSharedEdge(state.triangleNum, neighborTriangleNum);
-      if (sharedEdge != -1 && sharedEdge != state.entryEdge) {
-        // Is a valid edge and isn't the entry edge
-        if (!(kAvoidObstacles && triangleData_.edgemarkerlist[sharedEdge] != 0)) {
-          // Non-constraint edge
-          if (agentFitsThroughTriangle(state.triangleNum, state.entryEdge, sharedEdge)) {
-            State successor;
-            successor.entryEdge = sharedEdge;
-            successor.triangleNum = neighborTriangleNum;
-            result.push_back(successor);
-          }
-        }
-      }
-    }
-  }
-  return result;
+  return distanceBetweenEdgeAndPoint(state.getEntryEdgeIndex(), goalPoint);
 }
 
 
@@ -711,24 +329,22 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
   // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
   // std::cout << "Trying to find shortest path from triangle " << startTriangle << " to triangle " << goalTriangle << std::endl; //DEBUGPRINTS
   // std::cout << "===============================================================================" << std::endl; //DEBUGPRINTS
-  std::vector<State> openSet; // "open set"
-  std::set<State> visited;
+  std::vector<navmesh::State> openSet; // "open set"
+  std::set<navmesh::State> visited;
 
-  std::map<State, State> previous;
+  std::map<navmesh::State, navmesh::State> previous;
 
   // Storing the best g score for each state
-  std::map<State, double> gScores;
+  std::map<navmesh::State, double> gScores;
   // Storing the best f score for each state
-  std::map<State, double> fScores;
+  std::map<navmesh::State, double> fScores;
 
   // Create the start state
-  State startState;
-  startState.entryEdge = -1; // There is no entry edge for the start state
-  startState.triangleNum = startTriangle;
+  navmesh::State startState{startTriangle}; // There is no entry edge for the start state
   openSet.push_back(startState);
 
   // Initialize the result as having touched the start state
-  result.trianglesDiscovered.emplace(startState.triangleNum);
+  result.trianglesDiscovered.emplace(startState.getTriangleIndex());
 
   // Set g score for start state
   gScores.emplace(startState, 0);
@@ -740,18 +356,18 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
 
   
   double shortestPathLength = std::numeric_limits<double>::max();
-  State finalGoalState;
+  navmesh::State finalGoalState;
   bool found = false;
 
   while (!openSet.empty()) {
     // std::cout << "Evaluating possible next options ["; //DEBUGPRINTS
-    // for (const State &s : openSet) { //DEBUGPRINTS
+    // for (const navmesh::State &s : openSet) { //DEBUGPRINTS
       // std::cout << '{' << s << ',' << fScores.at(s) << "},"; //DEBUGPRINTS
     // } //DEBUGPRINTS
     // std::cout << ']' << std::endl; //DEBUGPRINTS
 
     // Find the state with minimum fScore
-    auto minElementIt = std::min_element(openSet.begin(), openSet.end(), [&fScores](const State &s1, const State &s2) {
+    auto minElementIt = std::min_element(openSet.begin(), openSet.end(), [&fScores](const navmesh::State &s1, const navmesh::State &s2) {
       // We may assume that every state is in the fScore map already
       return math::lessThan(fScores.at(s1), fScores.at(s2));
     });
@@ -760,24 +376,24 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
     }
     
     // Copy state, since we will delete it from the open set
-    const State currentState = *minElementIt;
+    const navmesh::State currentState = *minElementIt;
     
     // std::cout << "We chose " << currentState << " as our next candidate" << std::endl; //DEBUGPRINTS
     openSet.erase(minElementIt);
 
-    if (currentState.isGoal) {
+    if (currentState.isGoal()) {
       // Found the goal
       result.triangleCorridor = rebuildPath(currentState, previous);
       return result;
     }
 
     // Look at successors
-    auto successors = getSuccessors(currentState, goalTriangle);
+    auto successors = navmesh_.getSuccessors(currentState, goalTriangle, characterRadius_);
     for (const auto &successor : successors) {
       // std::cout << "  -Possible successor- " << successor << std::endl; //DEBUGPRINTS
       if (visited.find(successor) == visited.end()) {
         // Touched this successor
-        result.trianglesDiscovered.emplace(successor.triangleNum);
+        result.trianglesDiscovered.emplace(successor.getTriangleIndex());
 
         // std::cout << "  -Evaluatating successor- " << successor << std::endl; //DEBUGPRINTS
         if (gScores.find(successor) == gScores.end()) {
@@ -861,7 +477,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
 
     // Completely evaluated this state
     visited.insert(currentState);
-    result.trianglesSearched.emplace(currentState.triangleNum);
+    result.trianglesSearched.emplace(currentState.getTriangleIndex());
   }
 
   // Open set is empty, but no path was found
@@ -896,44 +512,17 @@ double calculatePathLength(const std::vector<std::unique_ptr<PathSegment>> &path
   return totalDistance;
 }
 
-std::vector<int> rebuildPath(State state, const std::map<State, State> &previous) {
+std::vector<int> rebuildPath(navmesh::State state, const std::map<navmesh::State, navmesh::State> &previous) {
   std::vector<int> result;
   while (previous.find(state) != previous.end()) {
-    if (!state.isGoal) {
-      result.emplace_back(state.triangleNum);
+    if (!state.isGoal()) {
+      result.emplace_back(state.getTriangleIndex());
     }
     state = previous.at(state);
   }
-  result.emplace_back(state.triangleNum);
+  result.emplace_back(state.getTriangleIndex());
   std::reverse(result.begin(), result.end());
   return result;
-}
-
-bool operator==(const State &s1, const State &s2) {
-  return (s1.isGoal && s2.isGoal) || (s1.triangleNum == s2.triangleNum && s1.entryEdge == s2.entryEdge);
-}
-
-bool operator<(const State &s1, const State &s2) {
-  if (!s1.isGoal && !s2.isGoal) {
-    if (s1.triangleNum == s2.triangleNum) {
-      return s1.entryEdge < s2.entryEdge;
-    } else {
-      return s1.triangleNum < s2.triangleNum;
-    }
-  } else {
-    return (s1.isGoal ? 1:0) < (s2.isGoal ? 1:0);
-  }
-}
-
-std::ostream& operator<<(std::ostream& stream, const State &state) {
-  if (state.isGoal) {
-    stream << "[GOAL]";
-  } else if (state.entryEdge == -1) {
-    stream << "[START]";
-  } else {
-    stream << '(' << state.triangleNum << ',' << state.entryEdge << ')';
-  }
-  return stream;
 }
 
 void PathfindingResult::clear() {

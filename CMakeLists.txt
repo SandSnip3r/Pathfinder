@@ -21,11 +21,13 @@ target_sources(Triangle INTERFACE
 
 # Create Pathfinder as a static library
 add_library(${PROJECT_NAME} STATIC
+  a_star_navmesh_interface.cpp
   behaviorBuilder.cpp
   debuglogger.cpp
   funnel.cpp
   math_helpers.cpp
   pathfinder.cpp
+  triangle_lib_navmesh.cpp
   vector.cpp
 )
 
