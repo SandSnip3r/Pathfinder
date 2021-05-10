@@ -68,3 +68,7 @@ TEST(Pathfinder_Math, LessThan_Large) {
   EXPECT_FALSE(pathfinder::math::lessThan(1e100, 1e100));
   EXPECT_FALSE(pathfinder::math::lessThan(-1e100, -1e100));
 }
+
+TEST(Pathfinder_Math, LineSegmentIntersectsWithCircle) {
+  // int pathfinder::math::lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSegmentEndPoint, Vector centerOfCircle, const double circleRadius, Vector *intersectionPoint1=nullptr, Vector *intersectionPoint2=nullptr);
+}
