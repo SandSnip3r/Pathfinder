@@ -18,6 +18,7 @@ using EdgeVertexIndicesType = std::pair<IndexType, IndexType>;
 using TriangleVerticesType = std::tuple<const Vector&, const Vector&, const Vector&>;
 using TriangleVertexIndicesType = std::tuple<IndexType, IndexType, IndexType>;
 using TriangleEdgeIndicesType = std::tuple<IndexType, IndexType, IndexType>;
+using TriangleNeighborIndicesType = std::tuple<IndexType, IndexType, IndexType>;
 
 // The indices of 3 neighbor triangles
 using TriangleNeighborsIndicesType = std::tuple<IndexType, IndexType, IndexType>;
