@@ -1,8 +1,11 @@
-#ifndef FUNNEL_H_
-#define FUNNEL_H_
+#ifndef PATHFINDER_FUNNEL_H_
+#define PATHFINDER_FUNNEL_H_
 
+#include "debuglogger.h"
 #include "math_helpers.h"
 #include "vector.h"
+
+#include <iostream>
 
 #include <memory>
 #include <optional>
@@ -164,13 +167,33 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
     }
   };
 
-  auto rotatesInwardsViaCrossProduct = [&direction](const Vector &v1Start, const Vector &v1End, const Vector &v2Start, const Vector &v2End) {
-    const double crossProductMagnitude = math::crossProduct(v1Start, v1End, v2Start, v2End);
+  auto newEdgeCrossesOverApexAndAdvancesFunnel = [&direction](const Vector &v1Start, const Vector &v1End, const Vector &v2Start, const Vector &v2End) {
+    if (math::equal(math::distance(v1Start, v1End), 0) || math::equal(math::distance(v2Start, v2End), 0)) {
+      throw std::runtime_error("newEdgeCrossesOverApexAndAdvancesFunnel: Cannot determine angle of 0-length vector");
+    }
+    const double crossProductMagnitude = math::crossProductForSign(v1Start, v1End, v2Start, v2End);
     // Cross product should be <=0 for "Right" and > 0 for "Left"
+    //  This could happen in a few high level cases
+    //  Possible case 1: The agent is trying to pass through and edge that is exactly his diameter. In this case, the edge would be trimmed down to a single point and the two given vectors would be identical
+    //    Imagine a closed funnel where left and right are touching
+    //  Possible case 2: The agent is trying to pass through and edge that he starts on (or that the goal is on)
+    //    Imagine a funnel that is completely open @ 180 degrees
+    if (math::equal(crossProductMagnitude, 0)) {
+      const auto angleOfVector1 = math::angle(v1Start, v1End);
+      const auto angleOfVector2 = math::angle(v2Start, v2End);
+      if (math::equal(angleOfVector1, angleOfVector2)) {
+        // Vectors are the same direction, this essentialy means that the funnel is closed up to point v2End
+        return true;
+      } else if (math::equal(math::normalize(angleOfVector1-angleOfVector2, math::k2Pi), math::kPi)) {
+        // Vectors are opposite direction, the funnel is wide open
+        return false;
+      }
+      throw std::runtime_error("newEdgeCrossesOverApexAndAdvancesFunnel: Cross product is 0, angles are not the same nor opposites");
+    }
     if (direction == AngleDirection::kClockwise) {
-      return crossProductMagnitude <= 0;
+      return math::lessThan(crossProductMagnitude, 0);
     } else {
-      return crossProductMagnitude > 0;
+      return math::lessThan(0, crossProductMagnitude);
     }
   };
 
@@ -186,6 +209,7 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
     const Vector &mostRecentEdgePoint2 = firstPoint;
     AngleDirection mostRecentEdgePoint1Direction;
     const AngleDirection mostRecentEdgePoint2Direction = direction;
+    // std::cout << "Most recent edge: " << DebugLogger::instance().pointToString(mostRecentEdgePoint1) << " -> " << DebugLogger::instance().pointToString(mostRecentEdgePoint2) << std::endl; //DEBUGPRINTS
 
     // We know that the first point is not the apex, but the second point could be
     if (apex_index() == 1) {
@@ -203,6 +227,10 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
     const double mostRecentEdgeAngle = math::angle(mostRecentEdgePoint1, mostRecentEdgePoint1Direction, mostRecentEdgePoint2, mostRecentEdgePoint2Direction, agentRadius_);
     const double newEdgeAngle = math::angle(newEdgePoint1, newEdgePoint1Direction, newEdgePoint2, newEdgePoint2Direction, agentRadius_);
     const double newEdgeRelativeAngle = newEdgeAngle - mostRecentEdgeAngle;
+    if (math::equal(newEdgeRelativeAngle, 0.0)) {
+      // These vectors are oriented in the same angle
+      return false;
+    }
     return (math::angleRelativeToOrigin(newEdgeRelativeAngle) == direction);
   };
   // std::cout << "  << Adding " << DebugLogger::instance().pointToString(point) << " to " << directionString() << " of funnel" << std::endl; //DEBUGPRINTS
@@ -228,11 +256,70 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
           // << DebugLogger::instance().pointToString(at(1))            << ' ' << (oppositeDirection == AngleDirection::kNoDirection ? " point" : (oppositeDirection == AngleDirection::kClockwise ? " right" : " left")) << std::endl; //DEBUGPRINTS
       std::pair<Vector, Vector> newWedge = math::createCircleConsciousLine(currentApexPoint, getApexType(), point, (isGoal ? AngleDirection::kNoDirection : direction), agentRadius_);
       std::pair<Vector, Vector> firstEdgeInOtherDirection = math::createCircleConsciousLine(currentApexPoint, getApexType(), at(1), oppositeDirection, agentRadius_);
+      std::pair<Vector, Vector> newWedgeForAngleComparison = newWedge;
+      std::pair<Vector, Vector> firstEdgeInOtherDirectionForAngleComparison = firstEdgeInOtherDirection;
       // std::cout << "Comparing newWedge " << newWedge.first.x() << ',' << newWedge.first.y() << "->" << newWedge.second.x() << ',' << newWedge.second.y() << " to firstEdgeInOtherDirection " << firstEdgeInOtherDirection.first.x() << ',' << firstEdgeInOtherDirection.first.y() << "->" << firstEdgeInOtherDirection.second.x() << ',' << firstEdgeInOtherDirection.second.y() << std::endl; //DEBUGPRINTS
-      if (rotatesInwardsViaCrossProduct(newWedge.first, newWedge.second, firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second)) {
+      bool madeFakeVectorForNewWedge{false};
+      if (math::equal(math::distance(newWedge.first, newWedge.second), 0)) {
+        // newWedge is length 0
+        bool newPointIsPointlike = (isGoal ? true : (direction == AngleDirection::kNoDirection));
+        if (getApexType() == AngleDirection::kNoDirection && newPointIsPointlike) {
+          throw std::runtime_error("newWedge: Both points are points");
+        } else if (getApexType() != AngleDirection::kNoDirection && !newPointIsPointlike) {
+          throw std::runtime_error("newWedge: Both points are circles");
+        }
+        // This is a point that is on a circle around `point`
+        // This does happen in cases other than the start and the goal
+
+        // Create a tangent line to the circle in order to do an angle test
+        auto tangentVector = math::createVectorTangentToPointOnCircle(point, agentRadius_, currentApexPoint);
+        // Flip vector if orientation is incorrect
+        // We expect that tangentVector.first is the start and tangentVector.second is the end
+        const auto crossProductResult = math::crossProductForSign(point, tangentVector.first, point, tangentVector.second);
+        if ((direction == AngleDirection::kClockwise && crossProductResult > 0) ||
+            (direction == AngleDirection::kCounterclockwise && crossProductResult < 0)) {
+          // Incorrect orientation
+          std::swap(tangentVector.first, tangentVector.second);
+        }
+        newWedgeForAngleComparison = tangentVector;
+        madeFakeVectorForNewWedge = true;
+      }
+      bool madeFakeVectorForOtherWedge{false};
+      if (math::equal(math::distance(firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second), 0)) {
+        // firstEdgeInOtherDirection is length 0
+        if (getApexType() == AngleDirection::kNoDirection && oppositeDirection == AngleDirection::kNoDirection) {
+          throw std::runtime_error("firstEdgeInOtherDirection: Both points are points");
+        } else if (getApexType() != AngleDirection::kNoDirection && oppositeDirection != AngleDirection::kNoDirection) {
+          throw std::runtime_error("firstEdgeInOtherDirection: Both points are circles");
+        } else if (getApexType() != AngleDirection::kNoDirection) {
+          // TODO: I think this /is/ possible
+          throw std::runtime_error("firstEdgeInOtherDirection: the apex is the circle");
+        }
+        if (madeFakeVectorForNewWedge) {
+          // I dont think we should ever make a pair of fake vectors
+          throw std::runtime_error("Both vectors would be fake?");
+        }
+        // This is a point that is on a circle around `at(1)`
+        // TODO: Can this really ever happen in a case besides the start or goal? (i think so)
+
+        // Create a tangent line to the circle in order to do an angle test
+        auto tangentVector = math::createVectorTangentToPointOnCircle(at(1), agentRadius_, currentApexPoint);
+
+        // Flip vector if orientation is incorrect
+        // We expect that tangentVector.first is the start and tangentVector.second is the end
+        const auto crossProductResult = math::crossProductForSign(at(1), tangentVector.first, at(1), tangentVector.second);
+        if ((oppositeDirection == AngleDirection::kClockwise && crossProductResult > 0) ||
+            (oppositeDirection == AngleDirection::kCounterclockwise && crossProductResult < 0)) {
+          // Incorrect orientation
+          std::swap(tangentVector.first, tangentVector.second);
+        }
+        firstEdgeInOtherDirectionForAngleComparison = tangentVector;
+        madeFakeVectorForOtherWedge = true;
+      }
+      if (newEdgeCrossesOverApexAndAdvancesFunnel(newWedgeForAngleComparison.first, newWedgeForAngleComparison.second, firstEdgeInOtherDirectionForAngleComparison.first, firstEdgeInOtherDirectionForAngleComparison.second)) {
         // New point crosses over apex
         // std::cout << "    << New point crosses over apex" << std::endl; //DEBUGPRINTS
-        if (math::distance(newWedge.first, newWedge.second) < math::distance(firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second)) {
+        if ((!madeFakeVectorForOtherWedge && !madeFakeVectorForNewWedge) && math::distance(newWedge.first, newWedge.second) < math::distance(firstEdgeInOtherDirection.first, firstEdgeInOtherDirection.second)) {
           // New point is closer and should instead be the apex
           // std::cout << "      << New point is closer and should instead be the apex" << std::endl; //DEBUGPRINTS
 
@@ -246,7 +333,13 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
           // Apex is now a point not yet in the funnel, this loop is done
           break;
         } else {
-          // std::cout << "      << Normal add of apex to path" << std::endl; //DEBUGPRINTS
+          if (madeFakeVectorForOtherWedge) {
+            // std::cout << "      << New point crosses over 0-length other wedge segment" << std::endl; //DEBUGPRINTS
+          } else if (madeFakeVectorForNewWedge) {
+            // std::cout << "      << New point crosses over 0-length new wedge segment" << std::endl; //DEBUGPRINTS
+          } else {
+            // std::cout << "      << Normal add of apex to path" << std::endl; //DEBUGPRINTS
+          }
           // Add the apex to the path
           Apex updatedApex{at(1), oppositeDirection};
 
@@ -280,4 +373,4 @@ void BaseFunnel::addPointToFunnel(const AtFunc &at,
 
 } // namespace pathfinder
 
-#endif // FUNNEL_H_
+#endif // PATHFINDER_FUNNEL_H_

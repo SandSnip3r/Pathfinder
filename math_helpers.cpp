@@ -7,10 +7,6 @@
 namespace pathfinder {
 
 namespace math {
-  
-const double kPi = 3.141592653589793;
-const double k2Pi = 6.283185307179586;
-const double kDoublePrecisionTolerance = 0.000001;
 
 Vector polarToVector(const double r, const double theta) {
   return {r*cos(theta), r*sin(theta)};
@@ -22,7 +18,7 @@ double distance(const Vector &p1, const Vector &p2) {
   return std::sqrt(dx*dx+dy*dy);
 }
 
-double crossProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2) {
+double crossProductForSign(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2) {
   const double v1_x = v1p2.x() - v1p1.x();
   const double v1_y = v1p2.y() - v1p1.y();
   const double v2_x = v2p2.x() - v2p1.x();
@@ -40,9 +36,9 @@ double dotProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, co
 
 bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3) {
   bool b1, b2, b3;
-  b1 = (math::crossProduct(triangleVertex2, point, triangleVertex2, triangleVertex1) < 0.0f);
-  b2 = (math::crossProduct(triangleVertex3, point, triangleVertex3, triangleVertex2) < 0.0f);
-  b3 = (math::crossProduct(triangleVertex1, point, triangleVertex1, triangleVertex3) < 0.0f);
+  b1 = (math::crossProductForSign(triangleVertex2, point, triangleVertex2, triangleVertex1) < 0.0f);
+  b2 = (math::crossProductForSign(triangleVertex3, point, triangleVertex3, triangleVertex2) < 0.0f);
+  b3 = (math::crossProductForSign(triangleVertex1, point, triangleVertex1, triangleVertex3) < 0.0f);
   return ((b1 == b2) && (b2 == b3));
 }
 
@@ -75,8 +71,7 @@ double angleBetweenVectors(const Vector &v1Start, const Vector &v1End, const Vec
 double arcAngle(const double startAngle, const double endAngle, AngleDirection direction) {
   if (direction == AngleDirection::kNoDirection) {
     // A point has no angle
-    // TODO: Maybe even throw here since we probably shouldnt be calling this function in that case
-    return 0;
+    throw std::invalid_argument("math::arcAngle no direction given");
   }
   // Counterclockwise is positive
   double spanAngle;
@@ -129,7 +124,7 @@ double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const Vector &edgeSt
   if (edgePoint1 == edgePoint2) {
     // Circle is beyond the extent of the line
     // Decide which distance to use
-    if (crossProduct(edgePoint1, circleTangentIntersectionPoint1, edgePoint1, circleTangentIntersectionPoint2) > 0) {
+    if (crossProductForSign(edgePoint1, circleTangentIntersectionPoint1, edgePoint1, circleTangentIntersectionPoint2) > 0) {
       // edgePoint1->circleTangentIntersectionPoint1 is clockwise to edgePoint1->circleTangentIntersectionPoint2
       if (circleRotationDirection == AngleDirection::kCounterclockwise) {
         distanceResult = dist2;
@@ -150,7 +145,7 @@ double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const Vector &edgeSt
     }
   } else {
     // Circle is at least partially within the extent of the line
-    if (crossProduct(circleCenter, edgePoint1, circleCenter, edgePoint2) > 0) {
+    if (crossProductForSign(circleCenter, edgePoint1, circleCenter, edgePoint2) > 0) {
       // circleCenter->edgePoint1 is clockwise to circleCenter->edgePoint2
       if (circleRotationDirection == AngleDirection::kCounterclockwise) {
         distanceResult = dist1;
@@ -182,9 +177,7 @@ double distanceBetweenEdgeAndCircleTangentIntersectionPoint(const Vector &edgeSt
 }
 
 AngleDirection angleRelativeToOrigin(double theta) {
-  if (theta < 0) {
-    theta += 2*kPi;
-  }
+  theta = normalize(theta, k2Pi);
   if (equal(theta, 0.0) || equal(theta, kPi)) {
     return AngleDirection::kNoDirection;
   } else if (lessThan(theta, kPi)) {
@@ -196,9 +189,8 @@ AngleDirection angleRelativeToOrigin(double theta) {
 
 
 double angleBetweenCenterOfCircleAndIntersectionWithTangentLine(const Vector &point, const Vector &centerOfCircle, const double circleRadius) {
-  // Find the two lines that are tangent to the circle and intersect with the given point
+  // Find the angle between the intersection of tangent lines and the center of the circle
   double distanceToCircle = math::distance(point,centerOfCircle);
-  double lengthOfTangentLine = std::sqrt(distanceToCircle*distanceToCircle-circleRadius*circleRadius);
   double angleOfTangentLine = asin(circleRadius/distanceToCircle);
   return angleOfTangentLine;
 }
@@ -223,6 +215,9 @@ std::pair<Vector, Vector> intersectionsPointsOfTangentLinesToCircle(const Vector
 }
 
 double angle(const Vector &point1, const AngleDirection point1Direction, const Vector &point2, const AngleDirection point2Direction, const double circleRadius) {
+  if (equal(distance(point1, point2), 0)) {
+    throw std::runtime_error("Cannot find the angle betweeen a point and itself");
+  }
   double angleBetweenPoints = math::angle(point1, point2);
 
   if (point1Direction == AngleDirection::kNoDirection && point2Direction != AngleDirection::kNoDirection) {
@@ -261,7 +256,7 @@ double angle(const Vector &point1, const AngleDirection point1Direction, const V
     // Point to point or circle to circle and outer tangent
   }
 
-  return angleBetweenPoints;
+  return normalize(angleBetweenPoints, k2Pi);
 }
 
 std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const AngleDirection &point1Direction, const Vector &point2, const AngleDirection &point2Direction, const double circleRadius) {
@@ -401,6 +396,9 @@ int lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSeg
   // c = ax^2 + ay^2 - r^2;
 
   // Now, calculate the discriminant
+  //  Negative means no intersections
+  //  0 means 1 intersection
+  //  Positive means 2 intersections
   const double discriminant = b*b - 4*a*c;
   if (discriminant < 0) {
     return 0;
@@ -411,24 +409,28 @@ int lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSeg
   // sqrtdisc = sqrt(disc);
 
   // Finally, calculate the points of intersection
-  const double t1 = (-b + sqrtDiscriminant) / (2*a);
-  const double t2 = (-b - sqrtDiscriminant) / (2*a);
+  double t1 = (-b + sqrtDiscriminant) / (2*a);
+  double t2 = (-b - sqrtDiscriminant) / (2*a);
+  if (discriminant > 0 && lessThan(t2, t1)) {
+    // If there are two intersection points, make sure that the one determined by t1 is closer to the start of the line segment
+    std::swap(t1, t2);
+  }
   int intersectionCount{0};
-  if (0 < t1 && t1 < 1) {
+  if (0 <= t1 && t1 <= 1) {
     if (intersectionPoint1 != nullptr) {
       intersectionPoint1->setX(lineSegmentStartPoint.x() + dx*t1 + centerOfCircle.x());
       intersectionPoint1->setY(lineSegmentStartPoint.y() + dy*t1 + centerOfCircle.y());
     }
     ++intersectionCount;
   }
-  if ((discriminant > 0) && (0 < t2 && t2 < 1)) {
+  if ((discriminant > 0) && (0 <= t2 && t2 <= 1)) {
     Vector **point;
     if (intersectionCount == 0) {
       point = &intersectionPoint1;
     } else {
       point = &intersectionPoint2;
     }
-    if (*point != nullptr) {
+    if ((*point) != nullptr) {
       (*point)->setX(lineSegmentStartPoint.x() + dx*t2 + centerOfCircle.x());
       (*point)->setY(lineSegmentStartPoint.y() + dy*t2 + centerOfCircle.y());
     }
@@ -439,6 +441,39 @@ int lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSeg
   // t2 = (-b - sqrtdisc)/(2*a);
   // if((0 < t1 && t1 < 1) || (0 < t2 && t2 < 1)) return true;
   // return false;
+}
+
+std::pair<Vector, Vector> createVectorTangentToPointOnCircle(const Vector &circleCenter, const double circleRadius, const Vector &pointOnCircleCircumference) {
+  if (!equal(distance(circleCenter, pointOnCircleCircumference), circleRadius)) {
+    throw std::runtime_error("createVectorTangentToPointOnCircle: Point is not on circumference of circle");
+  }
+  if (equal(circleCenter.y(), pointOnCircleCircumference.y())) {
+    // Point is on the exact left or right of circle. We know this is a vertical line
+    return {{pointOnCircleCircumference.x(), pointOnCircleCircumference.y()-0.5},{pointOnCircleCircumference.x(), pointOnCircleCircumference.y()+0.5}};
+  }
+  const auto a = circleCenter.x();
+  const auto b = circleCenter.y();
+  const auto x1 = pointOnCircleCircumference.x();
+  const auto y1 = pointOnCircleCircumference.y();
+  const auto w = x1-a;
+  const auto z = y1-b;
+  const auto c = w*x1;
+  const auto d = z*y1;
+
+  Vector point1{-1, (d+c+w)/z};
+  Vector point2{1, (d+c-w)/z};
+  return {point1,point2};
+}
+
+double normalize(double in, double modVal) {
+  if (modVal <= 0) {
+    throw std::invalid_argument("pathfinder::math::normalize: modVal must be a positive number");
+  }
+  if (in < 0 || in >= modVal) {
+    return in - modVal*std::floor(in / modVal);
+  } else {
+    return in;
+  }
 }
 
 } // namespace math

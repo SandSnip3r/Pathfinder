@@ -1,4 +1,5 @@
 #include "debuglogger.h"
+#include "funnel.h"
 #include "math_helpers.h"
 
 #include <iostream>
@@ -45,9 +46,10 @@ std::string DebugLogger::pointToString(const Vector &point) const {
   } else if (goalPoint_ && point == *goalPoint_) {
     return "[FUNNEL GOAL]";
   } else {
-    try {
-      return std::to_string(pointToIndexFunction_(point));
-    } catch(...) {
+    const auto pointIndex = pointToIndexFunction_(point);
+    if (pointIndex >= 0) {
+      return std::to_string(pointIndex);
+    } else {
       std::string result = "(";
       result += std::to_string(point.x());
       result += ",";

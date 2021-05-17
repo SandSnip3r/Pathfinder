@@ -1,5 +1,5 @@
-#ifndef PATHFINDER_H_
-#define PATHFINDER_H_
+#ifndef PATHFINDER_PATHFINDER_H_
+#define PATHFINDER_PATHFINDER_H_
 
 #include "funnel.h"
 #include "math_helpers.h"
@@ -37,7 +37,7 @@ public:
   PathfindingResult findShortestPath(const Vector &startPoint, const Vector &goalPoint) const;
   void setCharacterRadius(double value);
 private:
-  double characterRadius_{0};
+  double agentRadius_{0.0};
   const navmesh::AStarNavmeshInterface &navmesh_;
   
   // Pre-computed data from triangle data
@@ -50,8 +50,8 @@ private:
   // TODO: Does not check if the given point collides with edges of the triangle
   bool collidesWithConstraint(const Vector &point, const int triangleIndex) const;
 
-  Vector midpointOfEdge(int edgeNum) const;
-  double lengthOfEdge(int edgeNum) const;
+  void buildShortestPathWithinSingleTriangle(const int triangleIndex, const Vector &startPoint, const Vector &goalPoint, std::vector<std::unique_ptr<PathSegment>> &shortestPath) const;
+
   double distanceBetweenEdgeAndPoint(int edgeNum, const Vector &point, Vector *pointUsedForDistanceCalculation=nullptr) const;
   double calculateArcLength(const int edge1, const int edge2) const;
   double calculateHValue(const navmesh::State &state, const Vector &goalPoint) const;
@@ -65,4 +65,4 @@ private:
 
 } // namespace pathfinder
 
-#endif // PATHFINDER_H_
+#endif // PATHFINDER_PATHFINDER_H_

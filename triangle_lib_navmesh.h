@@ -25,8 +25,8 @@ public:
   virtual unsigned int getEdgeMarker(const int edgeIndex) const;
   virtual size_t getTriangleCount() const;
   virtual const TriangleVertexIndicesType& getTriangleVertexIndices(const int triangleIndex) const;
-  virtual const TriangleVerticesType& getTriangleVertices(const int triangleIndex) const;
-  virtual const TriangleEdgeIndicesType& getTriangleEdgeIndices(const int triangleIndex) const;
+  virtual TriangleVerticesType getTriangleVertices(const int triangleIndex) const;
+  virtual TriangleEdgeIndicesType getTriangleEdgeIndices(const int triangleIndex) const;
   virtual const TriangleNeighborsAcrossEdgesIndicesType& getTriangleNeighborsWithSharedEdges(const int triangleIndex) const;
   virtual EdgeType getSharedEdge(const int triangle1Index, const int triangle2Index) const;
   virtual int getVertexIndex(const Vector &vertex) const;

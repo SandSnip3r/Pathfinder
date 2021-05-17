@@ -34,8 +34,7 @@ PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const V
   PathfindingResult result;
   if (startTriangle == goalTriangle) {
     // Only one triangle involved
-    // Shortest path is a straight line between start and goal
-    result.shortestPath.emplace_back(std::unique_ptr<StraightPathSegment>(new StraightPathSegment(startPoint, goalPoint)));
+    buildShortestPathWithinSingleTriangle(startTriangle, startPoint, goalPoint, result.shortestPath);
     // Only one triangle in corridor
     result.aStarInfo.triangleCorridor.emplace_back(startTriangle);
     // Only one triangle looked at
@@ -57,15 +56,17 @@ PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const V
 
     // A path was found
     const auto corridor = buildCorridor(result.aStarInfo.triangleCorridor);
-    PathFunnel pathFunnel(characterRadius_);
+    PathFunnel pathFunnel(agentRadius_);
     pathFunnel.funnelWithGoal(corridor, startPoint, goalPoint);
     result.shortestPath = pathFunnel.getPath();
   }
 
+  // In the case that no path exists, the result is empty
   return result;
 }
 
 bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) const {
+  std::cout << "Trying to find out of goalTriangle " << goalTriangle << " is reachble from startTriangle " << startTriangle << std::endl;
   // Use breadth-first search to try to quickly find if a path exists between these two triangles
 
   std::set<int> visitedTriangles;
@@ -82,7 +83,7 @@ bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) const {
     navmesh::State currentState = stateQueue.front();
     stateQueue.pop();
 
-    const auto successors = navmesh_.getSuccessors(currentState, goalTriangle, characterRadius_);
+    const auto successors = navmesh_.getSuccessors(currentState, goalTriangle, agentRadius_);
     for (const auto &successorState : successors) {
       if (successorState.getTriangleIndex() == goalTriangle) {
         // Found a path to the goal
@@ -120,7 +121,7 @@ std::vector<std::pair<Vector,Vector>> Pathfinder::buildCorridor(const std::vecto
 }
 
 void Pathfinder::setCharacterRadius(double value) {
-  characterRadius_ = value;
+  agentRadius_ = value;
 }
 
 bool Pathfinder::collidesWithConstraint(const Vector &point, const int triangleIndex) const {
@@ -135,7 +136,7 @@ bool Pathfinder::collidesWithConstraint(const Vector &point, const int triangleI
     if (marker != 0) {
       // Constraint vertex
       const auto &vertex = navmesh_.getVertex(vertexIndex);
-      if (math::lessThan(math::distance(point, vertex), characterRadius_)) {
+      if (math::lessThan(math::distance(point, vertex), agentRadius_)) {
         // Point is too close to vertex
         return true;
       }
@@ -151,8 +152,8 @@ double Pathfinder::calculateArcLength(const int edge1Index, const int edge2Index
   const double angle = math::angleBetweenVectors(edge1Vertex1, edge1Vertex2, edge2Vertex1, edge2Vertex2);
   // TODO: Sometimes this arclength causes weird paths
   // return 0;
-  // return 0.1 * characterRadius_ * angle;
-  return characterRadius_ * angle; // Original from paper
+  // return 0.1 * agentRadius_ * angle;
+  return agentRadius_ * angle; // Original from paper
 }
 
 double Pathfinder::calculateEstimateGValue(const navmesh::State &state, const navmesh::State &parentState, const Vector &startPoint, const Vector &goalPoint, const std::map<navmesh::State, double> &gScores) const {
@@ -215,7 +216,7 @@ std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGVa
       // Multiple triangles in corridor, do normal funnel algorithm to find the exact path length
       // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
 
-      LengthFunnel lengthFunnel(characterRadius_);
+      LengthFunnel lengthFunnel(agentRadius_);
       const auto funnelCacheIt = lengthFunnelCache_.find(parentState);
       if (funnelCacheIt != lengthFunnelCache_.end()) {
         // We have a cached funnel for the parent state, lets copy that (we know it already has enough space for the goal)
@@ -252,7 +253,7 @@ std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGVa
     // std::cout << "Funneling to state " << state << std::endl; //DEBUGPRINTS
 
     // ============================================================
-    LengthFunnel lengthFunnel(characterRadius_);
+    LengthFunnel lengthFunnel(agentRadius_);
     const auto commonEdge = navmesh_.getEdge(commonEdgeIndex);
     const auto funnelCacheIt = lengthFunnelCache_.find(parentState);
     if (funnelCacheIt != lengthFunnelCache_.end()) {
@@ -291,18 +292,6 @@ std::tuple<double, Vector, std::optional<LengthFunnel>> Pathfinder::calculateGVa
     // std::cout << "  Funneling for g(x) from start to edge " << commonEdgeIndex << ", length: " << result << std::endl; //DEBUGPRINTS
   }
   return {result, pointUsed, optionalFunnelForCaching};
-}
-
-Vector Pathfinder::midpointOfEdge(int edgeIndex) const {
-  const auto &[vertex1, vertex2] = navmesh_.getEdge(edgeIndex);
-  const auto dx = vertex2.x()-vertex1.x();
-  const auto dy = vertex2.y()-vertex1.y();
-  return Vector{vertex1.x()+dx/2, vertex2.y()+dy/2};
-}
-
-double Pathfinder::lengthOfEdge(int edgeIndex) const {
-  const auto &[vertex1, vertex2] = navmesh_.getEdge(edgeIndex);
-  return math::distance(vertex1, vertex2);
 }
 
 double Pathfinder::distanceBetweenEdgeAndPoint(int edgeIndex, const Vector &point, Vector *pointUsedForDistanceCalculation) const {
@@ -388,7 +377,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
     }
 
     // Look at successors
-    auto successors = navmesh_.getSuccessors(currentState, goalTriangle, characterRadius_);
+    auto successors = navmesh_.getSuccessors(currentState, goalTriangle, agentRadius_);
     for (const auto &successor : successors) {
       // std::cout << "  -Possible successor- " << successor << std::endl; //DEBUGPRINTS
       if (visited.find(successor) == visited.end()) {
@@ -485,6 +474,58 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
   return result;
 }
 
+void Pathfinder::buildShortestPathWithinSingleTriangle(const int triangleIndex, const Vector &startPoint, const Vector &goalPoint, std::vector<std::unique_ptr<PathSegment>> &shortestPath) const {
+  if (math::equal(agentRadius_, 0.0)) {
+    // Don't need to worry about this, return a simple straight segment
+    shortestPath.emplace_back(std::unique_ptr<StraightPathSegment>(new StraightPathSegment(startPoint, goalPoint)));
+    return;
+  }
+  auto buildPathAvoidingVertex = [this, &startPoint, &goalPoint, &shortestPath](Vector &intersectionPoint1, Vector &intersectionPoint2, const Vector &vertex) {
+    if (math::lessThan(math::distance(intersectionPoint2, startPoint), math::distance(intersectionPoint1, startPoint))) {
+      // Guaranteed by the function which produces the intersection points
+      throw std::runtime_error("Expecting intersectionPoint1 to be closer to the start point");
+    }
+    // Determine direction which we're rotating around the vertex
+    double crossProductResult = math::crossProductForSign(vertex, intersectionPoint2, vertex, intersectionPoint1);
+    AngleDirection direction;
+    if (crossProductResult > 0) {
+      direction = AngleDirection::kClockwise;
+    } else if (crossProductResult < 0) {
+      direction = AngleDirection::kCounterclockwise;
+    } else {
+      // Cross product of 0 would either mean that this isnt a valid triangle or that the agentRadius_ is 0
+      throw std::runtime_error("Invalid cross-product result");
+    }
+
+    const auto segmentToCircle = math::createCircleConsciousLine(startPoint, AngleDirection::kNoDirection, vertex, direction, agentRadius_);
+    const auto segmentFromCircle = math::createCircleConsciousLine(vertex, direction, goalPoint, AngleDirection::kNoDirection, agentRadius_);
+
+    // Straight segment from start point to circle, arc around circle, straight segment from circle to goal
+    shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(segmentToCircle.first, segmentToCircle.second)));
+
+    shortestPath.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(vertex, agentRadius_, direction)));
+    ArcPathSegment *arc = reinterpret_cast<ArcPathSegment*>(shortestPath.back().get());
+    arc->startAngle = math::angle(vertex, segmentToCircle.second);
+    arc->endAngle = math::angle(vertex, segmentFromCircle.first);
+
+    shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(segmentFromCircle.first, segmentFromCircle.second)));
+  };
+  const auto &[vertexA, vertexB, vertexC] = navmesh_.getTriangleVertices(triangleIndex);
+  // Check if the straight path from start to goal would intersect with the circle of any of the triangle vertices
+  Vector intersectionPoint1, intersectionPoint2;
+  if (math::lineSegmentIntersectsWithCircle(startPoint, goalPoint, vertexA, agentRadius_, &intersectionPoint1, &intersectionPoint2) == 2) {
+    buildPathAvoidingVertex(intersectionPoint1, intersectionPoint2, vertexA);
+  } else if (math::lineSegmentIntersectsWithCircle(startPoint, goalPoint, vertexB, agentRadius_, &intersectionPoint1, &intersectionPoint2) == 2) {
+    buildPathAvoidingVertex(intersectionPoint1, intersectionPoint2, vertexB);
+  } else if (math::lineSegmentIntersectsWithCircle(startPoint, goalPoint, vertexC, agentRadius_, &intersectionPoint1, &intersectionPoint2) == 2) {
+    buildPathAvoidingVertex(intersectionPoint1, intersectionPoint2, vertexC);
+  } else {
+    // No intersections or only single intersection points, a straight segment will do
+    // We know that if there is a single intersection that one of the points of the line must be exactly on the circumference of the circle around some constraint and the other point is outside of the circle
+    shortestPath.emplace_back(std::unique_ptr<StraightPathSegment>(new StraightPathSegment(startPoint, goalPoint)));
+  }
+}
+
 /* ========================================================================== **
 ** ============================= Free functions ============================= **
 ** ========================================================================== */
@@ -503,7 +544,7 @@ double calculatePathLength(const std::vector<std::unique_ptr<PathSegment>> &path
       if (i != path.size()-1) {
         // If the last segment is an arc, i think its probably an unfinished path and we shouldnt add this segment
         double angle = math::arcAngle(arcSegment->startAngle, arcSegment->endAngle, arcSegment->angleDirection);
-        totalDistance += arcSegment->circleRadius * abs(angle);
+        totalDistance += arcSegment->circleRadius * std::abs(angle);
         // std::cout << "+arc (angle start:" << arcSegment->startAngle << ", angle end: " << arcSegment->endAngle << ", angle: " << angle << ", radius:" << arcSegment->circleRadius << ") [" << totalDistance << "], "; //DEBUGPRINTS
       }
     }

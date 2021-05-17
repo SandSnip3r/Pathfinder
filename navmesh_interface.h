@@ -3,6 +3,7 @@
 
 #include "vector.h"
 
+#include <cstddef>
 #include <tuple>
 #include <utility>
 
@@ -47,7 +48,7 @@ public:
    *
    * @return The number of vertices in the navmesh
    */
-  virtual size_t getVertexCount() const = 0;
+  virtual std::size_t getVertexCount() const = 0;
 
   /**
    * Returns a vertex of a triangle.
@@ -70,7 +71,7 @@ public:
    *
    * @return The number of edges in the navmesh
    */
-  virtual size_t getEdgeCount() const = 0;
+  virtual std::size_t getEdgeCount() const = 0;
 
   /**
    * Returns an edge in the navmesh.
@@ -101,7 +102,7 @@ public:
    *
    * @return The number of triangles in the navmesh
    */
-  virtual size_t getTriangleCount() const = 0;
+  virtual std::size_t getTriangleCount() const = 0;
 
   /**
    * Returns the indices of the vertices of a triangle.
@@ -117,7 +118,7 @@ public:
    * @param triangleIndex The triangle index
    * @return A tuple of vertices for the given triangle
    */
-  virtual const TriangleVerticesType& getTriangleVertices(const int triangleIndex) const = 0;
+  virtual TriangleVerticesType getTriangleVertices(const int triangleIndex) const = 0;
 
   /**
    * Returns the indices of the edges of a triangle.
@@ -125,7 +126,7 @@ public:
    * @param triangleIndex The triangle index
    * @return A tuple of indices of the edges for the given triangle
    */
-  virtual const TriangleEdgeIndicesType& getTriangleEdgeIndices(const int triangleIndex) const = 0;
+  virtual TriangleEdgeIndicesType getTriangleEdgeIndices(const int triangleIndex) const = 0;
 
   /**
    * Returns indices of the neighboring triangles for the given triangle along with the indices of the edge shared between the given triangle and the neighbor.

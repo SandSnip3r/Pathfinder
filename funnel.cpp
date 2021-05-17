@@ -39,10 +39,6 @@ void BaseFunnel::finishFunnelWithGoal(const Vector &goalPoint) {
       // The goal is already the apex
       // std::cout << "Goal is the apex. Funnel : "; //DEBUGPRINTS
       // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
-      if (agentRadius_ > 0.0) {
-        // TODO: Thoroughly analyze
-        throw std::runtime_error("Goal is the apex, probably shouldnt be possible");
-      }
       // The funnel is done at this point. We dont even call finishFunnel()
       return;
     }
@@ -93,7 +89,9 @@ void BaseFunnel::initializeForFunnelAlgorithm(const int corridorSize, const Vect
 }
 
 void BaseFunnel::extendByOneEdge(const std::pair<Vector,Vector> &edge) {
-  // std::cout << "  Trying to extend funnel by edge {" << DebugLogger::instance().pointToString(edge.first) << ',' << DebugLogger::instance().pointToString(edge.second) << '}' << std::endl; //DEBUGPRINTS
+  // std::cout << "  Trying to extend funnel: "; //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
+  // std::cout << "    by edge {" << DebugLogger::instance().pointToString(edge.first) << ',' << DebugLogger::instance().pointToString(edge.second) << '}' << std::endl; //DEBUGPRINTS
   const auto &[vertexA, vertexB] = edge;
   if (vertexA == funnel_.back()) {
     addLeft(vertexB);
@@ -112,7 +110,7 @@ void BaseFunnel::funnelForCorridor(const std::vector<std::pair<Vector,Vector>> &
   // First and second point are the two ends of the first edge
   Vector left, right;
   std::tie(left,right) = corridor.front();
-  const bool areCorrectOrder = (math::crossProduct(startPoint, right, startPoint, left) > 0);
+  const bool areCorrectOrder = (math::crossProductForSign(startPoint, right, startPoint, left) > 0);
   if (!areCorrectOrder) {
     // incorrect order (left is actually right), swap
     std::swap(left, right);
@@ -207,11 +205,17 @@ void PathFunnel::addSegment(const Apex &previousApex, const std::pair<Vector,Vec
     }
     arc->endAngle = math::angle(previousApex.apexPoint, edge.first);
     // std::cout << "    ~Finishing arc (angle: " << arc->endAngle << ")" << std::endl; //DEBUGPRINTS
+  } else if (agentRadius_ > 0.0) {
+    // std::cout << "    ~No previous arc" << std::endl; //DEBUGPRINTS
   }
 
   // Second, add a straight segment between the apexes
-  // std::cout << "    ~Adding straight segment from " << DebugLogger::instance().pointToString(edge.first) << " to " << DebugLogger::instance().pointToString(edge.second) << std::endl; //DEBUGPRINTS
-  path_.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(edge.first, edge.second)));
+  const auto segmentLength = math::distance(edge.first, edge.second);
+  // Ignore segments with length 0
+  if (!math::equal(segmentLength, 0)) {
+    // std::cout << "    ~Adding straight segment (length = " << segmentLength << ") from " << DebugLogger::instance().pointToString(edge.first) << " to " << DebugLogger::instance().pointToString(edge.second) << std::endl; //DEBUGPRINTS
+    path_.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(edge.first, edge.second)));
+  }
 
   if (newApex.apexType != AngleDirection::kNoDirection && agentRadius_ > 0.0) {
     // Finally, since this isn't the end, start a new arc
@@ -223,6 +227,7 @@ void PathFunnel::addSegment(const Apex &previousApex, const std::pair<Vector,Vec
     }
     arc->startAngle = math::angle(newApex.apexPoint, edge.second);
     // std::cout << "    ~Not the end, adding the start of another arc (angle: " << arc->startAngle << ")" << std::endl; //DEBUGPRINTS
+    // std::cout << "    ~Based on edge.second: " << edge.second.x() << ',' << edge.second.y() << std::endl; //DEBUGPRINTS
   }
 }
 
@@ -275,7 +280,7 @@ void LengthFunnel::addSegment(const Apex &previousApex, const std::pair<Vector,V
     const auto currentAngle = math::angle(previousApex.apexPoint, edge.first);
     double angle = math::arcAngle(*previousAngle_, currentAngle, previousApex.apexType);
     // std::cout << "    ~Adding arc length (angle: " << angle << ", length:" << agentRadius_ * abs(angle) << ")" << std::endl; //DEBUGPRINTS
-    length_ += agentRadius_ * abs(angle);
+    length_ += agentRadius_ * std::abs(angle);
 
     // Throw away stored angle
     previousAngle_.reset();
@@ -326,14 +331,20 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
   Vector edgeStart = lastEdgeOfCorridor.first;
   Vector edgeEnd = lastEdgeOfCorridor.second;
 
+  if (edgeStart == funnel_.apex_point() || edgeEnd == funnel_.apex_point()) {
+    // Apex is currently on the goal edge
+    // std::cout << "Apex is currently on the goal edge" << std::endl; //DEBUGPRINTS
+    return funnel_.apex_point();
+  }
+
   if (funnel_.size() < 2) {
     throw std::runtime_error("Funnel too small to find a goal");
   }
-  if (edgeStart == funnel_.at(0) && edgeEnd == funnel_.at(funnel_.size()-1)) {
-  } else if (edgeEnd == funnel_.at(0) && edgeStart == funnel_.at(funnel_.size()-1)) {
+  if (edgeEnd == funnel_.at(0) && edgeStart == funnel_.at(funnel_.size()-1)) {
     // Opposite orientation that we are expecting, flip it
+    // Expect funnel.at(0) (left) to be the start of the edge and funnel.at(size-1) to be the end of the edge
     std::swap(edgeStart, edgeEnd);
-  } else {
+  } else if (edgeStart != funnel_.at(0) || edgeEnd != funnel_.at(funnel_.size()-1)) {
     throw std::runtime_error("Ends of the funnel are not the target edge!");
   }
 
@@ -360,7 +371,6 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
     }
 
     // We know that the first and last point of the funnel are the start and end of the final edge, no point in checking
-    // First, move the start over so that it isnt touching any of the left vertices
     for (int tmpFunnelIndex=1; tmpFunnelIndex<funnel_.apex_index(); ++tmpFunnelIndex) {
       const Vector &tmpFunnelPoint = funnel_.at(tmpFunnelIndex);
       Vector intersectionPoint1, intersectionPoint2;
@@ -429,6 +439,17 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
           }
         }
       }
+    }
+  }
+
+  if (funnel_.size() == 3) {
+    // Funnel is just a triangle that ends in the goal edge. We can take a straight path to the goal segment
+    if (math::distance(edgeStart, funnel_.apex_point()) < math::distance(edgeEnd, funnel_.apex_point())) {
+      // Start of the edge is closer to the apex
+      return edgeStart;
+    } else {
+      // End of the edge is closer to the apex
+      return edgeEnd;
     }
   }
 

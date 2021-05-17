@@ -70,7 +70,9 @@ enable_testing()
 add_executable(
   pathfinder_test
   test/math.cpp
+  test/pathfinding.cpp
 )
+
 target_link_libraries(
   pathfinder_test
   ${PROJECT_NAME}
@@ -78,4 +80,5 @@ target_link_libraries(
 )
 
 include(GoogleTest)
-gtest_discover_tests(pathfinder_test)
+gtest_discover_tests(pathfinder_test
+WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

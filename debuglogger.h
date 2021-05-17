@@ -1,7 +1,6 @@
-#ifndef DEBUGLOGGER_H
-#define DEBUGLOGGER_H
+#ifndef PATHFINDER_DEBUGLOGGER_H_
+#define PATHFINDER_DEBUGLOGGER_H_
 
-#include "funnel.h"
 #include "vector.h"
 
 #include <functional>
@@ -9,6 +8,9 @@
 #include <string>
 
 namespace pathfinder {
+
+struct Apex;
+class Funnel;
 
 class DebugLogger {
 public:
@@ -34,4 +36,4 @@ private:
 
 } // namespace pathfinder
 
-#endif // DEBUGLOGGER_H
+#endif // PATHFINDER_DEBUGLOGGER_H_

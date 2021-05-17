@@ -173,13 +173,13 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
   for (int voronoiEdgeIndex=0; voronoiEdgeIndex<triangleVoronoiData.numberofedges; ++voronoiEdgeIndex) {
     const int triangleIndex1 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2];
     const int triangleIndex2 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2+1];
-    if (triangleIndex1 > 0) {
+    if (triangleIndex1 >= 0) {
       if (triangleIndex1 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
       }
       addNeighborAcrossEdge(triangleNeighborsAcrossEdgesIndices_[triangleIndex1], triangleIndex2, voronoiEdgeIndex);
     }
-    if (triangleIndex2 > 0) {
+    if (triangleIndex2 >= 0) {
       if (triangleIndex2 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
       }
@@ -243,7 +243,7 @@ const TriangleVertexIndicesType& TriangleLibNavmesh::getTriangleVertexIndices(co
   return triangleVertexIndices_[triangleIndex];
 }
 
-const TriangleVerticesType& TriangleLibNavmesh::getTriangleVertices(const int triangleIndex) const {
+TriangleVerticesType TriangleLibNavmesh::getTriangleVertices(const int triangleIndex) const {
   if (triangleIndex < 0 || triangleIndex >= triangleVertexIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
@@ -251,7 +251,7 @@ const TriangleVerticesType& TriangleLibNavmesh::getTriangleVertices(const int tr
   return {vertices_[std::get<0>(vertexIndices)], vertices_[std::get<1>(vertexIndices)], vertices_[std::get<2>(vertexIndices)]};
 }
 
-const TriangleEdgeIndicesType& TriangleLibNavmesh::getTriangleEdgeIndices(const int triangleIndex) const {
+TriangleEdgeIndicesType TriangleLibNavmesh::getTriangleEdgeIndices(const int triangleIndex) const {
   if (triangleIndex < 0 || triangleIndex >= triangleVertexIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
@@ -421,7 +421,7 @@ std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, 
 
     // `vertexC` is the common vertex between the entry and exit edge of this triangle
 
-    if (math::crossProduct(*vertexC, *vertexA, *vertexC, *vertexB) < 0.0) {
+    if (math::crossProductForSign(*vertexC, *vertexA, *vertexC, *vertexB) < 0.0) {
       // We want A to be to the right of B
       std::swap(vertexA, vertexB);
       std::swap(vertexAIndex, vertexBIndex);
@@ -444,8 +444,8 @@ std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, 
       for (const auto &edgeIndex : {edge1Index, edge2Index, edge3Index}) {
         if (edgeIndex >= 0) {
           const auto [edge1Vertex1Index, edge1Vertex2Index] = getEdgeVertexIndices(edgeIndex);
-          if (edge1Vertex1Index == vertexBIndex && edge1Vertex2Index == vertexAIndex ||
-              edge1Vertex1Index == vertexAIndex && edge1Vertex2Index == vertexBIndex) {
+          if ((edge1Vertex1Index == vertexBIndex && edge1Vertex2Index == vertexAIndex) ||
+              (edge1Vertex1Index == vertexAIndex && edge1Vertex2Index == vertexBIndex)) {
             // This is the opposite edge
             if (getEdgeMarker(edgeIndex) != 0) {
               oppositeEdgeIsConstrained = true;
