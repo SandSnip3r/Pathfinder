@@ -51,6 +51,7 @@ Please see the [Wiki](https://github.com/SandSnip3r/Pathfinder/wiki) for details
   - This will result in potentially weird and/or invalid paths
 - The check to see if the agent can fit through a corridor is weak
   - This can result in paths that an agent cannot actually fit through
+- The pathfinding algorithm is not perfect. The algorithm calculates the g-value of a triangle as the shortest distance in order to reach that triangle. This doesnt always work, especially when the goal is on the other side of the triangle. By that, I mean that it might make sense to take one path to reach the closest point of a triangle, but it might be better to take a completely different path to get to the goal within that triangle. I'm actually not yet sure how to overcome this.
 
 ## Future Work
 
@@ -60,6 +61,10 @@ Please see the [Wiki](https://github.com/SandSnip3r/Pathfinder/wiki) for details
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on the process for submitting pull requests to us.
+
+## Reporting Bugs
+
+If you find a bug, please open an issue or get in contact with me. I would also likely need your input triangulation as well as start & goal points. I'll solve it as quickly as I can.
 
 ## Authors
 
