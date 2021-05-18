@@ -31,7 +31,8 @@ Vector BaseFunnel::finishFunnelAndFindClosestGoalOnEdge(const std::pair<Vector,V
 }
 
 void BaseFunnel::finishFunnelWithGoal(const Vector &goalPoint) {
-  // std::cout << "Adding goal (" << DebugLogger::instance().pointToString(goalPoint) << ") to funnel" << std::endl; //DEBUGPRINTS
+  // std::cout << "Adding goal (" << DebugLogger::instance().pointToString(goalPoint) << ") to funnel: "; //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
 
   if (funnel_.point_in_funnel(goalPoint)) {
     // std::cout << "Goal already in funnel" << std::endl; //DEBUGPRINTS
@@ -205,8 +206,6 @@ void PathFunnel::addSegment(const Apex &previousApex, const std::pair<Vector,Vec
     }
     arc->endAngle = math::angle(previousApex.apexPoint, edge.first);
     // std::cout << "    ~Finishing arc (angle: " << arc->endAngle << ")" << std::endl; //DEBUGPRINTS
-  } else if (agentRadius_ > 0.0) {
-    // std::cout << "    ~No previous arc" << std::endl; //DEBUGPRINTS
   }
 
   // Second, add a straight segment between the apexes
@@ -555,7 +554,8 @@ void Funnel::push_back(const Vector &point) {
 }
 
 bool Funnel::point_in_funnel(const Vector &point) const {
-  return std::find(funnel_.begin()+leftIndex_, (funnel_.begin()+leftIndex_+size()), point) != (funnel_.begin()+leftIndex_+size());
+  const auto endIt = funnel_.begin() + leftIndex_ + size();
+  return std::find(funnel_.begin()+leftIndex_, endIt, point) != endIt;
 }
 
 Apex Funnel::funnel_apex() const {

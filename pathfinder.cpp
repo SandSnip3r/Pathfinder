@@ -66,7 +66,6 @@ PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const V
 }
 
 bool Pathfinder::pathCanExist(int startTriangle, int goalTriangle) const {
-  std::cout << "Trying to find out of goalTriangle " << goalTriangle << " is reachble from startTriangle " << startTriangle << std::endl;
   // Use breadth-first search to try to quickly find if a path exists between these two triangles
 
   std::set<int> visitedTriangles;
@@ -410,7 +409,7 @@ PathfindingAStarInfo Pathfinder::triangleAStar(const Vector &startPoint, int sta
           const double newHValue = math::distance(pointUsedForGValue, goalPoint);
           const double hValueOfSuccessor = kHeuristicScaleFactor * std::min(oldHValue, newHValue);
           const double fValueOfSuccessor = gValueOfSuccessor + hValueOfSuccessor;
-          // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.entryEdge, gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
+          // printf("    A* g(x) of successor across edge %d is %.9f. Resulting heuristic: %.9f (old: %.9f, new: %.9f), and fScore: %.9f\n", successor.getEntryEdgeIndex(), gValueOfSuccessor, hValueOfSuccessor, oldHValue, newHValue, fValueOfSuccessor); //DEBUGPRINTS
           if (math::lessThan(fValueOfSuccessor, fScores.at(successor))) {
 
             if (fScores.at(successor) != std::numeric_limits<double>::max()) {
@@ -502,12 +501,12 @@ void Pathfinder::buildShortestPathWithinSingleTriangle(const int triangleIndex, 
 
     // Straight segment from start point to circle, arc around circle, straight segment from circle to goal
     shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(segmentToCircle.first, segmentToCircle.second)));
-
     shortestPath.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(vertex, agentRadius_, direction)));
+
     ArcPathSegment *arc = reinterpret_cast<ArcPathSegment*>(shortestPath.back().get());
     arc->startAngle = math::angle(vertex, segmentToCircle.second);
     arc->endAngle = math::angle(vertex, segmentFromCircle.first);
-
+    
     shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(segmentFromCircle.first, segmentFromCircle.second)));
   };
   const auto &[vertexA, vertexB, vertexC] = navmesh_.getTriangleVertices(triangleIndex);

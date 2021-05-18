@@ -43,7 +43,7 @@ bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const
 }
 
 bool lessThan(const double d1, const double d2, const double tolerance) {
-  return (d2-d1 > tolerance);
+  return (d2-d1 >= tolerance);
 }
 
 bool equal(const double d1, const double d2, const double tolerance) {
@@ -215,7 +215,7 @@ std::pair<Vector, Vector> intersectionsPointsOfTangentLinesToCircle(const Vector
 }
 
 double angle(const Vector &point1, const AngleDirection point1Direction, const Vector &point2, const AngleDirection point2Direction, const double circleRadius) {
-  if (equal(distance(point1, point2), 0)) {
+  if (equal(distance(point1, point2), 0.0)) {
     throw std::runtime_error("Cannot find the angle betweeen a point and itself");
   }
   double angleBetweenPoints = math::angle(point1, point2);
