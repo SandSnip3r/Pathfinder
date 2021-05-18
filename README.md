@@ -1,6 +1,6 @@
 # Pathfinder
 
-Pathfinder is a C++17 library for finding the shortest path (for a circular agent with a specified radius) between two points in a 2d world. The 2d world is given as vertices and line segments representing the constraints of the environment (e.g. walls). This library uses [Jonathan Shewchuk's amazing Triangle library](https://www.cs.cmu.edu/~quake/triangle.html) in order to create a Constrained Delaunay Triangulation of the given world. Once the triangulation (navmesh) is created, an A*-based search algorithm is run to either find a very good path quickly or a globally optimal path at the cost of more CPU time. Most of the pathfinding algorithm concepts come from [Douglas Demyen's Efficient Triangulation-Based Pathfinding](https://skatgame.net/mburo/ps/thesis_demyen_2006.pdf).
+Pathfinder is a C++17 library for finding the shortest path (for a circular agent with a specified radius) between two points in a 2d world. The 2d world is given as vertices and line segments representing the constraints of the environment (e.g. walls). This library uses [Jonathan Shewchuk's amazing Triangle library](https://www.cs.cmu.edu/~quake/triangle.html) in order to create a Constrained Delaunay Triangulation of the given world. Once the triangulation (navmesh) is created, an A*-based search algorithm is run to either find a very good path quickly or a globally optimal path at the cost of more CPU time. Most of the pathfinding algorithm concepts come from [Douglas Demyen's Efficient Triangulation-Based Pathfinding](https://skatgame.net/mburo/ps/thesis_demyen_2006.pdf). I've also written [a Qt desktop application](https://github.com/SandSnip3r/Pathfinder-Visualizer) that allows you to play around visual feedback.
 
 <p align="center">
   <img src="./examples/complex_example.png" width="450" title="An example in a complex environment">
@@ -51,7 +51,7 @@ Please see the [Wiki](https://github.com/SandSnip3r/Pathfinder/wiki) for details
   - This will result in potentially weird and/or invalid paths
 - The check to see if the agent can fit through a corridor is weak
   - This can result in paths that an agent cannot actually fit through
-- The pathfinding algorithm is not perfect. The algorithm calculates the g-value of a triangle as the shortest distance in order to reach that triangle. This doesnt always work, especially when the goal is on the other side of the triangle. By that, I mean that it might make sense to take one path to reach the closest point of a triangle, but it might be better to take a completely different path to get to the goal within that triangle. I'm actually not yet sure how to overcome this.
+- The pathfinding algorithm is not perfect. The algorithm calculates the g-value of a triangle as the shortest distance in order to reach that triangle. This doesnt always work, especially when the goal is on the other side of the triangle. By that, I mean that it might make sense to take one path to reach the closest point of a triangle, but it might be better to take a completely different path to get to the goal within that triangle. I'm actually not yet sure how to overcome this. Perhaps moving to the Polyanya algorithm would be a good decision.
 
 ## Future Work
 
