@@ -30,7 +30,9 @@ BehaviorBuilder::BehaviorBuilder() {
   
   // TODO: Figure out what weighted means
   behavior_.weighted = 0;
-  // TODO: Figure out what jettison means
+
+  // Jettisons vertices that are not part of the final triangulation from the output .node file (including duplicate input vertices and vertices ``eaten'' by holes).
+  // jettison == yeet
   behavior_.jettison = 0;
 
   // 0-based indexing

@@ -394,25 +394,21 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
     {
       if (funnel_.apex_type() != AngleDirection::kNoDirection) {
         // If the apex type is "kNoDirection" then that means its the start point of the algorithm and we dont care about it intersecting with the goal edge
-        const Vector &apexPoint = funnel_.at(funnel_.apex_index());
-        const auto distanceToPoint = math::distance(apexPoint, edgeEnd);
-        if (math::lessThan(distanceToPoint, agentRadius_)) {
-          Vector intersectionPoint1, intersectionPoint2;
-          const int intersectionCount = math::lineSegmentIntersectsWithCircle(edgeStart, edgeEnd, apexPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
-          if (intersectionCount > 0) {
-            // Depending on the direction of rotation around this apex, either throw away the left or the right of the goal edge
-            // If clockwise, throw away right (move end)
-            Vector &pointToChange = (funnel_.apex_type() == AngleDirection::kClockwise ? edgeEnd : edgeStart);
-            // Intersects with a point of another vertex, need to move it further
-            if (intersectionCount == 1) {
-              pointToChange = intersectionPoint1;
+        Vector intersectionPoint1, intersectionPoint2;
+        const int intersectionCount = math::lineSegmentIntersectsWithCircle(edgeStart, edgeEnd, funnel_.apex_point(), agentRadius_, &intersectionPoint1, &intersectionPoint2);
+        if (intersectionCount > 0) {
+          // Depending on the direction of rotation around this apex, either throw away the left or the right of the goal edge
+          // If clockwise, throw away right (move end)
+          Vector &pointToChange = (funnel_.apex_type() == AngleDirection::kClockwise ? edgeEnd : edgeStart);
+          // Intersects with a point of another vertex, need to move it further
+          if (intersectionCount == 1) {
+            pointToChange = intersectionPoint1;
+          } else {
+            // Must be 2 intersections, choose the one even further from the end
+            if (math::lessThan(math::distance(intersectionPoint1, pointToChange), math::distance(intersectionPoint2, pointToChange))) {
+              edgeEnd = intersectionPoint2;
             } else {
-              // Must be 2 intersections, choose the one even further from the end
-              if (math::lessThan(math::distance(intersectionPoint1, pointToChange), math::distance(intersectionPoint2, pointToChange))) {
-                edgeEnd = intersectionPoint2;
-              } else {
-                edgeEnd = intersectionPoint1;
-              }
+              edgeEnd = intersectionPoint1;
             }
           }
         }
@@ -440,6 +436,8 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
       }
     }
   }
+
+  // std::cout << "  Trimmed edge to " << DebugLogger::instance().pointToString(edgeStart) << " -> " << DebugLogger::instance().pointToString(edgeEnd) << std::endl; //DEBUGPRINTS
 
   if (funnel_.size() == 3) {
     // Funnel is just a triangle that ends in the goal edge. We can take a straight path to the goal segment
