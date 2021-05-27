@@ -33,16 +33,12 @@ struct PathfindingResult {
 
 class Pathfinder {
 public:
-  Pathfinder(const navmesh::AStarNavmeshInterface &navmesh);
+  Pathfinder(const navmesh::AStarNavmeshInterface &navmesh, const double agentRadius);
   PathfindingResult findShortestPath(const Vector &startPoint, const Vector &goalPoint) const;
-  void setCharacterRadius(double value);
 private:
-  double agentRadius_{0.0};
   const navmesh::AStarNavmeshInterface &navmesh_;
+  const double agentRadius_;
   
-  // Pre-computed data from triangle data
-  std::vector<std::array<int,3>> triangleEdges_;
-
   mutable std::map<navmesh::State, LengthFunnel> lengthFunnelCache_; // TODO: Dont use mutable
 
   // Checks if the given point collides with any of the constraint vertices of the triangle

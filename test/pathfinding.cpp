@@ -84,8 +84,7 @@ TEST_F(StartTouchingVertexTest, StartTopGoingLeft) {
   const pathfinder::Vector goalPoint{400.0, 750.0-kAgentRadius_};
 
   ASSERT_NE(navmesh_, nullptr);
-  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_));
-  pathfinder.setCharacterRadius(kAgentRadius_);
+  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_), kAgentRadius_);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);  
@@ -97,8 +96,7 @@ TEST_F(StartTouchingVertexTest, StartTopGoingRight) {
   const pathfinder::Vector goalPoint{600.0, 750.0-kAgentRadius_};
 
   ASSERT_NE(navmesh_, nullptr);
-  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_));
-  pathfinder.setCharacterRadius(kAgentRadius_);
+  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_), kAgentRadius_);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);  
@@ -110,8 +108,7 @@ TEST_F(StartTouchingVertexTest, StartBottomGoingLeft) {
   const pathfinder::Vector goalPoint{400.0, 250.0+kAgentRadius_};
 
   ASSERT_NE(navmesh_, nullptr);
-  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_));
-  pathfinder.setCharacterRadius(kAgentRadius_);
+  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_), kAgentRadius_);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);  
@@ -123,8 +120,7 @@ TEST_F(StartTouchingVertexTest, StartBottomGoingRight) {
   const pathfinder::Vector goalPoint{600.0, 250.0+kAgentRadius_};
 
   ASSERT_NE(navmesh_, nullptr);
-  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_));
-  pathfinder.setCharacterRadius(kAgentRadius_);
+  pathfinder::Pathfinder pathfinder(reinterpret_cast<pathfinder::navmesh::AStarNavmeshInterface&>(*navmesh_), kAgentRadius_);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);  

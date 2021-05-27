@@ -16,13 +16,14 @@ std::vector<int> rebuildPath(navmesh::State state, const std::map<navmesh::State
 
 PathSegment::~PathSegment() {}
 
-Pathfinder::Pathfinder(const navmesh::AStarNavmeshInterface &navmesh) : navmesh_(navmesh) {
+Pathfinder::Pathfinder(const navmesh::AStarNavmeshInterface &navmesh, const double agentRadius) : navmesh_(navmesh), agentRadius_(agentRadius) {
   // Initialize debug logger
 
   DebugLogger::instance().setPointToIndexFunction(std::bind(&navmesh::AStarNavmeshInterface::getVertexIndex, std::cref(navmesh_), std::placeholders::_1));
 }
 
 PathfindingResult Pathfinder::findShortestPath(const Vector &startPoint, const Vector &goalPoint) const {
+  lengthFunnelCache_.clear();
   int startTriangle = navmesh_.findTriangleForPoint(startPoint);
   if (collidesWithConstraint(startPoint, startTriangle)) {
     throw std::runtime_error("The chosen start point is overlapping with a constraint. Pathing not possible");
@@ -117,10 +118,6 @@ std::vector<std::pair<Vector,Vector>> Pathfinder::buildCorridor(const std::vecto
     corridorSegments.emplace_back(sharedEdge.first, sharedEdge.second);
   }
   return corridorSegments;
-}
-
-void Pathfinder::setCharacterRadius(double value) {
-  agentRadius_ = value;
 }
 
 bool Pathfinder::collidesWithConstraint(const Vector &point, const int triangleIndex) const {
