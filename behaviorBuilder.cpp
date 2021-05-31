@@ -50,7 +50,7 @@ BehaviorBuilder::BehaviorBuilder() {
   // no holes at the moment
   behavior_.noholes = 0;
   
-  // not particularly concerned with exact arithmetic
+  // allow "exact arithmetic"
   behavior_.noexact = 0;
 
   // dont want a true Delaunay triangulation
