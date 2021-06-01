@@ -41,7 +41,7 @@ protected:
   std::vector<TriangleEdgeIndicesType> triangleEdgeIndices_;
   std::vector<TriangleVertexIndicesType> triangleVertexIndices_;
   // Sorted so that valid references are always first
-  std::vector<TriangleNeighborIndicesType> triangleNieghborIndices_;
+  std::vector<TriangleNeighborIndicesType> triangleNeighborIndices_;
   std::vector<TriangleNeighborsAcrossEdgesIndicesType> triangleNeighborsAcrossEdgesIndices_;
 };
   
