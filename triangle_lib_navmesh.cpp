@@ -70,9 +70,9 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
 
   // Save neighbors of each triangle
   // TODO: Might be unneeded if the below `BEGIN TEST` is useful
-  triangleNieghborIndices_.resize(triangleData.numberoftriangles);
+  triangleNeighborIndices_.resize(triangleData.numberoftriangles);
   // Initialize all neighbors as -1
-  std::for_each(triangleNieghborIndices_.begin(), triangleNieghborIndices_.end(), [](auto &edges) {
+  std::for_each(triangleNeighborIndices_.begin(), triangleNeighborIndices_.end(), [](auto &edges) {
     std::get<0>(edges) = -1;
     std::get<1>(edges) = -1;
     std::get<2>(edges) = -1;
@@ -94,19 +94,19 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
       if (neighborIndex0 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Neighbor references triangle that is out of bounds");
       }
-      addNeighborForTriangle(triangleNieghborIndices_[triangleIndex], neighborIndex0);
+      addNeighborForTriangle(triangleNeighborIndices_[triangleIndex], neighborIndex0);
     }
     if (neighborIndex1 > 0) {
       if (neighborIndex1 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Neighbor references triangle that is out of bounds");
       }
-      addNeighborForTriangle(triangleNieghborIndices_[triangleIndex], neighborIndex1);
+      addNeighborForTriangle(triangleNeighborIndices_[triangleIndex], neighborIndex1);
     }
     if (neighborIndex2 > 0) {
       if (neighborIndex2 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Neighbor references triangle that is out of bounds");
       }
-      addNeighborForTriangle(triangleNieghborIndices_[triangleIndex], neighborIndex2);
+      addNeighborForTriangle(triangleNeighborIndices_[triangleIndex], neighborIndex2);
     }
   }
   
