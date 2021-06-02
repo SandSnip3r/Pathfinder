@@ -54,9 +54,9 @@ double angle(const Vector &point1, const Vector &point2) {
   const double dx = point2.x()-point1.x();
   const double dy = point2.y()-point1.y();
   double angle = std::atan(dy/dx);
-  if (dx < 0) {
+  if (lessThan(dx, 0)) {
     angle += kPi;
-  } else if (dy < 0) {
+  } else if (lessThan(dy, 0)) {
     angle += k2Pi;
   }
   return angle;
@@ -469,7 +469,7 @@ double normalize(double in, double modVal) {
   if (modVal <= 0) {
     throw std::invalid_argument("pathfinder::math::normalize: modVal must be a positive number");
   }
-  if (in < 0 || in >= modVal) {
+  if (lessThan(in, 0) || !lessThan(in, modVal)) {
     return in - modVal*std::floor(in / modVal);
   } else {
     return in;
