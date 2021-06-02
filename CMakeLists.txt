@@ -79,8 +79,6 @@ target_link_libraries(
   gtest_main
 )
 
-configure_file(test/startTouchingVertexTest.poly ${CMAKE_CURRENT_BINARY_DIR})
-
 include(GoogleTest)
 gtest_discover_tests(pathfinder_test
 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
