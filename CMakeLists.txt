@@ -21,7 +21,6 @@ target_sources(Triangle INTERFACE
 
 # Create Pathfinder as a static library
 add_library(${PROJECT_NAME} STATIC
-  a_star_navmesh_interface.cpp
   behaviorBuilder.cpp
   debuglogger.cpp
   funnel.cpp

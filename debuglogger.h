@@ -15,7 +15,7 @@ class Funnel;
 class DebugLogger {
 public:
   static DebugLogger& instance();
-  void setPointToIndexFunction(const std::function<int(const Vector &point)> &func);
+  void setPointToIndexFunction(const std::function<std::optional<uint32_t>(const Vector &point)> &func);
 
   void printFunnel(const Funnel &funnel) const;
   std::string pointToString(const Vector &point) const;
@@ -28,7 +28,7 @@ private:
   bool initialized_{false};
   std::optional<Vector> startPoint_;
   std::optional<Vector> goalPoint_;
-  std::function<int(const Vector &point)> pointToIndexFunction_;
+  std::function<std::optional<uint32_t>(const Vector &point)> pointToIndexFunction_;
 
   DebugLogger();
   std::string apexToString(const Apex &apex) const;

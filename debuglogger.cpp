@@ -16,7 +16,7 @@ DebugLogger::DebugLogger() {
 
 }
 
-void DebugLogger::setPointToIndexFunction(const std::function<int(const Vector &point)> &func) {
+void DebugLogger::setPointToIndexFunction(const std::function<std::optional<uint32_t>(const Vector &point)> &func) {
   pointToIndexFunction_ = func;
   initialized_ = true;
 }
@@ -47,8 +47,12 @@ std::string DebugLogger::pointToString(const Vector &point) const {
     return "[FUNNEL GOAL]";
   } else {
     const auto pointIndex = pointToIndexFunction_(point);
-    if (pointIndex >= 0) {
-      return std::to_string(pointIndex);
+    if (pointIndex) {
+      if constexpr (std::is_same_v<decltype(pointIndex)::value_type, uint32_t>) {
+        return "("+std::to_string((*pointIndex)>>16)+","+std::to_string((*pointIndex)&0xFFFF)+")";
+      } else {
+        return std::to_string(*pointIndex);
+      }
     } else {
       std::string result = "(";
       result += std::to_string(point.x());

@@ -1,7 +1,9 @@
 #include "math_helpers.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 
 namespace pathfinder {
@@ -16,6 +18,12 @@ double distance(const Vector &p1, const Vector &p2) {
   const double dx = p2.x() - p1.x();
   const double dy = p2.y() - p1.y();
   return std::sqrt(dx*dx+dy*dy);
+}
+
+double distanceSquared(const Vector &p1, const Vector &p2) {
+  const double dx = p2.x() - p1.x();
+  const double dy = p2.y() - p1.y();
+  return dx*dx+dy*dy;
 }
 
 double crossProductForSign(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2) {
@@ -34,12 +42,41 @@ double dotProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, co
   return dx1*dx2+dy1*dy2;
 }
 
-bool isPointInTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3) {
+bool isPointOnTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3) {
   bool b1, b2, b3;
   b1 = (math::crossProductForSign(triangleVertex2, point, triangleVertex2, triangleVertex1) < 0.0f);
   b2 = (math::crossProductForSign(triangleVertex3, point, triangleVertex3, triangleVertex2) < 0.0f);
   b3 = (math::crossProductForSign(triangleVertex1, point, triangleVertex1, triangleVertex3) < 0.0f);
   return ((b1 == b2) && (b2 == b3));
+}
+
+bool isPointOnLineSegment(const Vector &point, const Vector &lineStartEndpoint, const Vector &lineEndEndpoint, const double tolerance) {
+#if true
+
+  // Sum of distance to the two endpoints is equal to the length of the line segment
+  return (equal(distance(lineStartEndpoint, lineEndEndpoint),
+                distance(lineStartEndpoint, point) + distance(point, lineEndEndpoint),
+                tolerance));
+
+#else
+
+  const double dxToPoint = point.x() - lineStartEndpoint.x();
+  const double dyToPoint = point.y() - lineStartEndpoint.y();
+  const auto distanceToLineEndEndpoint = distanceSquared(lineStartEndpoint, lineEndEndpoint);
+  if (equal(distanceToLineEndEndpoint, 0.0, 1e-10)) {
+    return true;
+  }
+  const auto distanceToPoint = distanceSquared(lineStartEndpoint, point);
+  if (equal(distanceToPoint, 0.0, 1e-10)) {
+    return true;
+  }
+  const double ratio = std::sqrt(distanceToLineEndEndpoint / distanceToPoint);
+  if (lessThan(ratio, 1.0)) {
+    return false;
+  }
+  return equal(lineEndEndpoint, {lineStartEndpoint.x() + ratio * dxToPoint, lineStartEndpoint.y() + ratio * dyToPoint}, 1e-10);
+
+#endif
 }
 
 bool lessThan(const double d1, const double d2, const double tolerance) {
@@ -48,6 +85,10 @@ bool lessThan(const double d1, const double d2, const double tolerance) {
 
 bool equal(const double d1, const double d2, const double tolerance) {
   return std::abs(d2-d1) < tolerance;
+}
+
+bool equal(const Vector &v1, const Vector &v2, const double tolerance) {
+  return equal(v1.x(), v2.x(), tolerance) && equal(v1.y(), v2.y(), tolerance);
 }
 
 double angle(const Vector &point1, const Vector &point2) {
@@ -215,7 +256,7 @@ std::pair<Vector, Vector> intersectionsPointsOfTangentLinesToCircle(const Vector
 }
 
 double angle(const Vector &point1, const AngleDirection point1Direction, const Vector &point2, const AngleDirection point2Direction, const double circleRadius) {
-  if (equal(distance(point1, point2), 0.0)) {
+  if (equal(point1, point2)) {
     throw std::runtime_error("Cannot find the angle betweeen a point and itself");
   }
   double angleBetweenPoints = math::angle(point1, point2);
@@ -259,8 +300,17 @@ double angle(const Vector &point1, const AngleDirection point1Direction, const V
   return normalize(angleBetweenPoints, k2Pi);
 }
 
+Vector extendLineSegmentToLength(const Vector &point1, const Vector &point2, const double targetLength) {
+  const auto dx = point2.x()-point1.x();
+  const auto dy = point2.y()-point1.y();
+  const auto currentLength = sqrt(dx*dx+dy*dy);
+  const auto ratio = targetLength / currentLength;
+  return {point1.x() + dx*ratio, point1.y() + dy*ratio};
+}
+
 std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const AngleDirection &point1Direction, const Vector &point2, const AngleDirection &point2Direction, const double circleRadius) {
-  if (equal(circleRadius, 0.0, 0.001)) {
+  constexpr const double kReducedPrecision{1e-3};
+  if (math::equal(circleRadius, 0.0)) {
     return {point1, point2};
   }
   Vector lineStart, lineEnd;
@@ -270,18 +320,24 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
   } else {
     // point1 is a circle
     // Does point2 lie within the first circle?
-    const auto distanceBetweenPoints = math::distance(point1, point2);
-    if (math::lessThan(distanceBetweenPoints, circleRadius)) {
-      if (point2Direction != AngleDirection::kNoDirection) {
-        // Both are circles, this is ok
-      } else {
+    if (point2Direction != AngleDirection::kNoDirection) {
+      // Both are circles, no potential issues
+    } else {
+      const auto distanceBetweenPoints = math::distance(point1, point2);
+      if (math::equal(distanceBetweenPoints, circleRadius, kReducedPrecision)) {
+        // point2 on the circumference of point1's circle
+        // the line is really not a line
+        if (math::equal(distanceBetweenPoints, circleRadius)) {
+          return {point2, point2};
+        } else {
+          // There's a bit of a precision issue, lets use the point where this point would be on the circle's circumference
+          const auto fixedPoint = extendLineSegmentToLength(point1, point2, circleRadius);
+          return {fixedPoint, fixedPoint};
+        }
+      } else if (math::lessThan(distanceBetweenPoints, circleRadius)) {
         // TODO: point2 is inside point1's circle. Handle
         throw std::runtime_error("createCircleConsciousLine: point2 is inside point1's circle");
       }
-    } else if (math::equal(distanceBetweenPoints, circleRadius)) {
-      // point2 on the circumference of point1's circle
-      // the line is really not a line
-      return {point2, point2};
     }
   }
   if (point2Direction == AngleDirection::kNoDirection) {
@@ -289,18 +345,24 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
   } else {
     // point2 is a circle
     // Does point1 lie within the first circle?
-    const auto distanceBetweenPoints = math::distance(point1, point2);
-    if (math::lessThan(distanceBetweenPoints, circleRadius)) {
-      if (point1Direction != AngleDirection::kNoDirection) {
-        // Both are circles, this is ok
-      } else {
+    if (point1Direction != AngleDirection::kNoDirection) {
+      // Both are circles, no potential issues
+    } else {
+      const auto distanceBetweenPoints = math::distance(point1, point2);
+      if (math::equal(distanceBetweenPoints, circleRadius, kReducedPrecision)) {
+        // point1 on the circumference of point2's circle
+        // the line is really not a line
+        if (math::equal(distanceBetweenPoints, circleRadius)) {
+          return {point1, point1};
+        } else {
+          // There's a bit of a precision issue, lets use the point where this point would be on the circle's circumference
+          const auto fixedPoint = extendLineSegmentToLength(point2, point1, circleRadius);
+          return {fixedPoint, fixedPoint};
+        }
+      } else if (math::lessThan(distanceBetweenPoints, circleRadius)) {
         // TODO: point1 is inside point2's circle. Handle
         throw std::runtime_error("createCircleConsciousLine: point1 is inside point2's circle");
       }
-    } else if (math::equal(distanceBetweenPoints, circleRadius)) {
-      // point1 on the circumference of point2's circle
-      // the line is really not a line
-      return {point1, point1};
     }
   }
 
@@ -443,9 +505,16 @@ int lineSegmentIntersectsWithCircle(Vector lineSegmentStartPoint, Vector lineSeg
   // return false;
 }
 
-std::pair<Vector, Vector> createVectorTangentToPointOnCircle(const Vector &circleCenter, const double circleRadius, const Vector &pointOnCircleCircumference) {
-  if (!equal(distance(circleCenter, pointOnCircleCircumference), circleRadius)) {
-    throw std::runtime_error("createVectorTangentToPointOnCircle: Point is not on circumference of circle");
+std::pair<Vector, Vector> createVectorTangentToPointOnCircle(const Vector &circleCenter, const double circleRadius, Vector pointOnCircleCircumference) {
+  const double kReducedPrecision{1e-3};
+  const auto distanceToPoint = distance(circleCenter, pointOnCircleCircumference);
+  if (!equal(distanceToPoint, circleRadius)) {
+    if (equal(distanceToPoint, circleRadius, kReducedPrecision)) {
+      // Slight precision issue, move point to where it needs to be
+      pointOnCircleCircumference = math::extendLineSegmentToLength(circleCenter, pointOnCircleCircumference, circleRadius);
+    } else {
+      throw std::runtime_error("createVectorTangentToPointOnCircle: Point is not on circumference of circle");
+    }
   }
   if (equal(circleCenter.y(), pointOnCircleCircumference.y())) {
     // Point is on the exact left or right of circle. We know this is a vertical line
@@ -474,6 +543,191 @@ double normalize(double in, double modVal) {
   } else {
     return in;
   }
+}
+
+IntersectionResult intersect(Vector line1V1, Vector line1V2, Vector line2V1, Vector line2V2, Vector *intersectionPoint) {
+  const auto setIntersectionPoint = [&intersectionPoint](const Vector &point) {
+    if (intersectionPoint != nullptr) {
+      *intersectionPoint = point;
+    }
+  };
+
+  const auto lessThan = [](const auto &p1, const auto &p2) {
+    if (p1.x() == p2.x()) {
+      return p1.y() < p2.y();
+    } else {
+      return p1.x() < p2.x();
+    }
+  };
+
+  // Do a quick check for 0-length lines
+  const bool line1IsZeroLength = (line1V1 == line1V2);
+  const bool line2IsZeroLength = (line2V1 == line2V2);
+  if (line1IsZeroLength && line2IsZeroLength) {
+    if (line1V1 == line2V1) {
+      // All 4 points are the same
+      setIntersectionPoint(line1V1);
+      return IntersectionResult::kOne;
+    } else {
+      // Two 0-length lines that do not touch
+      return IntersectionResult::kNone;
+    }
+  } else if (line1IsZeroLength) {
+    if (isPointOnLineSegment(line1V1, line2V1, line2V2)) {
+      // Line 1 is just a point on line 2
+      setIntersectionPoint(line1V1);
+      return IntersectionResult::kOne;
+    } else {
+      // Line 1 does not touch line 2
+      return IntersectionResult::kNone;
+    }
+  } else if (line2IsZeroLength) {
+    if (isPointOnLineSegment(line2V1, line1V1, line1V2)) {
+      // Line 2 is just a point on line 1
+      setIntersectionPoint(line2V1);
+      return IntersectionResult::kOne;
+    } else {
+      // Line 2 does not touch line 1
+      return IntersectionResult::kNone;
+    }
+  }
+
+  // Fact: Neither line is 0-length
+
+  // Order points in each line
+  if (lessThan(line1V2, line1V1)) {
+    // Points are out of order
+    std::swap(line1V1, line1V2);
+  }
+  if (lessThan(line2V2, line2V1)) {
+    // Points are out of order
+    std::swap(line2V1, line2V2);
+  }
+
+  // Line AB represented as a1x + b1y = c1
+  const auto a1 = line1V2.y() - line1V1.y();
+  const auto b1 = line1V1.x() - line1V2.x();
+  const auto c1 = a1*line1V1.x() + b1*line1V1.y();
+
+  // Line CD represented as a2x + b2y = c2
+  const auto a2 = line2V2.y() - line2V1.y();
+  const auto b2 = line2V1.x() - line2V2.x();
+  const auto c2 = a2*line2V1.x()+ b2*line2V1.y();
+
+  const auto determinant = a1*b2 - a2*b1;
+
+  if (determinant == 0) {
+    // Lines are parallel
+    if (isPointOnLineSegment(line2V1, line1V1, line1V2)) {
+      if (line2V1 == line1V2) {
+        // Only share endpoints
+        setIntersectionPoint(line2V1);
+        return IntersectionResult::kOne;
+      } else {
+        // Since points are ordered, neither line is 0-length, and these lines are not sharing first/last endpoints, there must be infinite overlap
+        return IntersectionResult::kInfinite;
+      }
+    }
+    if (isPointOnLineSegment(line1V1, line2V1, line2V2)) {
+      if (line1V1 == line2V2) {
+        // Only share endpoints
+        setIntersectionPoint(line1V1);
+        return IntersectionResult::kOne;
+      } else {
+        // Since points are ordered, neither line is 0-length, and these lines are not sharing first/last endpoints, there must be infinite overlap
+        return IntersectionResult::kInfinite;
+      }
+    }
+    return IntersectionResult::kNone;
+  } else {
+    // Lines are not parallel
+    const Vector intersection((c1*b2 - c2*b1) / determinant,
+                              (a1*c2 - a2*c1) / determinant);
+    if (isPointOnLineSegment(intersection, line1V1, line1V2) &&
+        isPointOnLineSegment(intersection, line2V1, line2V2)) {
+      // The intersection is on both of the line segments
+      setIntersectionPoint(intersection);
+      return IntersectionResult::kOne;
+    } else {
+      // Not on both line segments, no intersection
+      return IntersectionResult::kNone;
+    }
+  }
+}
+
+bool trianglesOverlap(const Vector &triangle1V1, const Vector &triangle1V2, const Vector &triangle1V3, const Vector &triangle2V1, const Vector &triangle2V2, const Vector &triangle2V3, const bool onBoundary, const double tolerance) {
+  const auto det2D = [](const auto &p1, const auto &p2, const auto &p3) {
+    return p1.x()*(p2.y()-p3.y()) +
+           p2.x()*(p3.y()-p1.y()) +
+           p3.x()*(p1.y()-p2.y());
+  };
+
+  // TODO: Expose this to the user?
+  constexpr const static bool kAllowReversed{true};
+
+  const auto checkTriWinding = [&det2D](auto &p1, auto &p2, auto &p3) {
+    const double detTri = det2D(p1, p2, p3);
+    if(detTri < 0.0) {
+      if constexpr (kAllowReversed) {
+        std::swap(p2, p3);
+      } else {
+        throw std::runtime_error("Triangle has wrong winding direction");
+      }
+    }
+  };
+
+  const auto boundaryCollideCheck = [&det2D](const auto &p1, const auto &p2, const auto &p3, const double eps) {
+    return det2D(p1, p2, p3) < eps;
+  };
+
+  const auto boundaryDoesntCollideCheck = [&det2D](const auto &p1, const auto &p2, const auto &p3, const double eps) {
+    return det2D(p1, p2, p3) <= eps;
+  };
+
+  std::array<Vector,3> t1 = {triangle1V1, triangle1V2, triangle1V3},
+                       t2 = {triangle2V1, triangle2V2, triangle2V3};
+
+  // Trangles must be expressed anti-clockwise
+  checkTriWinding(t1[0], t1[1], t1[2]);
+  checkTriWinding(t2[0], t2[1], t2[2]);
+
+  std::function<bool(const Vector&, const Vector&, const Vector&, const double)> chkEdge;
+  if (onBoundary) {
+    // Points on the boundary are considered as colliding
+    chkEdge = boundaryCollideCheck;
+  } else {
+    // Points on the boundary are not considered as colliding
+    chkEdge = boundaryDoesntCollideCheck;
+  }
+
+  // For edge E of trangle 1,
+  for (int i=0; i<3; i++) {
+    const int j=(i+1)%3;
+
+    // Check all points of trangle 2 lay on the external side of the edge E. If
+    // they do, the triangles do not collide.
+    if (chkEdge(t1[i], t1[j], t2[0], tolerance) &&
+        chkEdge(t1[i], t1[j], t2[1], tolerance) &&
+        chkEdge(t1[i], t1[j], t2[2], tolerance)) {
+      return false;
+    }
+  }
+
+  // For edge E of trangle 2,
+  for (int i=0; i<3; i++) {
+    const int j=(i+1)%3;
+
+    // Check all points of trangle 1 lay on the external side of the edge E. If
+    // they do, the triangles do not collide.
+    if (chkEdge(t2[i], t2[j], t1[0], tolerance) &&
+        chkEdge(t2[i], t2[j], t1[1], tolerance) &&
+        chkEdge(t2[i], t2[j], t1[2], tolerance)) {
+      return false;
+    }
+  }
+
+  // The triangles collide
+  return true;
 }
 
 } // namespace math

@@ -19,12 +19,13 @@ void BaseFunnel::funnelWithGoal(const std::vector<std::pair<Vector,Vector>> &cor
 }
 
 void BaseFunnel::funnelWithoutGoal(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint) {
+  // std::cout << ">>>>BaseFunnel::funnelWithoutGoal" << std::endl; //DEBUGPRINTS
   initializeForFunnelAlgorithm(corridor.size(), startPoint);
   funnelForCorridor(corridor, startPoint);
 }
 
 Vector BaseFunnel::finishFunnelAndFindClosestGoalOnEdge(const std::pair<Vector,Vector> &edge) {
-    // Figure out which goal to use for the funnel
+  // Figure out which goal to use for the funnel
   const Vector closestGoal = findBestGoalForFunnel(edge);
   finishFunnelWithGoal(closestGoal);
   return closestGoal;
@@ -74,7 +75,7 @@ LengthFunnel LengthFunnel::cloneFunnelButSpaceFor1MorePoint() const {
   return newFunnel;
 }
 
-void BaseFunnel::initializeForFunnelAlgorithm(const int corridorSize, const Vector &startPoint, const Vector *goalPoint) {
+void BaseFunnel::initializeForFunnelAlgorithm(const std::size_t corridorSize, const Vector &startPoint, const Vector *goalPoint) {
   // Set up DebugLogger with some data
   DebugLogger::instance().setStartPoint(startPoint);
   if (goalPoint != nullptr) {
@@ -93,18 +94,65 @@ void BaseFunnel::extendByOneEdge(const std::pair<Vector,Vector> &edge) {
   // std::cout << "  Trying to extend funnel: "; //DEBUGPRINTS
   // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
   // std::cout << "    by edge {" << DebugLogger::instance().pointToString(edge.first) << ',' << DebugLogger::instance().pointToString(edge.second) << '}' << std::endl; //DEBUGPRINTS
+  // TODO: Not sure why the point of the given edge isnt more closely matching what exists in the funnel
+  // TODO: Would it make sense to move the point in the funnel to match the given edge?
+  constexpr const double kReducedPrecision{0.00153}; // TODO: Remove once we are confident that the below code wont throw
   const auto &[vertexA, vertexB] = edge;
-  if (vertexA == funnel_.back()) {
-    addLeft(vertexB);
-  } else if (vertexA == funnel_.front()) {
-    addRight(vertexB);
-  } else if (vertexB == funnel_.back()) {
-    addLeft(vertexA);
-  } else if (vertexB == funnel_.front()) {
-    addRight(vertexA);
+  const auto distanceAToFront = math::distance(vertexA, funnel_.front());
+  const auto distanceBToBack = math::distance(vertexB, funnel_.back());
+  const auto distanceAToBack = math::distance(vertexA, funnel_.back());
+  const auto distanceBToFront = math::distance(vertexB, funnel_.front());
+  if ((distanceAToFront+distanceBToBack) < (distanceAToBack+distanceBToFront)) {
+    if (distanceAToFront < distanceBToBack) {
+      // A is likely to be the same point as front()
+      if (math::equal(vertexA, funnel_.front())) {
+        addRight(vertexB);
+      } else if (math::equal(vertexA, funnel_.front(), kReducedPrecision)) {
+        const auto distanceBetweenPoints = math::distance(vertexA, funnel_.front());
+        throw std::runtime_error("Some precision issues when we expected vertexA to be the same point as front() "+std::to_string(distanceBetweenPoints));
+        addRight(vertexB);
+      } else {
+        throw std::runtime_error("Unable to add edge to funnel because neither end matches the end of the funnel");
+      }
+    } else {
+      // B is likely to be the same point as back()
+      if (math::equal(vertexB, funnel_.back())) {
+        addLeft(vertexA);
+      } else if (math::equal(vertexB, funnel_.back(), kReducedPrecision)) {
+        const auto distanceBetweenPoints = math::distance(vertexB, funnel_.back());
+        throw std::runtime_error("Some precision issues when we expected vertexB to be the same point as back() "+std::to_string(distanceBetweenPoints));
+        addLeft(vertexA);
+      } else {
+        throw std::runtime_error("Unable to add edge to funnel because neither end matches the end of the funnel");
+      }
+    }
   } else {
-    throw std::runtime_error("Unable to add edge to funnel because neither end matches the end of the funnel");
+    if (distanceAToBack < distanceBToFront) {
+      // A is likely to be the same point as back()
+      if (math::equal(vertexA, funnel_.back())) {
+        addLeft(vertexB);
+      } else if (math::equal(vertexA, funnel_.back(), kReducedPrecision)) {
+        const auto distanceBetweenPoints = math::distance(vertexA, funnel_.back());
+        throw std::runtime_error("Some precision issues when we expected vertexA to be the same point as back() "+std::to_string(distanceBetweenPoints));
+        addLeft(vertexB);
+      } else {
+        throw std::runtime_error("Unable to add edge to funnel because neither end matches the end of the funnel");
+      }
+    } else {
+      // B is likely to be the same point as front()
+      if (math::equal(vertexB, funnel_.front())) {
+        addRight(vertexA);
+      } else if (math::equal(vertexB, funnel_.front(), kReducedPrecision)) {
+        const auto distanceBetweenPoints = math::distance(vertexB, funnel_.front());
+        throw std::runtime_error("Some precision issues when we expected vertexB to be the same point as front() "+std::to_string(distanceBetweenPoints));
+        addRight(vertexA);
+      } else {
+        throw std::runtime_error("Unable to add edge to funnel because neither end matches the end of the funnel");
+      }
+    }
   }
+  // std::cout << "  Edge added, resulting funnel: "; //DEBUGPRINTS
+  // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
 }
 
 void BaseFunnel::funnelForCorridor(const std::vector<std::pair<Vector,Vector>> &corridor, const Vector &startPoint) {
@@ -138,7 +186,19 @@ void BaseFunnel::funnelForCorridor(const std::vector<std::pair<Vector,Vector>> &
   // DebugLogger::instance().printFunnel(funnel_); //DEBUGPRINTS
 }
 
+bool BaseFunnel::pointInFunnel(const Vector &point) const {
+  for (int i=0; i<funnel_.size(); ++i) {
+    if (math::equal(funnel_.at(i), point)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void BaseFunnel::addLeft(const Vector &point, const bool isGoal) {
+  if (pointInFunnel(point)) {
+    throw std::runtime_error("Trying to add a point to the funnel which is already in the funnel");
+  }
   addPointToFunnel(std::bind(&Funnel::at, &funnel_, std::placeholders::_1),
                    std::bind(&Funnel::apex_index, &funnel_),
                    std::bind(&Funnel::apex_type, &funnel_),
@@ -153,6 +213,9 @@ void BaseFunnel::addLeft(const Vector &point, const bool isGoal) {
 }
 
 void BaseFunnel::addRight(const Vector &point, const bool isGoal) {
+  if (pointInFunnel(point)) {
+    throw std::runtime_error("Trying to add a point to the funnel which is already in the funnel");
+  }
   addPointToFunnel(std::bind(&Funnel::reverse_at, &funnel_, std::placeholders::_1),
                    std::bind(&Funnel::reverse_apex_index, &funnel_),
                    std::bind(&Funnel::apex_type, &funnel_),
@@ -205,7 +268,7 @@ void PathFunnel::addSegment(const Apex &previousApex, const std::pair<Vector,Vec
       throw std::runtime_error("arc->angleDirection != previousApex.apexType");
     }
     arc->endAngle = math::angle(previousApex.apexPoint, edge.first);
-    // std::cout << "    ~Finishing arc (angle: " << arc->endAngle << ")" << std::endl; //DEBUGPRINTS
+    // std::cout << "    ~Finishing arc (start angle: " << arc->startAngle << ", end angle: " << arc->endAngle << ")" << std::endl; //DEBUGPRINTS
   }
 
   // Second, add a straight segment between the apexes
@@ -306,6 +369,7 @@ double LengthFunnel::funnelLengthForAgentWithRadius(LengthFunnel funnelCopy, con
 }
 
 Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastEdgeOfCorridor) const {
+  constexpr const double kReducedPrecision{0.00153};
   std::optional<Vector> result;
 
   // std::cout << "  Need to find goal for funnel: "; //DEBUGPRINTS
@@ -339,11 +403,17 @@ Vector LengthFunnel::findBestGoalForFunnel(const std::pair<Vector,Vector> &lastE
   if (funnel_.size() < 2) {
     throw std::runtime_error("Funnel too small to find a goal");
   }
-  if (edgeEnd == funnel_.at(0) && edgeStart == funnel_.at(funnel_.size()-1)) {
+  if (math::equal(edgeEnd, funnel_.front(), kReducedPrecision) && math::equal(edgeStart, funnel_.back(), kReducedPrecision)) {
+    if (!(math::equal(edgeEnd, funnel_.front()) && math::equal(edgeStart, funnel_.back()))) {
+      throw std::runtime_error("Precision issues in findBestGoalForFunnel");
+    }
     // Opposite orientation that we are expecting, flip it
-    // Expect funnel.at(0) (left) to be the start of the edge and funnel.at(size-1) to be the end of the edge
+    // Expect funnel.front() (left) to be the start of the edge and funnel.back() to be the end of the edge
     std::swap(edgeStart, edgeEnd);
-  } else if (edgeStart != funnel_.at(0) || edgeEnd != funnel_.at(funnel_.size()-1)) {
+  } else if (!math::equal(edgeStart, funnel_.front(), kReducedPrecision) || !math::equal(edgeEnd, funnel_.back(), kReducedPrecision)) {
+    if (!(!math::equal(edgeStart, funnel_.front()) || !math::equal(edgeEnd, funnel_.back()))) {
+      throw std::runtime_error("Precision issues in findBestGoalForFunnel");
+    }
     throw std::runtime_error("Ends of the funnel are not the target edge!");
   }
 
@@ -495,9 +565,9 @@ double LengthFunnel::currentPathLength() const {
 // ============================Funnel data structure below============================
 // ===================================================================================
 
-Funnel::Funnel(const Vector &initialApex, const int corridorSize) : funnel_(1 + corridorSize*2 + 2) {
+Funnel::Funnel(const Vector &initialApex, const std::size_t corridorSize) : funnel_(1 + corridorSize*2 + 2) {
   // Allocate enough space for the entire corridor to fit on either side, +1 for the apex, and +2 for the possibility of the goal on either side
-  apexIndex_ = funnel_.size()/2;
+  apexIndex_ = static_cast<int>(funnel_.size()/2);
   funnel_.at(apexIndex_) = initialApex;
   leftIndex_ = apexIndex_;
   rightIndex_ = apexIndex_;

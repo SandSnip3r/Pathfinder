@@ -30,6 +30,24 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
     throw std::runtime_error("TriangleLibNavmesh: voronoi edgelist is null");
   }
 
+  using CommonType = std::common_type_t<int, IndexType>;
+  if (static_cast<CommonType>(triangleData.numberofpoints) > static_cast<CommonType>(std::numeric_limits<IndexType>::max())) {
+    // We will later try to pack this into a special integer, this requires every index fits in 16 bits
+    throw std::runtime_error("TriangleLibNavmesh: Too many points");
+  }
+  if (static_cast<CommonType>(triangleData.numberofsegments) > static_cast<CommonType>(std::numeric_limits<IndexType>::max())) {
+    // We will later try to pack this into a special integer, this requires every index fits in 16 bits
+    throw std::runtime_error("TriangleLibNavmesh: Too many segments");
+  }
+  if (static_cast<CommonType>(triangleData.numberoftriangles) > static_cast<CommonType>(std::numeric_limits<IndexType>::max())) {
+    // We will later try to pack this into a special integer, this requires every index fits in 16 bits
+    throw std::runtime_error("TriangleLibNavmesh: Too many triangles");
+  }
+  if (static_cast<CommonType>(triangleData.numberofedges) > static_cast<CommonType>(std::numeric_limits<IndexType>::max())) {
+    // We will later try to pack this into a special integer, this requires every index fits in 16 bits
+    throw std::runtime_error("TriangleLibNavmesh: Too many edges");
+  }
+
   // # Extract data into internal format
   
   // Save all vertices and their markers
@@ -60,9 +78,9 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
     const auto vertexIndexA = triangleData.trianglelist[triangleIndex*3];
     const auto vertexIndexB = triangleData.trianglelist[triangleIndex*3+1];
     const auto vertexIndexC = triangleData.trianglelist[triangleIndex*3+2];
-    if (vertexIndexA < 0 || vertexIndexA >= vertices_.size() ||
-        vertexIndexB < 0 || vertexIndexB >= vertices_.size() ||
-        vertexIndexC < 0 || vertexIndexC >= vertices_.size()) {
+    if (vertexIndexA < 0 || static_cast<std::size_t>(vertexIndexA) >= vertices_.size() ||
+        vertexIndexB < 0 || static_cast<std::size_t>(vertexIndexB) >= vertices_.size() ||
+        vertexIndexC < 0 || static_cast<std::size_t>(vertexIndexC) >= vertices_.size()) {
       throw std::runtime_error("Triangle references vertex that is out of bounds");
     }
     triangleVertexIndices_.emplace_back(vertexIndexA, vertexIndexB, vertexIndexC);
@@ -71,18 +89,12 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
   // Save neighbors of each triangle
   // TODO: Might be unneeded if the below `BEGIN TEST` is useful
   triangleNeighborIndices_.resize(triangleData.numberoftriangles);
-  // Initialize all neighbors as -1
-  std::for_each(triangleNeighborIndices_.begin(), triangleNeighborIndices_.end(), [](auto &edges) {
-    std::get<0>(edges) = -1;
-    std::get<1>(edges) = -1;
-    std::get<2>(edges) = -1;
-  });
   auto addNeighborForTriangle = [](auto &neighbors, const int neighborIndex) {
-    if (std::get<0>(neighbors) == -1) {
+    if (!std::get<0>(neighbors).has_value()) {
       std::get<0>(neighbors) = neighborIndex;
-    } else if (std::get<1>(neighbors) == -1) {
+    } else if (!std::get<1>(neighbors).has_value()) {
       std::get<1>(neighbors) = neighborIndex;
-    } else if (std::get<2>(neighbors) == -1) {
+    } else if (!std::get<2>(neighbors).has_value()) {
       std::get<2>(neighbors) = neighborIndex;
     }
   };
@@ -113,62 +125,18 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
   // Cache the edges of each triangle
   // TODO: Might be unneeded if the below `BEGIN TEST` is useful
   triangleEdgeIndices_.resize(triangleData.numberoftriangles);
-  // Initialize all edges as -1
-  std::for_each(triangleEdgeIndices_.begin(), triangleEdgeIndices_.end(), [](auto &edges) {
-    std::get<0>(edges) = -1;
-    std::get<1>(edges) = -1;
-    std::get<2>(edges) = -1;
-  });
-  auto addEdgeForTriangle = [](auto &edges, const int edgeIndex) {
-    if (std::get<0>(edges) == -1) {
+  std::vector<int> edgeCountForTriangle(triangleData.numberoftriangles, 0);
+  auto addEdgeForTriangle = [](auto &edges, int &edgeForTriangle, const int edgeIndex) {
+    if (edgeForTriangle == 0) {
       std::get<0>(edges) = edgeIndex;
-    } else if (std::get<1>(edges) == -1) {
+    } else if (edgeForTriangle == 1) {
       std::get<1>(edges) = edgeIndex;
-    } else if (std::get<2>(edges) == -1) {
+    } else if (edgeForTriangle == 2) {
       std::get<2>(edges) = edgeIndex;
+    } else {
+      throw std::runtime_error("Triangle has too many edges");
     }
-  };
-  for (int voronoiEdgeIndex=0; voronoiEdgeIndex<triangleVoronoiData.numberofedges; ++voronoiEdgeIndex) {
-    const int triangleIndex1 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2];
-    const int triangleIndex2 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2+1];
-    if (triangleIndex1 > 0) {
-      if (triangleIndex1 >= triangleData.numberoftriangles) {
-        throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
-      }
-      addEdgeForTriangle(triangleEdgeIndices_[triangleIndex1], voronoiEdgeIndex);
-    }
-    if (triangleIndex2 > 0) {
-      if (triangleIndex2 >= triangleData.numberoftriangles) {
-        throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
-      }
-      addEdgeForTriangle(triangleEdgeIndices_[triangleIndex2], voronoiEdgeIndex);
-    }
-  }
-
-  // BEGIN TEST
-  triangleNeighborsAcrossEdgesIndices_.resize(triangleData.numberoftriangles);
-  std::for_each(triangleNeighborsAcrossEdgesIndices_.begin(), triangleNeighborsAcrossEdgesIndices_.end(), [](auto &neighorsAcrossEdge) {
-    std::get<0>(neighorsAcrossEdge).neighborTriangleIndex = -1;
-    std::get<0>(neighorsAcrossEdge).sharedEdgeIndex = -1;
-    std::get<1>(neighorsAcrossEdge).neighborTriangleIndex = -1;
-    std::get<1>(neighorsAcrossEdge).sharedEdgeIndex = -1;
-    std::get<2>(neighorsAcrossEdge).neighborTriangleIndex = -1;
-    std::get<2>(neighorsAcrossEdge).sharedEdgeIndex = -1;
-  });
-  auto addNeighborAcrossEdge = [](auto &neighorsAcrossEdge, const int triangleIndex, const int edgeIndex) {
-    if (std::get<0>(neighorsAcrossEdge).neighborTriangleIndex == -1 && std::get<0>(neighorsAcrossEdge).sharedEdgeIndex == -1) {
-      // First is unset
-      std::get<0>(neighorsAcrossEdge).neighborTriangleIndex = triangleIndex;
-      std::get<0>(neighorsAcrossEdge).sharedEdgeIndex = edgeIndex;
-    } else if (std::get<1>(neighorsAcrossEdge).neighborTriangleIndex == -1 && std::get<1>(neighorsAcrossEdge).sharedEdgeIndex == -1) {
-      // Second is unset
-      std::get<1>(neighorsAcrossEdge).neighborTriangleIndex = triangleIndex;
-      std::get<1>(neighorsAcrossEdge).sharedEdgeIndex = edgeIndex;
-    } else if (std::get<2>(neighorsAcrossEdge).neighborTriangleIndex == -1 && std::get<2>(neighorsAcrossEdge).sharedEdgeIndex == -1) {
-      // Third is unset
-      std::get<2>(neighorsAcrossEdge).neighborTriangleIndex = triangleIndex;
-      std::get<2>(neighorsAcrossEdge).sharedEdgeIndex = edgeIndex;
-    }
+    ++edgeForTriangle;
   };
   for (int voronoiEdgeIndex=0; voronoiEdgeIndex<triangleVoronoiData.numberofedges; ++voronoiEdgeIndex) {
     const int triangleIndex1 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2];
@@ -177,167 +145,193 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
       if (triangleIndex1 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
       }
-      addNeighborAcrossEdge(triangleNeighborsAcrossEdgesIndices_[triangleIndex1], triangleIndex2, voronoiEdgeIndex);
+      addEdgeForTriangle(triangleEdgeIndices_[triangleIndex1], edgeCountForTriangle[triangleIndex1], voronoiEdgeIndex);
     }
     if (triangleIndex2 >= 0) {
       if (triangleIndex2 >= triangleData.numberoftriangles) {
         throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
       }
-      addNeighborAcrossEdge(triangleNeighborsAcrossEdgesIndices_[triangleIndex2], triangleIndex1, voronoiEdgeIndex);
+      addEdgeForTriangle(triangleEdgeIndices_[triangleIndex2], edgeCountForTriangle[triangleIndex2], voronoiEdgeIndex);
+    }
+  }
+
+  // BEGIN TEST
+  triangleNeighborsAcrossEdgesIndices_.resize(triangleData.numberoftriangles);
+  auto setNeighborAcrossEdge = [](auto &neighborsAcrossEdge, const IndexType triangleIndex, const IndexType edgeIndex) {
+    if (!std::get<0>(neighborsAcrossEdge).has_value()) {
+      // First is unset
+      std::get<0>(neighborsAcrossEdge) = {triangleIndex, edgeIndex};
+    } else if (!std::get<1>(neighborsAcrossEdge).has_value()) {
+      // Second is unset
+      std::get<1>(neighborsAcrossEdge) = {triangleIndex, edgeIndex};
+    } else if (!std::get<2>(neighborsAcrossEdge).has_value()) {
+      // Third is unset
+      std::get<2>(neighborsAcrossEdge) = {triangleIndex, edgeIndex};
+    }
+  };
+  for (int voronoiEdgeIndex=0; voronoiEdgeIndex<triangleVoronoiData.numberofedges; ++voronoiEdgeIndex) {
+    const int triangleIndex1 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2];
+    const int triangleIndex2 = triangleVoronoiData.edgelist[voronoiEdgeIndex*2+1];
+    if (triangleIndex1 >= 0 && triangleIndex2 >= 0) {
+      if (triangleIndex1 >= triangleData.numberoftriangles) {
+        throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
+      }
+      if (triangleIndex2 >= triangleData.numberoftriangles) {
+        throw std::runtime_error("Voronoi edge references triangle that is out of bounds");
+      }
+      setNeighborAcrossEdge(triangleNeighborsAcrossEdgesIndices_[triangleIndex1], static_cast<IndexType>(triangleIndex2), static_cast<IndexType>(voronoiEdgeIndex));
+      setNeighborAcrossEdge(triangleNeighborsAcrossEdgesIndices_[triangleIndex2], static_cast<IndexType>(triangleIndex1), static_cast<IndexType>(voronoiEdgeIndex));
     }
   }
 }
 
-size_t TriangleLibNavmesh::getVertexCount() const {
+std::size_t TriangleLibNavmesh::getVertexCount() const {
   return vertices_.size();
 }
 
-const Vector& TriangleLibNavmesh::getVertex(const int vertexIndex) const {
-  if (vertexIndex < 0 || vertexIndex >= vertices_.size()) {
+Vector TriangleLibNavmesh::getVertex(const IndexType vertexIndex) const {
+  if (static_cast<std::size_t>(vertexIndex) >= vertices_.size()) {
     throw std::runtime_error("Asking for vertex that is out of bounds");
   }
   return vertices_[vertexIndex];
 }
 
-unsigned int TriangleLibNavmesh::getVertexMarker(const int vertexIndex) const {
-  if (vertexIndex < 0 || vertexIndex >= vertexMarkers_.size()) {
+TriangleLibNavmesh::MarkerType TriangleLibNavmesh::getVertexMarker(const IndexType vertexIndex) const {
+  if (static_cast<std::size_t>(vertexIndex) >= vertexMarkers_.size()) {
     throw std::runtime_error("Asking for vertex marker that is out of bounds");
   }
   return vertexMarkers_[vertexIndex];
 }
 
-size_t TriangleLibNavmesh::getEdgeCount() const {
+std::size_t TriangleLibNavmesh::getEdgeCount() const {
   return edgeVertexIndices_.size();
 }
 
-EdgeType TriangleLibNavmesh::getEdge(const int edgeIndex) const {
-  if (edgeIndex < 0 || edgeIndex >= edgeVertexIndices_.size()) {
+TriangleLibNavmesh::EdgeType TriangleLibNavmesh::getEdge(const IndexType edgeIndex) const {
+  if (static_cast<std::size_t>(edgeIndex) >= edgeVertexIndices_.size()) {
     throw std::runtime_error("Asking for edge that is out of bounds");
   }
   const auto &edgeIndices = edgeVertexIndices_[edgeIndex];
   return {vertices_[edgeIndices.first], vertices_[edgeIndices.second]};
 }
 
-EdgeVertexIndicesType TriangleLibNavmesh::getEdgeVertexIndices(const int edgeIndex) const {
-  if (edgeIndex < 0 || edgeIndex >= edgeVertexIndices_.size()) {
+TriangleLibNavmesh::EdgeVertexIndicesType TriangleLibNavmesh::getEdgeVertexIndices(const IndexType edgeIndex) const {
+  if (static_cast<std::size_t>(edgeIndex) >= edgeVertexIndices_.size()) {
     throw std::runtime_error("Asking for edge that is out of bounds");
   }
   return edgeVertexIndices_[edgeIndex];
 }
 
-unsigned int TriangleLibNavmesh::getEdgeMarker(const int edgeIndex) const {
-  if (edgeIndex < 0 || edgeIndex >= edgeMarkers_.size()) {
+TriangleLibNavmesh::MarkerType TriangleLibNavmesh::getEdgeMarker(const IndexType edgeIndex) const {
+  if (static_cast<std::size_t>(edgeIndex) >= edgeMarkers_.size()) {
     throw std::runtime_error("Asking for edge marker that is out of bounds");
   }
   return edgeMarkers_[edgeIndex];
 }
 
-size_t TriangleLibNavmesh::getTriangleCount() const {
+std::size_t TriangleLibNavmesh::getTriangleCount() const {
   return triangleVertexIndices_.size();
 }
 
-const TriangleVertexIndicesType& TriangleLibNavmesh::getTriangleVertexIndices(const int triangleIndex) const {
-  if (triangleIndex < 0 || triangleIndex >= triangleVertexIndices_.size()) {
+TriangleLibNavmesh::TriangleVertexIndicesType TriangleLibNavmesh::getTriangleVertexIndices(const IndexType triangleIndex) const {
+  if (static_cast<std::size_t>(triangleIndex) >= triangleVertexIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
   return triangleVertexIndices_[triangleIndex];
 }
 
-TriangleVerticesType TriangleLibNavmesh::getTriangleVertices(const int triangleIndex) const {
-  if (triangleIndex < 0 || triangleIndex >= triangleVertexIndices_.size()) {
+TriangleLibNavmesh::TriangleVerticesType TriangleLibNavmesh::getTriangleVertices(const IndexType triangleIndex) const {
+  if (static_cast<std::size_t>(triangleIndex) >= triangleVertexIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
   const auto &vertexIndices = triangleVertexIndices_[triangleIndex];
   return {vertices_[std::get<0>(vertexIndices)], vertices_[std::get<1>(vertexIndices)], vertices_[std::get<2>(vertexIndices)]};
 }
 
-TriangleEdgeIndicesType TriangleLibNavmesh::getTriangleEdgeIndices(const int triangleIndex) const {
-  if (triangleIndex < 0 || triangleIndex >= triangleVertexIndices_.size()) {
+TriangleLibNavmesh::TriangleEdgeIndicesType TriangleLibNavmesh::getTriangleEdgeIndices(const IndexType triangleIndex) const {
+  if (static_cast<std::size_t>(triangleIndex) >= triangleVertexIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
-  const auto &neighborsAcrossEdges = triangleNeighborsAcrossEdgesIndices_[triangleIndex];
-  return {std::get<0>(neighborsAcrossEdges).sharedEdgeIndex, std::get<1>(neighborsAcrossEdges).sharedEdgeIndex, std::get<2>(neighborsAcrossEdges).sharedEdgeIndex};
+  return triangleEdgeIndices_[triangleIndex];
 }
 
-const TriangleNeighborsAcrossEdgesIndicesType& TriangleLibNavmesh::getTriangleNeighborsWithSharedEdges(const int triangleIndex) const {
-  if (triangleIndex < 0 || triangleIndex >= getTriangleCount()) {
+TriangleLibNavmesh::TriangleNeighborsAcrossEdgesIndicesType TriangleLibNavmesh::getTriangleNeighborsWithSharedEdges(const IndexType triangleIndex) const {
+  if (static_cast<std::size_t>(triangleIndex) >= getTriangleCount()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
   return triangleNeighborsAcrossEdgesIndices_[triangleIndex];
 }
 
-EdgeType TriangleLibNavmesh::getSharedEdge(const int triangle1Index, const int triangle2Index) const {
-  if (triangle1Index < 0 || triangle1Index >= triangleNeighborsAcrossEdgesIndices_.size()) {
+TriangleLibNavmesh::EdgeType TriangleLibNavmesh::getSharedEdge(const IndexType triangle1Index, const IndexType triangle2Index) const {
+  if (static_cast<std::size_t>(triangle1Index) >= triangleNeighborsAcrossEdgesIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
-  if (triangle2Index < 0 || triangle2Index >= triangleNeighborsAcrossEdgesIndices_.size()) {
+  if (static_cast<std::size_t>(triangle2Index) >= triangleNeighborsAcrossEdgesIndices_.size()) {
     throw std::runtime_error("Asking for triangle that is out of bounds");
   }
   const auto &neighborsAcrossEdges = triangleNeighborsAcrossEdgesIndices_[triangle1Index];
-  int edgeIndex = -1;
-  if (std::get<0>(neighborsAcrossEdges).neighborTriangleIndex == triangle2Index) {
-    edgeIndex = std::get<0>(neighborsAcrossEdges).sharedEdgeIndex;
-  } else if (std::get<1>(neighborsAcrossEdges).neighborTriangleIndex == triangle2Index) {
-    edgeIndex = std::get<1>(neighborsAcrossEdges).sharedEdgeIndex;
-  } else if (std::get<2>(neighborsAcrossEdges).neighborTriangleIndex == triangle2Index) {
-    edgeIndex = std::get<2>(neighborsAcrossEdges).sharedEdgeIndex;
+  std::optional<IndexType> edgeIndex;
+  if (std::get<0>(neighborsAcrossEdges).has_value() && std::get<0>(neighborsAcrossEdges)->neighborTriangleIndex == triangle2Index) {
+    edgeIndex = std::get<0>(neighborsAcrossEdges)->sharedEdgeIndex;
+  } else if (std::get<1>(neighborsAcrossEdges).has_value() && std::get<1>(neighborsAcrossEdges)->neighborTriangleIndex == triangle2Index) {
+    edgeIndex = std::get<1>(neighborsAcrossEdges)->sharedEdgeIndex;
+  } else if (std::get<2>(neighborsAcrossEdges).has_value() && std::get<2>(neighborsAcrossEdges)->neighborTriangleIndex == triangle2Index) {
+    edgeIndex = std::get<2>(neighborsAcrossEdges)->sharedEdgeIndex;
   }
-  if (edgeIndex == -1) {
+  if (!edgeIndex.has_value()) {
     throw std::runtime_error("There is no shared edge between triangle "+std::to_string(triangle1Index)+" and triangle "+std::to_string(triangle2Index));
   }
-  const auto &edgeIndices = edgeVertexIndices_[edgeIndex];
+  const auto &edgeIndices = edgeVertexIndices_[*edgeIndex];
   return {vertices_[edgeIndices.first], vertices_[edgeIndices.second]};
 }
 
-int TriangleLibNavmesh::getVertexIndex(const Vector &vertex) const {
-  for (int i=0; i<vertices_.size(); ++i) {
+std::optional<TriangleLibNavmesh::IndexType> TriangleLibNavmesh::getVertexIndex(const Vector &vertex) const {
+  for (std::size_t i=0; i<vertices_.size(); ++i) {
     const auto &vertexInNavmesh = vertices_[i];
-    if (vertex.x() == vertexInNavmesh.x() && vertex.y() == vertexInNavmesh.y()) {
-      return i;
+    if (math::equal(vertex, vertexInNavmesh)) {
+      return static_cast<IndexType>(i);
     }
   }
-  return -1;
+  return {};
 }
 
-bool TriangleLibNavmesh::pointIsInTriangle(const Vector &point, const int triangleIndex) const {
+bool TriangleLibNavmesh::pointIsOnTriangle(const Vector &point, const IndexType triangleIndex) const {
   const auto &[vertex1, vertex2, vertex3] = getTriangleVertices(triangleIndex);
   // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
-  return math::isPointInTriangle(point, vertex1, vertex2, vertex3);
+  return math::isPointOnTriangle(point, vertex1, vertex2, vertex3);
 }
 
-int TriangleLibNavmesh::findTriangleForPoint(const Vector &point) const {
+std::optional<TriangleLibNavmesh::IndexType> TriangleLibNavmesh::findTriangleForPoint(const Vector &point) const {
   const auto triangleCount = getTriangleCount();
-  for (int triangleIndex=0; triangleIndex<triangleCount; ++triangleIndex) {
-    if (pointIsInTriangle(point, triangleIndex)) {
-      return triangleIndex;
+  for (std::size_t triangleIndex=0; triangleIndex<triangleCount; ++triangleIndex) {
+    if (pointIsOnTriangle(point, static_cast<IndexType>(triangleIndex))) {
+      return static_cast<IndexType>(triangleIndex);
     }
   }
-  return -1;
+
+  // No triangle found
+  return {};
 }
 
-std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, const int goalTriangleIndex, const double agentRadius) const {
+std::vector<TriangleLibNavmesh::State> TriangleLibNavmesh::getSuccessors(const State &currentState, const State &goalState, const double agentRadius) const {
   if (currentState.isGoal()) {
     throw std::runtime_error("Trying to get successors of goal");
   }
 
-  const auto triangleIndexForState = currentState.getTriangleIndex();
-  if (triangleIndexForState < 0) {
-    throw std::runtime_error("Current state triangle is invalid");
+  if (currentState.isSameTriangleAs(goalState)) {
+    // This is the goal, only successor is the goal point itself
+    State newGoalState{currentState};
+    newGoalState.setIsGoal(true);
+    return {newGoalState};
   }
 
-  if (triangleIndexForState == goalTriangleIndex) {
-    // This is the goal triangle, only successor is the goal point itself
-    State goalState{currentState};
-    goalState.setIsGoal(true);
-    return {goalState};
-  }
-
-  if (triangleIndexForState >= getTriangleCount()) {
+  const auto triangleIndexForCurrentState = currentState.getTriangleIndex();
+  if (triangleIndexForCurrentState >= getTriangleCount()) {
     throw std::runtime_error("Triangle is not in data");
   }
 
   std::vector<State> result;
-  auto agentFitsThroughTriangle = [this, &agentRadius](const int triangleIndex, const int entryEdgeIndex, const int exitEdgeIndex) -> bool {
+  auto agentFitsThroughTriangle = [this, &agentRadius](const IndexType triangleIndex, const std::optional<IndexType> entryEdgeIndex, const int exitEdgeIndex) -> bool {
     // TODO: Need to improve
     //  Some of these edges might not be constrained
     //  See C:\Users\Victor\Documents\ShareX\Screenshots\2021-02\drawPolygon_lYhSzArwEG.png
@@ -351,12 +345,12 @@ std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, 
     const auto& exitEdgeVertex1 = getVertex(exitEdgeVertex1Index);
     const auto& exitEdgeVertex2 = getVertex(exitEdgeVertex2Index);
 
-    if (entryEdgeIndex < 0) {
+    if (!entryEdgeIndex) {
       // The agent already is inside this triangle, the only check we can do is make sure that the diameter is less than the width of the exit edge
       return math::distance(exitEdgeVertex1, exitEdgeVertex2) >= (agentRadius*2);
     }
 
-    if (triangleIndex < 0 || triangleIndex >= getTriangleCount()) {
+    if (triangleIndex >= getTriangleCount()) {
       throw std::runtime_error("Referencing invalid triangle");
     }
 
@@ -373,7 +367,7 @@ std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, 
     }
 
     // Get the entry edge for this triangle
-    const auto [entryEdgeVertex1Index, entryEdgeVertex2Index] = getEdgeVertexIndices(entryEdgeIndex);
+    const auto [entryEdgeVertex1Index, entryEdgeVertex2Index] = getEdgeVertexIndices(*entryEdgeIndex);
     const auto &entryEdgeVertex1 = getVertex(entryEdgeVertex1Index);
     const auto &entryEdgeVertex2 = getVertex(entryEdgeVertex2Index);
 
@@ -442,16 +436,14 @@ std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, 
       bool oppositeEdgeIsConstrained{false};
       const auto [edge1Index, edge2Index, edge3Index] = getTriangleEdgeIndices(triangleIndex);
       for (const auto &edgeIndex : {edge1Index, edge2Index, edge3Index}) {
-        if (edgeIndex >= 0) {
-          const auto [edge1Vertex1Index, edge1Vertex2Index] = getEdgeVertexIndices(edgeIndex);
-          if ((edge1Vertex1Index == vertexBIndex && edge1Vertex2Index == vertexAIndex) ||
-              (edge1Vertex1Index == vertexAIndex && edge1Vertex2Index == vertexBIndex)) {
-            // This is the opposite edge
-            if (getEdgeMarker(edgeIndex) != 0) {
-              oppositeEdgeIsConstrained = true;
-            }
-            break;
+        const auto [edge1Vertex1Index, edge1Vertex2Index] = getEdgeVertexIndices(edgeIndex);
+        if ((edge1Vertex1Index == vertexBIndex && edge1Vertex2Index == vertexAIndex) ||
+            (edge1Vertex1Index == vertexAIndex && edge1Vertex2Index == vertexBIndex)) {
+          // This is the opposite edge
+          if (getEdgeMarker(edgeIndex) != 0) {
+            oppositeEdgeIsConstrained = true;
           }
+          break;
         }
       }
       if (oppositeEdgeIsConstrained) {
@@ -467,25 +459,43 @@ std::vector<State> TriangleLibNavmesh::getSuccessors(const State &currentState, 
   };
   
   // For each neighboring triangle
-  const auto &[neighborAcrossEdge1, neighborAcrossEdge2, neighborAcrossEdge3] = getTriangleNeighborsWithSharedEdges(triangleIndexForState);
+  const auto &[neighborAcrossEdge1, neighborAcrossEdge2, neighborAcrossEdge3] = getTriangleNeighborsWithSharedEdges(triangleIndexForCurrentState);
   for (const auto &neighborAcrossEdge : {neighborAcrossEdge1, neighborAcrossEdge2, neighborAcrossEdge3}) {
-    if (neighborAcrossEdge.neighborTriangleIndex >= 0) {
+    if (neighborAcrossEdge) {
       // Neighbor exists
-      if (neighborAcrossEdge.sharedEdgeIndex < 0) {
-        throw std::runtime_error("Have neighbor triangle, but no shared edge between them");
-      }
-      if (neighborAcrossEdge.sharedEdgeIndex != currentState.getEntryEdgeIndex()) {
+      if (!currentState.hasEntryEdgeIndex() || neighborAcrossEdge->sharedEdgeIndex != currentState.getEntryEdgeIndex()) {
         // Not going back to previous
-        if (getEdgeMarker(neighborAcrossEdge.sharedEdgeIndex) == 0) {
+        if (getEdgeMarker(neighborAcrossEdge->sharedEdgeIndex) == 0) {
           // Non-constraint edge
-          if (agentFitsThroughTriangle(triangleIndexForState, currentState.getEntryEdgeIndex(), neighborAcrossEdge.sharedEdgeIndex)) {
-            State successor(neighborAcrossEdge.neighborTriangleIndex, neighborAcrossEdge.sharedEdgeIndex);
+          std::optional<IndexType> entryEdgeIndex;
+          if (currentState.hasEntryEdgeIndex()) {
+            entryEdgeIndex = currentState.getEntryEdgeIndex();
+          }
+          if (agentFitsThroughTriangle(triangleIndexForCurrentState, entryEdgeIndex, neighborAcrossEdge->sharedEdgeIndex)) {
+            State successor(neighborAcrossEdge->neighborTriangleIndex, neighborAcrossEdge->sharedEdgeIndex);
             result.push_back(successor);
           }
         }
       }
     }
   }
+  return result;
+}
+
+Vector TriangleLibNavmesh::to2dPoint(const Vector &point) {
+  return point;
+}
+
+TriangleLibNavmesh::State TriangleLibNavmesh::createStartState(const Vector &startPoint, const IndexType startTriangle) {
+  (void)startPoint;
+  State result{startTriangle};
+  return result;
+}
+
+TriangleLibNavmesh::State TriangleLibNavmesh::createGoalState(const Vector &goalPoint, const IndexType goalTriangle) {
+  (void)goalPoint;
+  State result{goalTriangle};
+  result.setIsGoal(true);
   return result;
 }
 
