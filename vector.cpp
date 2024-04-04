@@ -31,4 +31,33 @@ double Vector::y() const {
   return y_;
 }
 
+Vector operator*(const Vector &lhs, double scalar) {
+  return {lhs.x_ * scalar, lhs.y_ * scalar};
+}
+
+Vector operator*(double scalar, const Vector &rhs) {
+  return {rhs.x_ * scalar, rhs.y_ * scalar};
+}
+
+Vector operator/(const Vector &lhs, double scalar) {
+  return {lhs.x_ / scalar, lhs.y_ / scalar};
+}
+
+Vector operator/(double scalar, const Vector &rhs) {
+  return {rhs.x_ / scalar, rhs.y_ / scalar};
+}
+
+Vector operator-(const Vector &lhs, const Vector &rhs) {
+  return {lhs.x_-rhs.x_, lhs.y_-rhs.y_};
+}
+
+Vector operator+(const Vector &lhs, const Vector &rhs) {
+  return {lhs.x_+rhs.x_, lhs.y_+rhs.y_};
+}
+
+std::ostream& operator<<(std::ostream &stream, const pathfinder::Vector &vector) {
+  stream << '(' << vector.x() << ',' << vector.y() << ')';
+  return stream;
+}
+
 } // namespace pathfinder

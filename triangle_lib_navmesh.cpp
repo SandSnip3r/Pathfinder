@@ -1,6 +1,9 @@
 #include "math_helpers.h"
 #include "triangle_lib_navmesh.h"
 
+#include <absl/log/log.h>
+#include <absl/strings/str_format.h>
+
 #include <algorithm>
 #include <stdexcept>
 #include <string>
@@ -57,6 +60,7 @@ TriangleLibNavmesh::TriangleLibNavmesh(const triangle::triangleio &triangleData,
     vertices_.emplace_back(triangleData.pointlist[vertexIndex*2], triangleData.pointlist[vertexIndex*2+1]);
     vertexMarkers_.emplace_back(triangleData.pointmarkerlist[vertexIndex]);
   }
+  checkForDuplicateVertices();
   
   // Save all edges and their markers
   edgeVertexIndices_.reserve(triangleData.numberofsegments);
@@ -295,6 +299,17 @@ std::optional<TriangleLibNavmesh::IndexType> TriangleLibNavmesh::getVertexIndex(
   return {};
 }
 
+void TriangleLibNavmesh::checkForDuplicateVertices() const {
+  // TODO: If the input .poly file has multiple definitions of the same vertex, triangulation will successfully ignore them, but we do not handle them correctly. We should deduplicate during construction.
+  for (int i=0; i<vertices_.size(); ++i) {
+    for (int j=i+1; j<vertices_.size(); ++j) {
+      if (vertices_[i] == vertices_[j]) {
+        LOG(FATAL) << absl::StreamFormat("Vertex %d is a duplicate of vertex %d! (%.10f, %.10f)", j, i, vertices_[i].x(), vertices_[i].y());
+      }
+    }
+  }
+}
+
 bool TriangleLibNavmesh::pointIsOnTriangle(const Vector &point, const IndexType triangleIndex) const {
   const auto &[vertex1, vertex2, vertex3] = getTriangleVertices(triangleIndex);
   // Triangles' vertices are listed in CCW order (might matter for checking if a point lies within a triangle)
@@ -313,12 +328,12 @@ std::optional<TriangleLibNavmesh::IndexType> TriangleLibNavmesh::findTriangleFor
   return {};
 }
 
-std::vector<TriangleLibNavmesh::State> TriangleLibNavmesh::getSuccessors(const State &currentState, const State &goalState, const double agentRadius) const {
+std::vector<TriangleLibNavmesh::State> TriangleLibNavmesh::getSuccessors(const State &currentState, const std::optional<State> goalState, const double agentRadius) const {
   if (currentState.isGoal()) {
     throw std::runtime_error("Trying to get successors of goal");
   }
 
-  if (currentState.isSameTriangleAs(goalState)) {
+  if (goalState && currentState.isSameTriangleAs(*goalState)) {
     // This is the goal, only successor is the goal point itself
     State newGoalState{currentState};
     newGoalState.setIsGoal(true);
@@ -347,6 +362,12 @@ std::vector<TriangleLibNavmesh::State> TriangleLibNavmesh::getSuccessors(const S
 
     if (!entryEdgeIndex) {
       // The agent already is inside this triangle, the only check we can do is make sure that the diameter is less than the width of the exit edge
+      if (getVertexMarker(exitEdgeVertex1Index) == 0 ||
+          getVertexMarker(exitEdgeVertex2Index) == 0) {
+        // One of these vertices is not a constraint, we might fit through this edge.
+        // TODO: We also might not fit, further improve.
+        return true;
+      }
       return math::distance(exitEdgeVertex1, exitEdgeVertex2) >= (agentRadius*2);
     }
 

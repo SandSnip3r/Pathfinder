@@ -3,6 +3,7 @@
 
 #include "debuglogger.h"
 #include "math_helpers.h"
+#include "path.h"
 #include "vector.h"
 
 #include <iostream>
@@ -51,28 +52,6 @@ private:
   AngleDirection apexType_{AngleDirection::kNoDirection};
   int apexIndex_;
   int leftIndex_, rightIndex_;
-};
-
-struct PathSegment {
-  virtual std::unique_ptr<PathSegment> clone() const = 0;
-  virtual ~PathSegment();
-};
-
-struct StraightPathSegment : public PathSegment {
-  StraightPathSegment(const Vector &start, const Vector &end) : startPoint(start), endPoint(end) {}
-  StraightPathSegment(const StraightPathSegment &other) : startPoint(other.startPoint), endPoint(other.endPoint) {}
-  virtual std::unique_ptr<PathSegment> clone() const override { return std::unique_ptr<PathSegment>(new StraightPathSegment(*this)); }
-  Vector startPoint, endPoint;
-};
-
-struct ArcPathSegment : public PathSegment {
-  ArcPathSegment(const Vector &center, const double radius, const AngleDirection direction) : circleCenter(center), circleRadius(radius), angleDirection(direction) {}
-  ArcPathSegment(const ArcPathSegment &other) : circleCenter(other.circleCenter), circleRadius(other.circleRadius), angleDirection(other.angleDirection), startAngle(other.startAngle), endAngle(other.endAngle) {}
-  virtual std::unique_ptr<PathSegment> clone() const override { return std::unique_ptr<PathSegment>(new ArcPathSegment(*this)); }
-  Vector circleCenter;
-  double circleRadius;
-  AngleDirection angleDirection;
-  double startAngle, endAngle;
 };
 
 class BaseFunnel {

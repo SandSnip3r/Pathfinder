@@ -8,7 +8,25 @@
 
 namespace pathfinder {
 
+std::string_view toString(AngleDirection direction) {
+  if (direction == AngleDirection::kClockwise) {
+    return "Clockwise";
+  } else if (direction == AngleDirection::kCounterclockwise) {
+    return "Counterclockwise";
+  }
+  return "NoDirection";
+}
+
 namespace math {
+
+std::string_view toString(IntersectionResult intersectionResult) {
+  if (intersectionResult == IntersectionResult::kNone) {
+    return "None";
+  } else if (intersectionResult == IntersectionResult::kOne) {
+    return "One";
+  }
+  return "Infinite";
+}
 
 Vector polarToVector(const double r, const double theta) {
   return {r*cos(theta), r*sin(theta)};
@@ -34,12 +52,41 @@ double crossProductForSign(const Vector &v1p1, const Vector &v1p2, const Vector 
   return (v1_x*v2_y - v2_x*v1_y);
 }
 
+double crossProductForSign(const Vector &v1, const Vector &v2) {
+  return v1.x() * v2.y() - v1.y() * v2.x();
+}
+
 double dotProduct(const Vector &v1p1, const Vector &v1p2, const Vector &v2p1, const Vector &v2p2) {
   const double dx1 = v1p2.x()-v1p1.x();
   const double dy1 = v1p2.y()-v1p1.y();
   const double dx2 = v2p2.x()-v2p1.x();
   const double dy2 = v2p2.y()-v2p1.y();
   return dx1*dx2+dy1*dy2;
+}
+
+// This was yoinked from https://bitbucket.org/dharabor/pathfinding/src/master/anyangle/polyanya/helpers/geometry.cpp
+Vector reflectPointOverLine(const Vector &point, const Vector &lineStart, const Vector &lineEnd) {
+  // I have no idea how the below works.
+  const double denom = distanceSquared(lineStart, lineEnd);
+  if (std::abs(denom) < kDoublePrecisionTolerance) {
+    // A trivial reflection.
+    // Should be p + 2 * (l - p) = 2*l - p.
+    return 2 * (lineStart - point);
+  }
+  const double numer = crossProductForSign(lineEnd - point, lineStart - point);
+
+  // The vector lineEnd - lineStart rotated 90 degrees counterclockwise.
+  // Can imagine "multiplying" the vector by the imaginary constant.
+  const Vector delta_rotated = {lineStart.y() - lineEnd.y(), lineEnd.x() - lineStart.x()};
+
+  // #ifndef NDEBUG
+  // // If we're debugging, ensure that point + (numer / denom) * delta_rotated
+  // // lies on the line lr.
+  // assert(get_orientation(lineStart, point + (numer / denom) * delta_rotated, lineEnd) ==
+  //         Orientation::COLLINEAR);
+  // #endif
+
+  return point + (2.0 * numer / denom) * delta_rotated;
 }
 
 bool isPointOnTriangle(const Vector &point, const Vector &triangleVertex1, const Vector &triangleVertex2, const Vector &triangleVertex3) {
@@ -83,6 +130,24 @@ bool lessThan(const double d1, const double d2, const double tolerance) {
   return (d2-d1 >= tolerance);
 }
 
+// TODO: <Test>
+bool greaterThan(const double d1, const double d2, const double tolerance) {
+  return lessThan(d2, d1, tolerance);
+}
+
+bool lessThanOrEqual(const double d1, const double d2, const double tolerance) {
+  return !greaterThan(d1, d2, tolerance);
+}
+
+bool greaterThanOrEqual(const double d1, const double d2, const double tolerance) {
+  return !lessThan(d1, d2, tolerance);
+}
+// </Test>
+
+bool betweenOrEqual(const double num, const double lower, const double upper, const double tolerance) {
+  return !lessThan(num, lower, tolerance) && !lessThan(upper, num, tolerance);
+}
+
 bool equal(const double d1, const double d2, const double tolerance) {
   return std::abs(d2-d1) < tolerance;
 }
@@ -94,10 +159,15 @@ bool equal(const Vector &v1, const Vector &v2, const double tolerance) {
 double angle(const Vector &point1, const Vector &point2) {
   const double dx = point2.x()-point1.x();
   const double dy = point2.y()-point1.y();
+
+  // Note that std::atan handles infinity and negative infinity properly.
   double angle = std::atan(dy/dx);
-  if (lessThan(dx, 0)) {
+
+  // Using < rather than math::lessThan because we care about sign.
+  if (dx < 0.0) {
     angle += kPi;
-  } else if (lessThan(dy, 0)) {
+  } else if (angle < 0.0) {
+    // Ensure angle is in the range [0, 2pi].
     angle += k2Pi;
   }
   return angle;
@@ -309,7 +379,7 @@ Vector extendLineSegmentToLength(const Vector &point1, const Vector &point2, con
 }
 
 std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const AngleDirection &point1Direction, const Vector &point2, const AngleDirection &point2Direction, const double circleRadius) {
-  constexpr const double kReducedPrecision{1e-3};
+  constexpr const double kReducedPrecision{0.828125e-4}; // TODO: Used to be 1e-3.
   if (math::equal(circleRadius, 0.0)) {
     return {point1, point2};
   }
@@ -323,19 +393,8 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
     if (point2Direction != AngleDirection::kNoDirection) {
       // Both are circles, no potential issues
     } else {
-      const auto distanceBetweenPoints = math::distance(point1, point2);
-      if (math::equal(distanceBetweenPoints, circleRadius, kReducedPrecision)) {
-        // point2 on the circumference of point1's circle
-        // the line is really not a line
-        if (math::equal(distanceBetweenPoints, circleRadius)) {
-          return {point2, point2};
-        } else {
-          // There's a bit of a precision issue, lets use the point where this point would be on the circle's circumference
-          const auto fixedPoint = extendLineSegmentToLength(point1, point2, circleRadius);
-          return {fixedPoint, fixedPoint};
-        }
-      } else if (math::lessThan(distanceBetweenPoints, circleRadius)) {
-        // TODO: point2 is inside point1's circle. Handle
+      if (math::lessThan(math::distance(point1, point2), circleRadius)) {
+        // TODO: point2 is inside point1's circle. This is an invalid argument issue, how should we handle?
         throw std::runtime_error("createCircleConsciousLine: point2 is inside point1's circle");
       }
     }
@@ -348,19 +407,8 @@ std::pair<Vector, Vector> createCircleConsciousLine(const Vector &point1, const 
     if (point1Direction != AngleDirection::kNoDirection) {
       // Both are circles, no potential issues
     } else {
-      const auto distanceBetweenPoints = math::distance(point1, point2);
-      if (math::equal(distanceBetweenPoints, circleRadius, kReducedPrecision)) {
-        // point1 on the circumference of point2's circle
-        // the line is really not a line
-        if (math::equal(distanceBetweenPoints, circleRadius)) {
-          return {point1, point1};
-        } else {
-          // There's a bit of a precision issue, lets use the point where this point would be on the circle's circumference
-          const auto fixedPoint = extendLineSegmentToLength(point2, point1, circleRadius);
-          return {fixedPoint, fixedPoint};
-        }
-      } else if (math::lessThan(distanceBetweenPoints, circleRadius)) {
-        // TODO: point1 is inside point2's circle. Handle
+      if (math::lessThan(math::distance(point1, point2), circleRadius)) {
+        // TODO: point1 is inside point2's circle. This is an invalid argument issue, how should we handle?
         throw std::runtime_error("createCircleConsciousLine: point1 is inside point2's circle");
       }
     }
@@ -534,6 +582,65 @@ std::pair<Vector, Vector> createVectorTangentToPointOnCircle(const Vector &circl
   return {point1,point2};
 }
 
+std::pair<Vector, Vector> createPerpendicularBisector(const Vector &lineStart, const Vector &lineEnd, double bisectorLength) {
+  if (equal(lineStart, lineEnd)) {
+    throw std::runtime_error("Cannot find perpendicular bisector; given line has 0-length");
+  }
+  if (bisectorLength == 0.0) { // TODO: equal(bisectorLength, 0.0)?
+    throw std::runtime_error("Asking for perpendicular bisector with 0-length");
+  }
+  const auto diff = lineEnd - lineStart;
+  const auto midpoint = lineStart + (diff / 2);
+  if (diff.y() == 0) { // TODO: use math::equal?
+    // Avoid dividing by 0 when calculating the negative reciprocal of the slope; also, this is an easy case.
+    if (diff.x() > 0) {
+      // Line goes from left to right; perpendicular bisector goes from down to up.
+      const Vector tmpStart(midpoint.x(), midpoint.y() - (bisectorLength/2.0));
+      const Vector tmpEnd(midpoint.x(), midpoint.y() + (bisectorLength/2.0));
+      return {tmpStart, tmpEnd};
+    } else {
+      // Line goes from right to left; perpendicular bisector goes from up to down.
+      const Vector tmpStart(midpoint.x(), midpoint.y() + (bisectorLength/2.0));
+      const Vector tmpEnd(midpoint.x(), midpoint.y() - (bisectorLength/2.0));
+      return {tmpStart, tmpEnd};
+    }
+  } else {
+    if (diff.x() == 0) {
+      if (diff.y() > 0) {
+        const Vector tmpStart(midpoint.x()+bisectorLength/2, midpoint.y());
+        const Vector tmpEnd(midpoint.x()-bisectorLength/2, midpoint.y());
+        return {tmpStart, tmpEnd};
+      } else {
+        const Vector tmpStart(midpoint.x()-bisectorLength/2, midpoint.y());
+        const Vector tmpEnd(midpoint.x()+bisectorLength/2, midpoint.y());
+        return {tmpStart, tmpEnd};
+      }
+    } else {
+      // Line is neither horizontal nor vertical.
+      // Need to calculate y intercept.
+      // y = mx+b
+      const auto negativeReciprocalOfSlope = - diff.x() / diff.y();
+      const auto yIntercept = midpoint.y() - negativeReciprocalOfSlope * midpoint.x();
+      auto calculateY = [&](const auto x) {
+        return negativeReciprocalOfSlope * x + yIntercept;
+      };
+      const auto extendedSlope = math::extendLineSegmentToLength({0,0}, {1, negativeReciprocalOfSlope}, bisectorLength/2);
+      double tmpStartX;
+      double tmpEndX;
+      if (diff.y() > 0) {
+        tmpStartX = midpoint.x()+extendedSlope.x();
+        tmpEndX = midpoint.x()-extendedSlope.x();
+      } else {
+        tmpStartX = midpoint.x()-extendedSlope.x();
+        tmpEndX = midpoint.x()+extendedSlope.x();
+      }
+      const Vector tmpStart(tmpStartX, calculateY(tmpStartX));
+      const Vector tmpEnd(tmpEndX, calculateY(tmpEndX));
+      return {tmpStart, tmpEnd};
+    }
+  }
+}
+
 double normalize(double in, double modVal) {
   if (modVal <= 0) {
     throw std::invalid_argument("pathfinder::math::normalize: modVal must be a positive number");
@@ -549,14 +656,6 @@ IntersectionResult intersect(Vector line1V1, Vector line1V2, Vector line2V1, Vec
   const auto setIntersectionPoint = [&intersectionPoint](const Vector &point) {
     if (intersectionPoint != nullptr) {
       *intersectionPoint = point;
-    }
-  };
-
-  const auto lessThan = [](const auto &p1, const auto &p2) {
-    if (p1.x() == p2.x()) {
-      return p1.y() < p2.y();
-    } else {
-      return p1.x() < p2.x();
     }
   };
 
@@ -595,6 +694,14 @@ IntersectionResult intersect(Vector line1V1, Vector line1V2, Vector line2V1, Vec
   // Fact: Neither line is 0-length
 
   // Order points in each line
+  const auto lessThan = [](const auto &p1, const auto &p2) {
+    if (p1.x() == p2.x()) {
+      return p1.y() < p2.y();
+    } else {
+      return p1.x() < p2.x();
+    }
+  };
+
   if (lessThan(line1V2, line1V1)) {
     // Points are out of order
     std::swap(line1V1, line1V2);
@@ -647,6 +754,137 @@ IntersectionResult intersect(Vector line1V1, Vector line1V2, Vector line2V1, Vec
         isPointOnLineSegment(intersection, line2V1, line2V2)) {
       // The intersection is on both of the line segments
       setIntersectionPoint(intersection);
+      return IntersectionResult::kOne;
+    } else {
+      // Not on both line segments, no intersection
+      return IntersectionResult::kNone;
+    }
+  }
+}
+
+IntersectionResult intersectForIntervals(Vector line1V1, Vector line1V2, Vector line2V1, Vector line2V2, double *intersectionInterval1, double *intersectionInterval2) {
+  const auto setIntersectionInterval = [](double *interval, const double value) {
+    if (interval != nullptr) {
+      *interval = value;
+    }
+  };
+
+  // Do a quick check for 0-length lines
+  const bool line1IsZeroLength = (line1V1 == line1V2);
+  const bool line2IsZeroLength = (line2V1 == line2V2);
+  if (line1IsZeroLength && line2IsZeroLength) {
+    if (line1V1 == line2V1) {
+      // All 4 points are the same
+      setIntersectionInterval(intersectionInterval1, 0.0);
+      setIntersectionInterval(intersectionInterval2, 0.0);
+      return IntersectionResult::kOne;
+    } else {
+      // Two 0-length lines that do not touch
+      setIntersectionInterval(intersectionInterval1, std::numeric_limits<double>::infinity());
+      setIntersectionInterval(intersectionInterval2, std::numeric_limits<double>::infinity());
+      return IntersectionResult::kNone;
+    }
+  } else if (line1IsZeroLength) {
+    if (isPointOnLineSegment(line1V1, line2V1, line2V2)) {
+      // Line 1 is just a point on line 2
+      setIntersectionInterval(intersectionInterval1, 0.0);
+      const auto lengthSquaredOfLine2 = distanceSquared(line2V1, line2V2);
+      const auto distanceSquaredFromStartOfLine2ToIntersection = distanceSquared(line2V1, line1V1);
+      setIntersectionInterval(intersectionInterval2, std::sqrt(distanceSquaredFromStartOfLine2ToIntersection/lengthSquaredOfLine2));
+      return IntersectionResult::kOne;
+    } else {
+      // Line 1 does not touch line 2
+      setIntersectionInterval(intersectionInterval1, std::numeric_limits<double>::infinity());
+      setIntersectionInterval(intersectionInterval2, 0.0);
+      return IntersectionResult::kNone;
+    }
+  } else if (line2IsZeroLength) {
+    if (isPointOnLineSegment(line2V1, line1V1, line1V2)) {
+      // Line 2 is just a point on line 1
+      const auto lengthSquaredOfLine1 = distanceSquared(line1V1, line1V2);
+      const auto distanceSquaredFromStartOfLine1ToIntersection = distanceSquared(line1V1, line2V1);
+      setIntersectionInterval(intersectionInterval1, std::sqrt(distanceSquaredFromStartOfLine1ToIntersection/lengthSquaredOfLine1));
+      setIntersectionInterval(intersectionInterval2, 0.0);
+      return IntersectionResult::kOne;
+    } else {
+      // Line 2 does not touch line 1
+      setIntersectionInterval(intersectionInterval1, 0.0);
+      setIntersectionInterval(intersectionInterval2, std::numeric_limits<double>::infinity());
+      return IntersectionResult::kNone;
+    }
+  }
+
+  // Fact: Neither line is 0-length
+
+  // Order points in each line
+  const auto lessThan = [](const auto &p1, const auto &p2) {
+    if (p1.x() == p2.x()) {
+      return p1.y() < p2.y();
+    } else {
+      return p1.x() < p2.x();
+    }
+  };
+
+  bool swapped1{false}, swapped2{false};
+  if (lessThan(line1V2, line1V1)) {
+    // Points are out of order
+    std::swap(line1V1, line1V2);
+    swapped1 = true;
+  }
+  if (lessThan(line2V2, line2V1)) {
+    // Points are out of order
+    std::swap(line2V1, line2V2);
+    swapped2 = true;
+  }
+
+  // Line AB represented as a1x + b1y = c1
+  const auto a1 = line1V2.y() - line1V1.y();
+  const auto b1 = line1V1.x() - line1V2.x();
+  const auto c1 = a1*line1V1.x() + b1*line1V1.y();
+
+  // Line CD represented as a2x + b2y = c2
+  const auto a2 = line2V2.y() - line2V1.y();
+  const auto b2 = line2V1.x() - line2V2.x();
+  const auto c2 = a2*line2V1.x()+ b2*line2V1.y();
+
+  const auto determinant = a1*b2 - a2*b1;
+
+  if (determinant == 0) {
+    // Lines are parallel
+    if (isPointOnLineSegment(line2V1, line1V1, line1V2)) {
+      if (line2V1 == line1V2) {
+        // Only share endpoints
+        setIntersectionInterval(intersectionInterval1, (swapped1 ? 0.0 : 1.0));
+        setIntersectionInterval(intersectionInterval2, (swapped2 ? 1.0 : 0.0));
+        return IntersectionResult::kOne;
+      } else {
+        // Since points are ordered, neither line is 0-length, and these lines are not sharing first/last endpoints, there must be infinite overlap
+        return IntersectionResult::kInfinite;
+      }
+    }
+    if (isPointOnLineSegment(line1V1, line2V1, line2V2)) {
+      if (line1V1 == line2V2) {
+        // Only share endpoints
+        setIntersectionInterval(intersectionInterval1, (swapped1 ? 1.0 : 0.0));
+        setIntersectionInterval(intersectionInterval2, (swapped2 ? 0.0 : 1.0));
+        return IntersectionResult::kOne;
+      } else {
+        // Since points are ordered, neither line is 0-length, and these lines are not sharing first/last endpoints, there must be infinite overlap
+        return IntersectionResult::kInfinite;
+      }
+    }
+    setIntersectionInterval(intersectionInterval1, std::numeric_limits<double>::infinity());
+    setIntersectionInterval(intersectionInterval2, std::numeric_limits<double>::infinity());
+    return IntersectionResult::kNone;
+  } else {
+    // Lines are not parallel
+    double t1 = ((line1V1.x() - line2V1.x()) * (line2V1.y() - line2V2.y()) - (line1V1.y() - line2V1.y()) * (line2V1.x() - line2V2.x())) / determinant;
+    double t2 = ((line1V1.x() - line2V1.x()) * (line1V1.y() - line1V2.y()) - (line1V1.y() - line2V1.y()) * (line1V1.x() - line1V2.x())) / determinant;
+    setIntersectionInterval(intersectionInterval1, (swapped1 ? (1.0-t1) : t1));
+    setIntersectionInterval(intersectionInterval2, (swapped2 ? (1.0-t2) : t2));
+    if (0.0 <= t1 && t1 <= 1.0 &&
+        0.0 <= t2 && t2 <= 1.0) {
+      // The intersection is on both of the line segments
       return IntersectionResult::kOne;
     } else {
       // Not on both line segments, no intersection

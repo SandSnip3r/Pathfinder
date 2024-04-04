@@ -36,9 +36,12 @@ public:
   EdgeType getSharedEdge(const IndexType triangle1Index, const IndexType triangle2Index) const;
   bool pointIsOnTriangle(const Vector &point, const IndexType triangleIndex) const;
   std::optional<IndexType> findTriangleForPoint(const Vector &point) const;
-  std::vector<State> getSuccessors(const State &currentState, const State &goalState, const double agentRadius) const;
+  std::vector<State> getSuccessors(const State &currentState, const std::optional<State> goalState, const double agentRadius) const;
   // Debug help
   std::optional<IndexType> getVertexIndex(const Vector &vertex) const;
+
+  // Checks
+  void checkForDuplicateVertices() const;
 
   static Vector to2dPoint(const Vector &point);
   static State createStartState(const Vector &startPoint, const IndexType startTriangle);
