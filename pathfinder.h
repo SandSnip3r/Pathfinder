@@ -66,7 +66,7 @@ struct RAIIPrinter {
 template<typename NavmeshType>
 class Pathfinder {
 public:
-  static constexpr bool kProduceDebugAnimationData_{true};
+  static constexpr bool kProduceDebugAnimationData_{false};
   using State = typename NavmeshType::State;
   using IndexType = typename NavmeshType::IndexType;
   using IntervalType = Interval<State, IndexType>;
@@ -130,7 +130,6 @@ public:
   struct PathfindingResult {
     std::vector<std::unique_ptr<PathSegment>> shortestPath;
     PathfindingAStarInfo aStarInfo;
-    // void clear();
   };
 
   Pathfinder(const NavmeshType &navmesh, const double agentRadius);
@@ -377,38 +376,38 @@ bool Pathfinder<NavmeshType>::isAConstraintVertexForState(const State &currentSt
 template<typename NavmeshType>
 template<typename PointType>
 typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::findShortestPath(const PointType &startPoint, const PointType &goalPoint) const {
-  { // TODO: <Remove>
-    // // Print specific vertices.
-    // const std::vector<IndexType> indicesToPrint = {
-    //   486,487,488,603,601,520,521,522,613,583,577,477,483,482,480,479,478,476,481,489,485,600,599,598,602,604
-    // };
-    // for (const auto index : indicesToPrint) {
-    //   if (index >= navmesh_.getVertexCount()) {
-    //     VLOG(1) << "Asking for a vertex which is out of bounds!";
-    //     continue;
-    //   }
-    //   const auto &vertex = navmesh_.getVertex(index);
-    //   VLOG(1) << absl::StreamFormat("Index %d is (%.15f,%.15f)", index, vertex.x(), vertex.y());
-    // }
-    // ------------------------------------------------------------------------
-    // Print vertices within a bounding box.
-    constexpr double kMinX = 1015.0;
-    constexpr double kMaxX = 1070.0;
-    constexpr double kMinY = 1430.0;
-    constexpr double kMaxY = 1480.0;
-    std::vector<Vector> vertices;
-    for (size_t i=0; i<navmesh_.getVertexCount(); ++i) {
-      const auto &vertex = navmesh_.getVertex(i);
-      if (vertex.x() >= kMinX && vertex.x() <= kMaxX &&
-          vertex.y() >= kMinY && vertex.y() <= kMaxY) {
-        vertices.push_back(vertex);
-      }
-    }
-    VLOG(1) << vertices.size() << " 2 0 0";
-    for (size_t i=0; i<vertices.size(); ++i) {
-      VLOG(1) << absl::StreamFormat("%d %.20f %.20f", i, vertices[i].x(), vertices[i].y());
-    }
-  } // </Remove>
+  // { // TODO: <Remove>
+  //   // // Print specific vertices.
+  //   // const std::vector<IndexType> indicesToPrint = {
+  //   //   486,487,488,603,601,520,521,522,613,583,577,477,483,482,480,479,478,476,481,489,485,600,599,598,602,604
+  //   // };
+  //   // for (const auto index : indicesToPrint) {
+  //   //   if (index >= navmesh_.getVertexCount()) {
+  //   //     VLOG(1) << "Asking for a vertex which is out of bounds!";
+  //   //     continue;
+  //   //   }
+  //   //   const auto &vertex = navmesh_.getVertex(index);
+  //   //   VLOG(1) << absl::StreamFormat("Index %d is (%.15f,%.15f)", index, vertex.x(), vertex.y());
+  //   // }
+  //   // ------------------------------------------------------------------------
+  //   // Print vertices within a bounding box.
+  //   constexpr double kMinX = 1015.0;
+  //   constexpr double kMaxX = 1070.0;
+  //   constexpr double kMinY = 1430.0;
+  //   constexpr double kMaxY = 1480.0;
+  //   std::vector<Vector> vertices;
+  //   for (size_t i=0; i<navmesh_.getVertexCount(); ++i) {
+  //     const auto &vertex = navmesh_.getVertex(i);
+  //     if (vertex.x() >= kMinX && vertex.x() <= kMaxX &&
+  //         vertex.y() >= kMinY && vertex.y() <= kMaxY) {
+  //       vertices.push_back(vertex);
+  //     }
+  //   }
+  //   VLOG(1) << vertices.size() << " 2 0 0";
+  //   for (size_t i=0; i<vertices.size(); ++i) {
+  //     VLOG(1) << absl::StreamFormat("%d %.20f %.20f", i, vertices[i].x(), vertices[i].y());
+  //   }
+  // } // </Remove>
 
   // Find the triangle for the start point.
   Vector startPoint2d = NavmeshType::to2dPoint(startPoint);

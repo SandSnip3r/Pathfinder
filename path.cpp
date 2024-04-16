@@ -2,6 +2,8 @@
 
 namespace pathfinder {
 
+PathSegment::~PathSegment() {}
+
 StraightPathSegment::StraightPathSegment(const Vector &start, const Vector &end) : startPoint(start), endPoint(end) {
 }
 

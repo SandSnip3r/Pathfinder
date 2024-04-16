@@ -8,8 +8,6 @@
 
 namespace pathfinder {
 
-PathSegment::~PathSegment() {} // TODO: Why is this here? Why not funnel.cpp?
-
 double calculatePathLength(const std::vector<std::unique_ptr<PathSegment>> &path) {
   double totalDistance=0;
   for (std::size_t i=0; i<path.size(); ++i) {
@@ -114,9 +112,6 @@ RAIIPrinter::RAIIPrinter(const std::string &msg) : msg_(msg) {}
 
 RAIIPrinter::~RAIIPrinter() {
   VLOG(1) << msg_;
-  // if (VLOG_IS_ON(1)) {
-  //   std::cout << msg_ << std::endl;
-  // }
 }
 
 } // namespace internal
