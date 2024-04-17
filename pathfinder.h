@@ -188,7 +188,7 @@ private:
                                      const Vector &toDestinationStart,
                                      const Vector &toDestinationEnd) const;
 
-  double costToGetToInterval(const IntervalType &interval, const Vector &goalPoint) const;
+  double costFromIntervalToGoal(const IntervalType &interval, const Vector &goalPoint) const;
   void pushSuccessor(const IntervalType &currentInterval,
                      IntervalType successorInterval,
                      IntervalHeapType &intervalHeap,
@@ -1030,8 +1030,7 @@ std::pair<bool,bool> Pathfinder<NavmeshType>::booberGobblin(
 }
 
 template<typename NavmeshType>
-double Pathfinder<NavmeshType>::costToGetToInterval(const IntervalType &interval, const Vector &goalPoint) const {
-  VLOG(1) << "Getting cost of interval with state " << interval.state.toString();
+double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &interval, const Vector &goalPoint) const {
   if (interval.isGoal) {
     // We know that the root has direct line of sight to the goal.
     return interval.costToRoot + math::distance(interval.rootPoint, goalPoint);
@@ -1046,19 +1045,25 @@ double Pathfinder<NavmeshType>::costToGetToInterval(const IntervalType &interval
     }
     // If the root is one of the ends of the interval; simply find the distance to the goal.
     if (interval.leftIndex && *interval.rootIndex == *interval.leftIndex) {
-      // TODO: Check if the left point is a constraint to us.
-      const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
-      VLOG(1) << "0 calculating distance to goal from " << pointAwayFromConstraint.x() << ',' << pointAwayFromConstraint.y();
-      return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
+      if (true /* interval.intervalLeftIsConstraintVertex() */) {
+        // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
+        const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
+        return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
+      } else {
+        return interval.costToRoot + math::distance(interval.leftPoint, goalPoint);
+      }
     } else if (interval.rightIndex && *interval.rootIndex == *interval.rightIndex) {
-      // TODO: Check if the right point is a constraint to us.
-      const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
-      VLOG(1) << "1 calculating distance to goal from " << pointAwayFromConstraint.x() << ',' << pointAwayFromConstraint.y();
-      return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
+      if (true /* interval.intervalRightIsConstraintVertex() */) {
+        // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
+        const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
+        return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
+      } else {
+        return interval.costToRoot + math::distance(interval.rightPoint, goalPoint);
+      }
     }
   }
   // First check if the goal and root are on the same side of the interval.
-  auto goal = goalPoint;
+  Vector goal = goalPoint;
   if (!math::equal(interval.rightPoint, interval.leftPoint)) {
     // If left and right of interval are the same point, there's no reflecting to do.
     const auto leftToRightVector = interval.rightPoint - interval.leftPoint;
@@ -1068,25 +1073,23 @@ double Pathfinder<NavmeshType>::costToGetToInterval(const IntervalType &interval
     const bool b = (math::crossProductForSign(leftToGoalVector, leftToRightVector) > 0);
     if (a == b) {
       // Both the root and the goal are on the same side of the edge. Reflect the goal over the edge.
-      VLOG(1) << "Root and goal are on same side, mirroring goal";
       const auto tmpOldGoal = goal;
       goal = math::reflectPointOverLine(goal, interval.leftPoint, interval.rightPoint);
-      VLOG(1) << "Point " << tmpOldGoal.x() << ',' << tmpOldGoal.y() << " reflected over line " << interval.leftPoint.x() << ',' << interval.leftPoint.y() << " -> " << interval.rightPoint.x() << ',' << interval.rightPoint.y() << " is " << goal.x() << ',' << goal.y();
       leftToGoalVector = goal - interval.leftPoint;
     }
   }
 
   Vector leftPointAwayFromConstraints, rightPointAwayFromConstraints;
-  if (interval.leftIndex) { // TODO: Also check if this point is a constriant to us.
+  if (interval.leftIndex /* interval.intervalLeftIsConstraintVertex() */) {
+    // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
     leftPointAwayFromConstraints = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
-    VLOG(1) << "Need to push left point away from constraint to " << leftPointAwayFromConstraints.x() << ',' << leftPointAwayFromConstraints.y();
   } else {
     // TODO: It could be the case that some other constraint will push us away from this point.
     leftPointAwayFromConstraints = interval.leftPoint;
   }
-  if (interval.rightIndex) { // TODO: Also check if this point is a constriant to us.
+  if (interval.rightIndex /* interval.intervalRightIsConstraintVertex() */) {
+    // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
     rightPointAwayFromConstraints = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
-    VLOG(1) << "Need to push right point away from constraint to " << rightPointAwayFromConstraints.x() << ',' << rightPointAwayFromConstraints.y();
   } else {
     // TODO: It could be the case that some other constraint will push us away from this point.
     rightPointAwayFromConstraints = interval.rightPoint;
@@ -1101,11 +1104,9 @@ double Pathfinder<NavmeshType>::costToGetToInterval(const IntervalType &interval
     // No line segment intersection.
     if (interval2 < 0.0) {
       // Lines intersect to the left.
-      VLOG(1) << "Calculating heuristic by bending around left";
       return interval.costToRoot + math::distance(interval.rootPoint, leftPointAwayFromConstraints) + math::distance(leftPointAwayFromConstraints, goal);
     } else {
       // Lines intersect to the right.
-      VLOG(1) << "Calculating heuristic by bending around right";
       return interval.costToRoot + math::distance(interval.rootPoint, rightPointAwayFromConstraints) + math::distance(rightPointAwayFromConstraints, goal);
     }
   }
@@ -1160,7 +1161,7 @@ void Pathfinder<NavmeshType>::pushSuccessor(const IntervalType &currentInterval,
     VLOG(1) << "Already pushed!";
     return;
   }
-  intervalHeap.emplace(successorInterval, costToGetToInterval(successorInterval, goalPoint));
+  intervalHeap.emplace(successorInterval, costFromIntervalToGoal(successorInterval, goalPoint));
   pushed.emplace(successorInterval);
   auto it = previous.find(successorInterval);
   if (it != previous.end()) {
@@ -1274,7 +1275,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
       // TODO: set cost.
       VLOG(1) << "Pushing initial successor " << interval.toString();
       // TODO: Shouldn't this use pushSuccessor? Ah, there is no current interval
-      intervalHeap.emplace(interval, costToGetToInterval(interval, goalPoint));
+      intervalHeap.emplace(interval, costFromIntervalToGoal(interval, goalPoint));
       turnedAroundAConstraint = true;
     }
   }
@@ -1348,7 +1349,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
       // TODO: set cost.
       VLOG(1) << "Pushing initial successor " << interval.toString();
       // TODO: Shouldn't this use pushSuccessor? Ah, there is no current interval
-      intervalHeap.emplace(interval, costToGetToInterval(interval, goalPoint));
+      intervalHeap.emplace(interval, costFromIntervalToGoal(interval, goalPoint));
       turnedAroundAConstraint = true;
     }
   }
@@ -1360,7 +1361,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
     interval.setRight(rightPoint, rightIndex);
     VLOG(1) << "[2] Pushing initial successor " << interval.toString();
     // TODO: Shouldn't this use pushSuccessor? Ah, there is no current interval
-    intervalHeap.emplace(interval, costToGetToInterval(interval, goalPoint));
+    intervalHeap.emplace(interval, costFromIntervalToGoal(interval, goalPoint));
   }
 
   if constexpr (kProduceDebugAnimationData_) {
@@ -1416,7 +1417,7 @@ void Pathfinder<NavmeshType>::buildResultFromGoalInterval(const IntervalType &go
                                                           const Vector &goalPoint,
                                                           PreviousIntervalMapType &previous,
                                                           PathfindingResult &result) const {
-  const auto cost = costToGetToInterval(goalInterval, goalPoint);
+  const auto cost = costFromIntervalToGoal(goalInterval, goalPoint);
   VLOG(1) << "Found goal!!!! Cost is " << cost;
   if (!goalInterval.rootIndex) {
     // Must be a straight path from the start to the goal
@@ -1708,7 +1709,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         }
         // Updated root; update cost to get to root.
         const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, leftConstraint->first, AngleDirection::kCounterclockwise, agentRadius_);
-        successorInterval2.costToRoot = currentInterval.costToRoot /*TODO: + distance traveled around the currentInterval.root's arc/circumference */ + math::distance(lineStart, lineEnd);
+        successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval2, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       }
     } else {
@@ -1756,7 +1757,10 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
         successorInterval.setRight(currentInterval.rightPoint, currentInterval.rightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, currentInterval.rightPoint);
+        if (!currentInterval.rightInterval()) {
+          throw std::runtime_error("Expecting to have right interval");
+        }
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       } else if (canUseRightOfSuccessorAsRoot()) {
         // This creates a non-observable successor.
@@ -1765,7 +1769,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
         successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, successorEdgeRightPoint);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       }
     }
@@ -1818,7 +1823,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         }
         successorInterval2.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, rightConstraint->first);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, rightConstraint->first, AngleDirection::kClockwise, agentRadius_);
+        successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval2, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       }
     } else {
@@ -1866,7 +1872,10 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(currentInterval.leftPoint, currentInterval.leftIndex);
         successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, currentInterval.leftPoint);
+        if (!currentInterval.leftInterval()) {
+          throw std::runtime_error("Expecting to have left interval");
+        }
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       } else if (canUseLeftOfSuccessorAsRoot()) {
         // This creates a non-observable successor.
@@ -1875,7 +1884,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
         successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, successorEdgeLeftPoint);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       }
     }
@@ -1932,8 +1942,10 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
           successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
           // Updated root; update cost to get to root.
-          // TODO: Does this cost need to account for staying away from the constraint vertex?
-          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, currentInterval.leftPoint);
+          if (!currentInterval.leftInterval()) {
+            throw std::runtime_error("Expecting to have left interval");
+          }
+          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
           pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
         } else {
           VLOG(1) << "Both are left of, but left of interval is not a constraint vertex";
@@ -1955,7 +1967,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root.
-              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, currentEdgeLeftPoint);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
               turnedAroundCurrentEntryEdgeLeft = true;
             }
@@ -1974,8 +1987,9 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setRoot(successorEdgeLeftPoint, successorEdgeLeftIndex, AngleDirection::kCounterclockwise);
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
-              // Updated root; update cost to get to root.
-              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, successorEdgeLeftPoint);
+              // Updated root; update cost to get to root
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
             }
           }
@@ -2033,8 +2047,10 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
           successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
           // Updated root; update cost to get to root.
-          // TODO: Does this cost need to account for staying away from the constraint vertex?
-          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, currentInterval.rightPoint);
+          if (!currentInterval.rightInterval()) {
+            throw std::runtime_error("Expecting to have right interval");
+          }
+          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
           pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
         } else {
           VLOG(1) << "Both are right of, but right of interval is not a constraint vertex";
@@ -2056,7 +2072,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root.
-              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, currentEdgeRightPoint);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
               turnedAroundCurrentEntryEdgeRight = true;
             }
@@ -2076,7 +2093,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root.
-              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, successorEdgeRightPoint);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
             }
           }
@@ -2318,7 +2336,10 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(currentInterval.leftPoint, *currentInterval.leftIndex);
         successorInterval.setRight(currentInterval.rightPoint, *currentInterval.rightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot;
+        if (!currentInterval.rightInterval()) {
+          throw std::runtime_error("Expecting to have right interval");
+        }
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       } else if (successorIsBlockedByIntervalLeft) {
         // We're here in this case because the right interval intersects with the  left constraint of our interval (before getting to our current entry edge) and
@@ -2330,7 +2351,10 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(currentInterval.leftPoint, *currentInterval.leftIndex);
         successorInterval.setRight(currentInterval.rightPoint, *currentInterval.rightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot;
+        if (!currentInterval.leftInterval()) {
+          throw std::runtime_error("Expecting to have left interval");
+        }
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
       } else {
         if (intervalIsClosed(currentInterval, successorEdgeLeftPoint, successorEdgeRightPoint, true, true)) {
@@ -2353,7 +2377,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             successorInterval2.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
             successorInterval2.setRight(projectedLeftPoint, projectedLeftIndex);
             // Updated root; update cost to get to root.
-            successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, leftConstraint->first);
+            const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, leftConstraint->first, AngleDirection::kCounterclockwise, agentRadius_);
+            successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
             pushSuccessor(currentInterval, successorInterval2, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
           }
 
@@ -2365,7 +2390,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             successorInterval3.setLeft(projectedRightPoint, projectedRightIndex);
             successorInterval3.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
             // Updated root; update cost to get to root.
-            successorInterval3.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, rightConstraint->first);
+            const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, rightConstraint->first, AngleDirection::kClockwise, agentRadius_);
+            successorInterval3.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
             pushSuccessor(currentInterval, successorInterval3, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
           }
         }
@@ -3119,7 +3145,10 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
         successorInterval.setLeft(currentInterval.leftPoint, *currentInterval.leftIndex);
         successorInterval.setRight(currentInterval.rightPoint, *currentInterval.rightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot; // TODO
+        if (!currentInterval.leftInterval()) {
+          throw std::runtime_error("Expecting to have left interval");
+        }
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
         // Nothing else to do for this successor.
         return;
@@ -3165,7 +3194,10 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
         successorInterval.setLeft(currentInterval.leftPoint, *currentInterval.leftIndex);
         successorInterval.setRight(currentInterval.rightPoint, *currentInterval.rightIndex);
         // Updated root; update cost to get to root.
-        successorInterval.costToRoot = currentInterval.costToRoot; // TODO
+        if (!currentInterval.rightInterval()) {
+          throw std::runtime_error("Expecting to have right interval");
+        }
+        successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
         // Nothing else to do for this successor.
         return;
@@ -3232,7 +3264,7 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
               successorInterval.setRoot(currentInterval.rightPoint, currentInterval.rightIndex, AngleDirection::kClockwise);
               successorInterval.setLeft(currentInterval.leftPoint, currentInterval.leftIndex);
               successorInterval.setRight(currentInterval.rightPoint, currentInterval.rightIndex);
-              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second);
+              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
               // Nothing else to do for this successor.
               return;
@@ -3248,7 +3280,7 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
           successorInterval.setRoot(currentInterval.leftPoint, currentInterval.leftIndex, AngleDirection::kCounterclockwise);
           successorInterval.setLeft(currentInterval.leftPoint, currentInterval.leftIndex);
           successorInterval.setRight(currentInterval.rightPoint, currentInterval.rightIndex);
-          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second);
+          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
           pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
           // Nothing else to do for this successor.
           return;
@@ -3283,7 +3315,7 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
               successorInterval.setRoot(currentInterval.leftPoint, currentInterval.leftIndex, AngleDirection::kCounterclockwise);
               successorInterval.setLeft(currentInterval.leftPoint, currentInterval.leftIndex);
               successorInterval.setRight(currentInterval.rightPoint, currentInterval.rightIndex);
-              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second);
+              successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
               // Nothing else to do for this successor.
               return;
@@ -3299,7 +3331,7 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
           successorInterval.setRoot(currentInterval.rightPoint, currentInterval.rightIndex, AngleDirection::kClockwise);
           successorInterval.setLeft(currentInterval.leftPoint, currentInterval.leftIndex);
           successorInterval.setRight(currentInterval.rightPoint, currentInterval.rightIndex);
-          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second);
+          successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
           pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
           // Nothing else to do for this successor.
           return;
@@ -3345,7 +3377,8 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
     VLOG(1) << "Have a constraint to turn around";
     IntervalType successorInterval(successorState);
     successorInterval.setRoot(std::get<0>(*constraintToTurnAround), std::get<1>(*constraintToTurnAround), std::get<2>(*constraintToTurnAround));
-    successorInterval.costToRoot = currentInterval.costToRoot + math::distance(currentInterval.rootPoint, std::get<0>(*constraintToTurnAround));
+    const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, std::get<0>(*constraintToTurnAround), std::get<2>(*constraintToTurnAround), agentRadius_);
+    successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
     successorInterval.isGoal = true;
     pushSuccessor(currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, aStarInfo);
   }
