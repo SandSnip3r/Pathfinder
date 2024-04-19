@@ -88,10 +88,6 @@ public:
 
   struct PathfindingAStarInfo {
     // TODO: This is just a debug structure, remove at some point
-    std::vector<IndexType> triangleCorridor;
-    std::unordered_set<IndexType> trianglesSearched;
-    std::unordered_set<IndexType> trianglesDiscovered;
-
     using IntervalType = typename NavmeshType::TriangleVerticesType;
     struct PushInterval {
       PushInterval(const Vector &v1, const Vector &v2, const Vector &v3) : trianglevertices(v1, v2, v3) {}
