@@ -1,6 +1,7 @@
 #ifndef PATHFINDER_INTERVAL_H_
 #define PATHFINDER_INTERVAL_H_
 
+#include "hash_combine.h"
 #include "math_helpers.h"
 #include "vector.h"
 
@@ -18,21 +19,6 @@ using LineSegment = std::pair<Vector, Vector>;
 template<typename StateType, typename IndexType>
 class Interval {
 public:
-  // TODO: Consolidate all of these setters into a constructor
-  // Interval(const StateType &state,
-  // const Vector &rootPoint, const std::optional<std::pair<IndexType, AngleDirection>> indexAndDirection,
-  // const Vector &leftPoint, const std::optional<IndexType> leftIndex,
-  // const Vector &rightPoint, const std::optional<IndexType> rightIndex,
-  // double costToRoot) {
-  //   if (leftIsRoot() && leftIndex && rootIndex && leftIndex != rootIndex) {
-  //     // These are only possible when there's a shared vertex.
-  //     throw std::runtime_error("Left is root, but left does not have the same index as the root");
-  //   }
-  //   if (rightIsRoot() && rightIndex && rootIndex && rightIndex != rootIndex) {
-  //     // These are only possible when there's a shared vertex.
-  //     throw std::runtime_error("Right is root, but right does not have the same index as the root");
-  //   }
-  // }
   Interval(const StateType &state) : state(state) {}
   void setRoot(const Vector &point) {
     rootPoint = point;
@@ -164,6 +150,26 @@ private:
   std::optional<std::optional<LineSegment>> leftIntervalToCurrentEntryEdge_;
 };
 
+template<typename StateType, typename IndexType>
+bool operator==(const pathfinder::Interval<StateType, IndexType> &lhs, const pathfinder::Interval<StateType, IndexType> &rhs) {
+  if (lhs.isGoal && rhs.isGoal) {
+    // Both are goal, match
+    return true;
+  }
+  if (lhs.isGoal != rhs.isGoal) {
+    // One is goal and other is not, no match
+    return false;
+  }
+  return lhs.state == rhs.state &&
+         lhs.rootPoint == rhs.rootPoint &&
+         lhs.leftPoint == rhs.leftPoint &&
+         lhs.rightPoint == rhs.rightPoint &&
+         lhs.rootIndex == rhs.rootIndex &&
+         lhs.leftIndex == rhs.leftIndex &&
+         lhs.rightIndex == rhs.rightIndex &&
+         lhs.rootDirection == rhs.rootDirection;
+}
+
 template<typename IntervalType>
 class IntervalCompare {
 public:
@@ -214,5 +220,31 @@ public:
 };
 
 } // namespace pathfinder
+
+namespace std {
+
+template<typename StateType, typename IndexType>
+struct hash<pathfinder::Interval<StateType, IndexType>> {
+  std::size_t operator()(const pathfinder::Interval<StateType, IndexType> &interval) const {
+    if (interval.isGoal) {
+      return std::hash<bool>()(true);
+    }
+    std::size_t runningHash{0};
+    runningHash = pathfinder::hash_combine(runningHash, interval.state);
+    runningHash = pathfinder::hash_combine(runningHash, interval.rootPoint.x());
+    runningHash = pathfinder::hash_combine(runningHash, interval.rootPoint.y());
+    runningHash = pathfinder::hash_combine(runningHash, interval.leftPoint.x());
+    runningHash = pathfinder::hash_combine(runningHash, interval.leftPoint.y());
+    runningHash = pathfinder::hash_combine(runningHash, interval.rightPoint.x());
+    runningHash = pathfinder::hash_combine(runningHash, interval.rightPoint.y());
+    runningHash = pathfinder::hash_combine(runningHash, interval.rootIndex);
+    runningHash = pathfinder::hash_combine(runningHash, interval.leftIndex);
+    runningHash = pathfinder::hash_combine(runningHash, interval.rightIndex);
+    runningHash = pathfinder::hash_combine(runningHash, interval.rootDirection);
+    return runningHash;
+  }
+};
+
+} // namespace std
 
 #endif // PATHFINDER_INTERVAL_H_

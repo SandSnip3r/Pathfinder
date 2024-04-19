@@ -34,6 +34,7 @@ add_library(${PROJECT_NAME} STATIC
   behaviorBuilder.cpp
   debuglogger.cpp
   funnel.cpp
+  hash_combine.cpp
   math_helpers.cpp
   path.cpp
   pathfinder.cpp

@@ -83,8 +83,8 @@ public:
   };
   using IntervalHeapType = std::priority_queue<IntervalAndCost, std::vector<IntervalAndCost>, IntervalAndCostComp>;
   using IntervalCompareType = pathfinder::IntervalCompare<IntervalType>;
-  using PreviousIntervalMapType = std::map<IntervalType, IntervalType, IntervalCompareType>;
-  using IntervalSetType = std::set<IntervalType, IntervalCompareType>;
+  using PreviousIntervalMapType = std::unordered_map<IntervalType, IntervalType>;
+  using IntervalSetType = std::unordered_set<IntervalType>;
 
   struct PathfindingAStarInfo {
     // TODO: This is just a debug structure, remove at some point
@@ -348,7 +348,7 @@ bool Pathfinder<NavmeshType>::isAConstraintVertexForState(const State &currentSt
     auto currentState = nextStates.front();
     nextStates.pop();
     visited.emplace(currentState);
-    auto successorStates = navmesh_.getSuccessors(currentState, std::nullopt, 0.0);
+    const auto successorStates = navmesh_.getSuccessors(currentState, std::nullopt, 0.0);
     // Do any of these successors go through an edge which has the vertex in question as an endpoint?
     for (const auto &successorState : successorStates) {
       if (!successorState.hasEntryEdgeIndex()) {
@@ -1388,7 +1388,7 @@ void Pathfinder<NavmeshType>::expandInterval(IntervalType &currentInterval,
   checkLeftAndRightConstraints(currentInterval);
 
   // Now, expand this interval and push all successors.
-  auto successorStates = navmesh_.getSuccessors(currentState, goalState, agentRadius_); // TODO: I'm not sure I like the concept of the navmesh checking if we fit through the triangle.
+  const auto successorStates = navmesh_.getSuccessors(currentState, goalState, agentRadius_); // TODO: I'm not sure I like the concept of the navmesh checking if we fit through the triangle.
   if (successorStates.empty()) {
     VLOG(1) << "No successor states. Nothing to do.";
   }
