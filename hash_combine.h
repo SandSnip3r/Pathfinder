@@ -3,7 +3,9 @@
 #ifndef PATHFINDER_HASH_COMBINE_H_
 #define PATHFINDER_HASH_COMBINE_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <type_traits>
 
