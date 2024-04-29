@@ -1006,7 +1006,7 @@ template<typename NavmeshType>
 double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &interval, const Vector &goalPoint) const {
   if (interval.isGoal) {
     // We know that the root has direct line of sight to the goal.
-    return interval.costToRoot + math::distance(interval.rootPoint, goalPoint);
+    return interval.costToRoot + math::distance(interval.rootPoint, goalPoint); // TODO(cost): Add (estimate of) distance traveled around the interval.root, if any.
   }
   if (interval.rootIndex) {
     if (interval.leftIndex && *interval.rootIndex == *interval.leftIndex &&
@@ -1018,16 +1018,14 @@ double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &inter
     }
     // If the root is one of the ends of the interval; simply find the distance to the goal.
     if (interval.leftIndex && *interval.rootIndex == *interval.leftIndex) {
-      if (true /* interval.intervalLeftIsConstraintVertex() */) {
-        // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
+      if (interval.intervalLeftIsConstraintVertex()) {
         const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
         return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
       } else {
         return interval.costToRoot + math::distance(interval.leftPoint, goalPoint);
       }
     } else if (interval.rightIndex && *interval.rootIndex == *interval.rightIndex) {
-      if (true /* interval.intervalRightIsConstraintVertex() */) {
-        // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
+      if (interval.intervalRightIsConstraintVertex()) {
         const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
         return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
       } else {
@@ -1053,15 +1051,13 @@ double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &inter
   }
 
   Vector leftPointAwayFromConstraints, rightPointAwayFromConstraints;
-  if (interval.leftIndex /* interval.intervalLeftIsConstraintVertex() */) {
-    // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
+  if (interval.intervalLeftIsConstraintVertex()) {
     leftPointAwayFromConstraints = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
   } else {
     // TODO: It could be the case that some other constraint will push us away from this point.
     leftPointAwayFromConstraints = interval.leftPoint;
   }
-  if (interval.rightIndex /* interval.intervalRightIsConstraintVertex() */) {
-    // TODO: This should only be calculated if it is a constraint, but at this point, we don't know if the point is a constraint. That is because we choose to evaluate that only upon visiting a node, not when pushing it.
+  if (interval.intervalRightIsConstraintVertex()) {
     rightPointAwayFromConstraints = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
   } else {
     // TODO: It could be the case that some other constraint will push us away from this point.
@@ -1072,7 +1068,7 @@ double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &inter
   if (intersectionResult == math::IntersectionResult::kOne ||
       intersectionResult == math::IntersectionResult::kInfinite) {
     // The lines directly overlap, simply use the distance between root and goal.
-    return interval.costToRoot + math::distance(interval.rootPoint, goal);
+    return interval.costToRoot + math::distance(interval.rootPoint, goal); // TODO(cost): Add (estimate of) distance traveled around the interval.root, if any.
   } else {
     // No line segment intersection.
     if (interval2 < 0.0) {
@@ -1135,11 +1131,8 @@ void Pathfinder<NavmeshType>::pushSuccessor(const IntervalType *currentInterval,
     return;
   }
 
-  if constexpr (kProduceDebugAnimationData_) {
-    // Debug animation needs this info, so we calculate it here. Otherwise, we do it in checkLeftAndRightConstraints. We do it there so that it is only computed when we're visiting an interval, so as to not be wasteful.
-    successorInterval.setIntervalLeftIsConstraintVertex(successorInterval.leftIndex && isAConstraintVertexForState(successorInterval.state, *successorInterval.leftIndex));
-    successorInterval.setIntervalRightIsConstraintVertex(successorInterval.rightIndex && isAConstraintVertexForState(successorInterval.state, *successorInterval.rightIndex));
-  }
+  successorInterval.setIntervalLeftIsConstraintVertex(successorInterval.leftIndex && isAConstraintVertexForState(successorInterval.state, *successorInterval.leftIndex));
+  successorInterval.setIntervalRightIsConstraintVertex(successorInterval.rightIndex && isAConstraintVertexForState(successorInterval.state, *successorInterval.rightIndex));
   intervalHeap.emplace(successorInterval, costFromIntervalToGoal(successorInterval, goalPoint));
   pushed.emplace(successorInterval);
   auto it = previous.find(successorInterval);
@@ -1367,6 +1360,7 @@ void Pathfinder<NavmeshType>::expandInterval(IntervalType &currentInterval,
     if (!canFitThroughEdge(currentInterval.state, successorState.getEntryEdgeIndex())) {
       continue;
     }
+    // Create the line segments for the sides of the interval. These are based on the radii of the constraints.
     buildLeftIntervals(currentInterval);
     buildRightIntervals(currentInterval);
     if (successorState.isGoal()) {
@@ -1384,8 +1378,6 @@ void Pathfinder<NavmeshType>::buildResultFromGoalInterval(const IntervalType &go
                                                           const Vector &goalPoint,
                                                           PreviousIntervalMapType &previous,
                                                           PathfindingResult &result) const {
-  const auto cost = costFromIntervalToGoal(goalInterval, goalPoint);
-  VLOG(1) << "Found goal!!!! Cost is " << cost;
   if (!goalInterval.rootIndex) {
     // Must be a straight path from the start to the goal
     result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(startPoint, goalPoint)));
@@ -1498,13 +1490,6 @@ void Pathfinder<NavmeshType>::checkLeftAndRightConstraints(IntervalType &current
   if (currentInterval.rightIsRoot() && currentInterval.rightIndex && currentInterval.rootIndex && currentInterval.rightIndex != currentInterval.rootIndex) {
     // These are only possible when there's a shared vertex.
     throw std::runtime_error("Right is root, but right does not have the same index as the root");
-  }
-
-  // Create the line segments for the sides of the interval. These are based on the radii of the constraints.
-  if constexpr (!kProduceDebugAnimationData_) {
-    // If we're producing debug animation data, we'll do this elsewhere earlier.
-    currentInterval.setIntervalLeftIsConstraintVertex(currentInterval.leftIndex && isAConstraintVertexForState(currentState, *currentInterval.leftIndex));
-    currentInterval.setIntervalRightIsConstraintVertex(currentInterval.rightIndex && isAConstraintVertexForState(currentState, *currentInterval.rightIndex));
   }
 }
 
