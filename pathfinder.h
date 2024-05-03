@@ -605,8 +605,8 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
           if (currentInterval.rootIndex && math::equal(math::distanceSquared(currentInterval.rootPoint, rightInterval.first), agentRadius_*agentRadius_)) {
             std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, agentRadius_, rightInterval.first);
           } else {
-            LOG(INFO) << "currentInterval.rootIndex: " << (bool)currentInterval.rootIndex;
-            LOG(INFO) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), rightInterval.first.x(), rightInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, rightInterval.first));
+            VLOG(1) << "currentInterval.rootIndex: " << (bool)currentInterval.rootIndex;
+            VLOG(1) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), rightInterval.first.x(), rightInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, rightInterval.first));
             throw std::runtime_error("Unseen case 1");
           }
         } else {
@@ -767,8 +767,8 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
           if (currentInterval.rootIndex && math::equal(math::distanceSquared(currentInterval.rootPoint, leftInterval.first), agentRadius_*agentRadius_)) {
             std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, agentRadius_, leftInterval.first);
           } else {
-            LOG(INFO) << "currentInterval.rootIndex: " << (bool)currentInterval.rootIndex;
-            LOG(INFO) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f which==?:%v, diff=%.20f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), leftInterval.first.x(), leftInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, leftInterval.first), math::distanceSquared(currentInterval.rootPoint, leftInterval.first) == agentRadius_*agentRadius_, math::distanceSquared(currentInterval.rootPoint, leftInterval.first) - agentRadius_*agentRadius_);
+            VLOG(1) << "currentInterval.rootIndex: " << (bool)currentInterval.rootIndex;
+            VLOG(1) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f which==?:%v, diff=%.20f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), leftInterval.first.x(), leftInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, leftInterval.first), math::distanceSquared(currentInterval.rootPoint, leftInterval.first) == agentRadius_*agentRadius_, math::distanceSquared(currentInterval.rootPoint, leftInterval.first) - agentRadius_*agentRadius_);
             throw std::runtime_error("Unseen case 0");
           }
         } else {
