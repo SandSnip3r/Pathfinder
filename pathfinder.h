@@ -102,6 +102,7 @@ public:
   };
 
   Pathfinder(const NavmeshType &navmesh, const double agentRadius);
+  void setTimeout(std::chrono::milliseconds timeoutMilliseconds);
 
   static constexpr bool hasDebugAnimationData() {
     return kProduceDebugAnimationData_;
@@ -115,13 +116,14 @@ public:
 private:
   const NavmeshType &navmesh_;
   const double agentRadius_;
+  std::optional<std::chrono::milliseconds> timeoutMilliseconds_;
 
   mutable std::unordered_map<State, std::unordered_map<IndexType, bool>> constraintForStateCache_;
 
   // Does a cheaper check (compared to actual pathfinding) to see if it is possible at all to get from the start state to the goal state.
-  bool canGetToState(const State &startState, const State &goalState) const;
+  bool canGetToState(const State &startState, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const;
 
-  PathfindingResult polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState) const;
+  PathfindingResult polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const;
 
   // Helpers
   std::tuple<Vector, IndexType, Vector, IndexType> getLeftAndRight(const State &successorState) const;
@@ -270,6 +272,11 @@ Pathfinder<NavmeshType>::Pathfinder(const NavmeshType &navmesh, const double age
   DebugLogger::instance().setPointToIndexFunction(std::bind(&NavmeshType::getVertexIndex, std::cref(navmesh_), std::placeholders::_1));
 }
 
+template<typename NavmeshType>
+void Pathfinder<NavmeshType>::setTimeout(std::chrono::milliseconds timeoutMilliseconds) {
+  timeoutMilliseconds_ = timeoutMilliseconds;
+}
+
 // template<typename NavmeshType>
 // template<typename PointType>
 // std::pair<Vector, typename Pathfinder<NavmeshType>::IndexType> Pathfinder<NavmeshType>::getPointAwayFromConstraint(const PointType &point) const {
@@ -345,6 +352,7 @@ bool Pathfinder<NavmeshType>::isAConstraintVertexForState(const State &currentSt
 template<typename NavmeshType>
 template<typename PointType>
 typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::findShortestPath(const PointType &startPoint, const PointType &goalPoint) const {
+  const auto pathfindingStartTime = std::chrono::high_resolution_clock::now();
   // { // TODO: <Remove>
   //   // // Print specific vertices.
   //   // const std::vector<IndexType> indicesToPrint = {
@@ -395,17 +403,17 @@ typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::fin
   const auto goalState = navmesh_.createGoalState(goalPoint, *goalTriangle);
 
   // Do a quick check to see if it's even possible to get from the start triangle to the goal triangle.
-  bool isMaybePossible = canGetToState(startState, goalState);
+  bool isMaybePossible = canGetToState(startState, goalState, pathfindingStartTime);
   if (!isMaybePossible) {
     // For sure no way to get there.
     return {};
   }
 
-  return polyanya(startPoint2d, startState, goalPoint2d, goalState);
+  return polyanya(startPoint2d, startState, goalPoint2d, goalState, pathfindingStartTime);
 }
 
 template<typename NavmeshType>
-bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State &goalState) const {
+bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const {
   struct StateAndCost {
     StateAndCost(const State &i, double d) : state(i), distanceToGoal(d) {}
     State state;
@@ -436,6 +444,13 @@ bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State
   pushState(stateHeap, startState);
 
   while (!stateHeap.empty()) {
+    if (timeoutMilliseconds_) {
+      if (std::chrono::high_resolution_clock::now() >= pathfindingStartTime+*timeoutMilliseconds_) {
+        const auto diff = std::chrono::high_resolution_clock::now() - pathfindingStartTime;
+        LOG(INFO) << "Pathfinder timed out after " << std::chrono::duration_cast<std::chrono::microseconds>(diff).count() << "us";
+        return {};
+      }
+    }
     const auto stateAndCost = stateHeap.top();
     const State &currentState = stateAndCost.state;;
     stateHeap.pop();
@@ -458,7 +473,7 @@ bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State
 }
 
 template<typename NavmeshType>
-typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState) const {
+typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const {
   PathfindingResult result;
   typename PathfindingResult::DebugAStarInfoType &debugAStarInfo = result.debugAStarInfo;
 
@@ -483,6 +498,13 @@ typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::pol
 
   // Run the A* algorithm as defined by the Polyanya paper.
   while (!intervalHeap.empty()) {
+    if (timeoutMilliseconds_) {
+      if (std::chrono::high_resolution_clock::now() >= pathfindingStartTime+*timeoutMilliseconds_) {
+        const auto diff = std::chrono::high_resolution_clock::now() - pathfindingStartTime;
+        LOG(INFO) << "Pathfinder timed out after " << std::chrono::duration_cast<std::chrono::microseconds>(diff).count() << "us";
+        return {};
+      }
+    }
     VLOG(1) << "\n===== Next iteration of A* =====";
 
     if (VLOG_IS_ON(1)) {
