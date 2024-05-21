@@ -107,7 +107,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_StartTopGoingLeft) {
   const pathfinder::Vector goalPoint{400.0, 750.0-kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -123,7 +125,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_StartTopGoingRight) {
   const pathfinder::Vector goalPoint{600.0, 750.0-kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -139,7 +143,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_StartBottomGoingLeft) {
   const pathfinder::Vector goalPoint{400.0, 250.0+kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -155,7 +161,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_StartBottomGoingRight) {
   const pathfinder::Vector goalPoint{600.0, 250.0+kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -173,7 +181,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_NotTouchingVertexBut1) {
   const pathfinder::Vector goalPoint{400.0, 250.0+kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -189,7 +199,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_NotTouchingVertexBut2) {
   const pathfinder::Vector goalPoint{600.0, 250.0+kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -205,7 +217,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_NotTouchingVertexBut3) {
   const pathfinder::Vector goalPoint{400.0, 750.0-kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -221,7 +235,9 @@ TEST_F(PolyFileTestFixture, StartTouchingVertexTest_NotTouchingVertexBut4) {
   const pathfinder::Vector goalPoint{600.0, 750.0-kAgentRadius};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -241,7 +257,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartBottomLeftGoingBottomRight) {
   const pathfinder::Vector goalPoint{85.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -258,7 +276,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartBottomLeftGoingTopRight) {
   const pathfinder::Vector goalPoint{85.0, 70.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -275,7 +295,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartTopLeftGoingBottomRight) {
   const pathfinder::Vector goalPoint{85.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -292,7 +314,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartTopLeftGoingTopRight) {
   const pathfinder::Vector goalPoint{85.0, 70.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -309,7 +333,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartBottomRightGoingBottomLeft) {
   const pathfinder::Vector goalPoint{15.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -326,7 +352,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartBottomRightGoingTopLeft) {
   const pathfinder::Vector goalPoint{15.0, 70.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -343,7 +371,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartTopRightGoingBottomLeft) {
   const pathfinder::Vector goalPoint{15.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -360,7 +390,9 @@ TEST_F(PolyFileTestFixture, ExactFitIonTrap_StartTopRightGoingTopLeft) {
   const pathfinder::Vector goalPoint{15.0, 70.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -381,7 +413,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -397,7 +431,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -413,7 +449,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingRightBottom) {
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -429,7 +467,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -445,7 +485,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingBottomRight) {
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -461,7 +503,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -477,7 +521,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftTopGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -493,7 +539,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -509,7 +557,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -525,7 +575,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingRightBottom) {
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -541,7 +593,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -557,7 +611,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingBottomRight) {
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -573,7 +629,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -589,7 +647,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartLeftBottomGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -605,7 +665,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -621,7 +683,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -637,7 +701,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingRightBottom) {
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -653,7 +719,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -669,7 +737,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingBottomRight) {
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -685,7 +755,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -701,7 +773,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightTopGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -717,7 +791,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -733,7 +809,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -749,7 +827,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -765,7 +845,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -781,7 +863,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingBottomRight) 
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -797,7 +881,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -813,7 +899,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartRightBottomGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -829,7 +917,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -845,7 +935,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -861,7 +953,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -877,7 +971,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingRightBottom) {
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -893,7 +989,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingBottomRight) {
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -909,7 +1007,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -925,7 +1025,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomLeftGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -941,7 +1043,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -957,7 +1061,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -973,7 +1079,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -989,7 +1097,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingRightBottom) 
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1005,7 +1115,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1021,7 +1133,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1037,7 +1151,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartBottomRightGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1053,7 +1169,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1069,7 +1187,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1085,7 +1205,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1101,7 +1223,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingRightBottom) {
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1117,7 +1241,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1133,7 +1259,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingBottomRight) {
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1149,7 +1277,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopLeftGoingTopRight) {
   const pathfinder::Vector goalPoint{140.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1165,7 +1295,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingLeftTop) {
   const pathfinder::Vector goalPoint{30.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1181,7 +1313,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingLeftBottom) {
   const pathfinder::Vector goalPoint{30.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1197,7 +1331,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingRightTop) {
   const pathfinder::Vector goalPoint{170.0, 140.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1213,7 +1349,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingRightBottom) {
   const pathfinder::Vector goalPoint{170.0, 60.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1229,7 +1367,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingBottomLeft) {
   const pathfinder::Vector goalPoint{60.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1245,7 +1385,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingBottomRight) {
   const pathfinder::Vector goalPoint{140.0, 30.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1261,7 +1403,9 @@ TEST_F(PolyFileTestFixture, ExactFitCorridors_StartTopRightGoingTopLeft) {
   const pathfinder::Vector goalPoint{60.0, 170.0};
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, kAgentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(kAgentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
 
   const auto pathLength = pathfinder::calculatePathLength(pathfindingResult.shortestPath);
@@ -1308,7 +1452,9 @@ TEST_P(ParamStraightPaths, TestName) {
   const double expectedLength = pathfinder::math::distance(startPoint, goalPoint);
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, agentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(agentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   {
     // Check start->goal
     const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
@@ -1333,7 +1479,9 @@ TEST_P(ParamNonStraightPaths, TestName) {
   const double precisionTolerance = std::get<5>(param);
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, agentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(agentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   {
     // Check start->goal
     const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
@@ -1356,7 +1504,9 @@ TEST_P(ParamNoPaths, TestName) {
   const double agentRadius = std::get<3>(param);
 
   ASSERT_TRUE(navmesh_.has_value());
-  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, agentRadius);
+  pathfinder::PathfinderConfig config;
+  config.setAgentRadius(agentRadius);
+  pathfinder::Pathfinder<pathfinder::navmesh::TriangleLibNavmesh> pathfinder(*navmesh_, config);
   {
     // Check start->goal
     const auto pathfindingResult = pathfinder.findShortestPath(startPoint, goalPoint);
