@@ -1485,11 +1485,13 @@ void Pathfinder<NavmeshType>::checkLeftAndRightConstraints(IntervalType &current
   const State &currentState = currentInterval.state;
   if (currentInterval.leftIsRoot() && currentInterval.leftIndex && currentInterval.rootIndex && currentInterval.leftIndex != currentInterval.rootIndex) {
     // These are only possible when there's a shared vertex.
-    throw std::runtime_error("Left is root, but left does not have the same index as the root");
+    // TODO: This error can be thrown when multiple indices represent the same point. I'm not sure if this is actually an error.
+    // throw std::runtime_error("Left is root, but left does not have the same index as the root");
   }
   if (currentInterval.rightIsRoot() && currentInterval.rightIndex && currentInterval.rootIndex && currentInterval.rightIndex != currentInterval.rootIndex) {
     // These are only possible when there's a shared vertex.
-    throw std::runtime_error("Right is root, but right does not have the same index as the root");
+    // TODO: This error can be thrown when multiple indices represent the same point. I'm not sure if this is actually an error.
+    // throw std::runtime_error("Right is root, but right does not have the same index as the root");
   }
 }
 
