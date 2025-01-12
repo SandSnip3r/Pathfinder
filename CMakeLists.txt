@@ -12,9 +12,6 @@ if(CMAKE_CXX_STANDARD VERSION_LESS 17)
   message(FATAL_ERROR "${PROJECT_NAME} requires C++17 or newer. Please set CMAKE_CXX_STANDARD accordingly.")
 endif()
 
-set(ABSL_PROPAGATE_CXX_STD ON)
-add_subdirectory(abseil-cpp)
-
 # Create an interface library for Triangle that will be used by Pathfinder
 add_library(Triangle INTERFACE)
 

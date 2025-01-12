@@ -47,7 +47,7 @@ bool lineActuallyIntersectedWithCircle(const pathfinder::Vector &lineSegmentStar
                                        int intersectionCount,
                                        const pathfinder::Vector &intersectionPoint1,
                                        const pathfinder::Vector &intersectionPoint2) {
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     std::stringstream ss;
     ss << "Checking for actual intersection. Intersection count " << intersectionCount;
     if (intersectionCount > 0) {

@@ -507,7 +507,7 @@ typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::pol
     }
     VLOG(1) << "\n===== Next iteration of A* =====";
 
-    if (VLOG_IS_ON(1)) {
+    if (ABSL_VLOG_IS_ON(1)) {
       // Print all intervals.
       // There's no way to iterate my heap in order, so we copy it and continually pop and print the top element.
       IntervalHeapType copyOfHeap = intervalHeap;
@@ -551,7 +551,7 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
           const IndexType successorEdgeLeftIndex,
           const double kEndpointIntersectionPrecision,
           const State &currentState) const {
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     std::cout << std::endl;
   }
   VLOG(1) << "Enter bendThatMfRoundTheRight";
@@ -724,7 +724,7 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
           const IndexType successorEdgeLeftIndex,
           const double kEndpointIntersectionPrecision,
           const State &currentState) const {
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     std::cout << std::endl;
   }
   VLOG(1) << "Enter bendThatMfRoundTheLeft";
@@ -1181,7 +1181,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
                                                         IntervalSetType &pushed,
                                                         PreviousIntervalMapType &previous,
                                                         typename PathfindingResult::DebugAStarInfoType &debugAStarInfo) const {
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     std::cerr << std::endl;
   }
   VLOG(1) << "Working with starting state successor: " << successorState.toString();
@@ -1351,7 +1351,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
     VLOG(1) << "[2] Pushing initial successor " << interval.toString();
     pushSuccessor(/*currentInterval=*/nullptr, interval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
   }
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     std::cout << std::endl;
   }
 }
@@ -1492,7 +1492,7 @@ void Pathfinder<NavmeshType>::buildResultFromGoalInterval(const IntervalType &go
   } else {
     result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(startPoint, goalPoint)));
   }
-  if (VLOG_IS_ON(1)) {
+  if (ABSL_VLOG_IS_ON(1)) {
     for (const auto &i : result.shortestPath) {
       const auto *p = dynamic_cast<const StraightPathSegment*>(i.get());
       if (p != nullptr) {
@@ -1594,11 +1594,11 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
   internal::RelativePositionToInterval rightVertexRelativePositionToInterval;
   try {
     leftVertexRelativePositionToInterval = calculateSuccessorLeftRelativeToInterval(currentInterval, currentEdgeLeftIndex, successorEdgeLeftPoint, successorEdgeLeftIndex, successorEdgeRightPoint, successorEdgeRightIndex, successorLeftIsConstraintVertex);
-    if (VLOG_IS_ON(1)) {
+    if (ABSL_VLOG_IS_ON(1)) {
       std::cout << std::endl;
     }
     rightVertexRelativePositionToInterval = calculateSuccessorRightRelativeToInterval(currentInterval, currentEdgeRightIndex, successorEdgeLeftPoint, successorEdgeLeftIndex, successorEdgeRightPoint, successorEdgeRightIndex, successorRightIsConstraintVertex);
-    if (VLOG_IS_ON(1)) {
+    if (ABSL_VLOG_IS_ON(1)) {
       std::cout << std::endl;
     }
   } catch (const std::exception &ex) {
@@ -2084,7 +2084,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         throw std::runtime_error("Assumption voided 2");
       }
 
-      if (VLOG_IS_ON(1)) {
+      if (ABSL_VLOG_IS_ON(1)) {
         std::cout << std::endl;
       }
       const auto [optionalProjectedLeftPoint, projectedLeftIndex, leftConstraint] = bendThatMfRoundTheLeft( successorEdgeRightPoint,
@@ -2094,7 +2094,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
                                                                                                             successorEdgeLeftIndex,
                                                                                                             kEndpointIntersectionPrecision,
                                                                                                             currentState);
-      if (VLOG_IS_ON(1)) {
+      if (ABSL_VLOG_IS_ON(1)) {
         std::cout << std::endl;
       }
       const auto [optionalProjectedRightPoint, projectedRightIndex, rightConstraint] = bendThatMfRoundTheRight( successorEdgeRightPoint,
@@ -2104,7 +2104,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
                                                                                                                 successorEdgeLeftIndex,
                                                                                                                 kEndpointIntersectionPrecision,
                                                                                                                 currentState);
-      if (VLOG_IS_ON(1)) {
+      if (ABSL_VLOG_IS_ON(1)) {
         std::cout << std::endl;
       }
       VLOG(1) << "Result of bendThatMfRoundTheLeft:";
