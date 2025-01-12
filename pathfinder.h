@@ -63,6 +63,47 @@ struct RAIIPrinter {
  *
  */
 
+enum class PathfinderAlgorithm {
+  kPolyanya,
+  kTriangleAStar
+};
+
+class PathfinderConfig {
+public:
+  PathfinderConfig() = default;
+  PathfinderConfig(PathfinderAlgorithm primaryAlgorithm) : primaryAlgorithm_(primaryAlgorithm) {}
+
+  void setAgentRadius(double radius) {
+    agentRadius_ = radius;
+  }
+
+  void setTimeout(std::chrono::milliseconds timeout, std::optional<PathfinderAlgorithm> secondaryAlgorithm = std::nullopt) {
+    timeoutMilliseconds_ = timeout;
+    algorithmAfterTimeout_ = secondaryAlgorithm;
+  }
+
+  double agentRadius() const {
+    return agentRadius_;
+  }
+
+  PathfinderAlgorithm primaryAlgorithm() const {
+    return primaryAlgorithm_;
+  }
+
+  std::optional<std::chrono::milliseconds> timeoutMilliseconds() const {
+    return timeoutMilliseconds_;
+  }
+
+  std::optional<PathfinderAlgorithm> algorithmAfterTimeout() const {
+    return algorithmAfterTimeout_;
+  }
+private:
+  double agentRadius_{0.0};
+  PathfinderAlgorithm primaryAlgorithm_{PathfinderAlgorithm::kPolyanya};
+  std::optional<std::chrono::milliseconds> timeoutMilliseconds_;
+  std::optional<PathfinderAlgorithm> algorithmAfterTimeout_;
+};
+
 template<typename NavmeshType>
 class Pathfinder {
 public:
@@ -101,8 +142,7 @@ public:
     DebugAStarInfoType debugAStarInfo;
   };
 
-  Pathfinder(const NavmeshType &navmesh, const double agentRadius);
-  void setTimeout(std::chrono::milliseconds timeoutMilliseconds);
+  Pathfinder(const NavmeshType &navmesh, const PathfinderConfig &config);
 
   static constexpr bool hasDebugAnimationData() {
     return kProduceDebugAnimationData_;
@@ -115,15 +155,14 @@ public:
   PathfindingResult findShortestPath(const PointType &startPoint, const PointType &goalPoint) const;
 private:
   const NavmeshType &navmesh_;
-  const double agentRadius_;
-  std::optional<std::chrono::milliseconds> timeoutMilliseconds_;
+  const PathfinderConfig config_;
 
   mutable std::unordered_map<State, std::unordered_map<IndexType, bool>> constraintForStateCache_;
 
   // Does a cheaper check (compared to actual pathfinding) to see if it is possible at all to get from the start state to the goal state.
-  bool canGetToState(const State &startState, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const;
+  bool canGetToState(const State &startState, const State &goalState, std::optional<std::chrono::high_resolution_clock::time_point> pathfindingStartTime) const;
 
-  PathfindingResult polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const;
+  PathfindingResult polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState, std::optional<std::chrono::high_resolution_clock::time_point> pathfindingStartTime) const;
 
   // Helpers
   std::tuple<Vector, IndexType, Vector, IndexType> getLeftAndRight(const State &successorState) const;
@@ -267,14 +306,9 @@ private:
 };
 
 template<typename NavmeshType>
-Pathfinder<NavmeshType>::Pathfinder(const NavmeshType &navmesh, const double agentRadius) : navmesh_(navmesh), agentRadius_(agentRadius) {
+Pathfinder<NavmeshType>::Pathfinder(const NavmeshType &navmesh, const PathfinderConfig &config) : navmesh_(navmesh), config_(config) {
   // Initialize debug logger
   DebugLogger::instance().setPointToIndexFunction(std::bind(&NavmeshType::getVertexIndex, std::cref(navmesh_), std::placeholders::_1));
-}
-
-template<typename NavmeshType>
-void Pathfinder<NavmeshType>::setTimeout(std::chrono::milliseconds timeoutMilliseconds) {
-  timeoutMilliseconds_ = timeoutMilliseconds;
 }
 
 // template<typename NavmeshType>
@@ -294,7 +328,7 @@ void Pathfinder<NavmeshType>::setTimeout(std::chrono::milliseconds timeoutMillis
 //     }
 
 //     // Push point out to radius of circle.
-//     point2d = math::extendLineSegmentToLength(*collidingConstraint, point2d, agentRadius_*1.01);
+//     point2d = math::extendLineSegmentToLength(*collidingConstraint, point2d, config_.agentRadius()*1.01);
 //     triangleForPoint = navmesh_.findTriangleForPoint(point2d);
 //     if (!triangleForPoint) {
 //       throw std::runtime_error("Unable to find valid triangle for point");
@@ -353,6 +387,13 @@ template<typename NavmeshType>
 template<typename PointType>
 typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::findShortestPath(const PointType &startPoint, const PointType &goalPoint) const {
   const auto pathfindingStartTime = std::chrono::high_resolution_clock::now();
+  const auto pathfindingDeadline = [&]() -> std::optional<std::chrono::high_resolution_clock::time_point> {
+    if (config_.timeoutMilliseconds().has_value()) {
+      return pathfindingStartTime + *config_.timeoutMilliseconds();
+    } else {
+      return std::nullopt;
+    }
+  }();
   // { // TODO: <Remove>
   //   // // Print specific vertices.
   //   // const std::vector<IndexType> indicesToPrint = {
@@ -403,17 +444,22 @@ typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::fin
   const auto goalState = navmesh_.createGoalState(goalPoint, *goalTriangle);
 
   // Do a quick check to see if it's even possible to get from the start triangle to the goal triangle.
-  bool isMaybePossible = canGetToState(startState, goalState, pathfindingStartTime);
+  bool isMaybePossible = canGetToState(startState, goalState, pathfindingDeadline);
   if (!isMaybePossible) {
     // For sure no way to get there.
     return {};
   }
 
-  return polyanya(startPoint2d, startState, goalPoint2d, goalState, pathfindingStartTime);
+  PathfindingResult result;
+  if (config_.primaryAlgorithm() == PathfinderAlgorithm::kPolyanya) {
+    // TODO: get timeout status and then go to fallback algorithm
+    result = polyanya(startPoint2d, startState, goalPoint2d, goalState, pathfindingDeadline);
+  }
+  return result;
 }
 
 template<typename NavmeshType>
-bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const {
+bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State &goalState,  std::optional<std::chrono::high_resolution_clock::time_point> pathfindingDeadline) const {
   struct StateAndCost {
     StateAndCost(const State &i, double d) : state(i), distanceToGoal(d) {}
     State state;
@@ -444,10 +490,9 @@ bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State
   pushState(stateHeap, startState);
 
   while (!stateHeap.empty()) {
-    if (timeoutMilliseconds_) {
-      if (std::chrono::high_resolution_clock::now() >= pathfindingStartTime+*timeoutMilliseconds_) {
-        const auto diff = std::chrono::high_resolution_clock::now() - pathfindingStartTime;
-        LOG(INFO) << "Pathfinder timed out after " << std::chrono::duration_cast<std::chrono::microseconds>(diff).count() << "us";
+    if (pathfindingDeadline) {
+      if (std::chrono::high_resolution_clock::now() >= *pathfindingDeadline) {
+        VLOG(1) << "Pathfinding timed out";
         return {};
       }
     }
@@ -461,7 +506,7 @@ bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State
     }
 
     visited.emplace(currentState);
-    auto successorStates = navmesh_.getSuccessors(currentState, goalState, 0.0); // TODO: Change 0.0 to agentRadius_
+    auto successorStates = navmesh_.getSuccessors(currentState, goalState, 0.0); // TODO: Change 0.0 to config_.agentRadius()
     for (const auto &state : successorStates) {
       if (visited.find(state) == visited.end()) {
         pushState(stateHeap, state);
@@ -473,7 +518,7 @@ bool Pathfinder<NavmeshType>::canGetToState(const State &startState, const State
 }
 
 template<typename NavmeshType>
-typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState, const std::chrono::high_resolution_clock::time_point pathfindingStartTime) const {
+typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::polyanya(const Vector &startPoint, const State &startState, const Vector &goalPoint, const State &goalState, std::optional<std::chrono::high_resolution_clock::time_point> pathfindingDeadline) const {
   PathfindingResult result;
   typename PathfindingResult::DebugAStarInfoType &debugAStarInfo = result.debugAStarInfo;
 
@@ -491,17 +536,16 @@ typename Pathfinder<NavmeshType>::PathfindingResult Pathfinder<NavmeshType>::pol
   VLOG(1) << "Starting with state "  << startPoint << " in triangle " << startState.getTriangleIndex() << " with " << (startState.hasEntryEdgeIndex() ? "entry edge "+std::to_string(startState.getEntryEdgeIndex()) : "no entry edge");
 
   // Initialize the list of intervals.
-  const auto startStateSuccessors = navmesh_.getSuccessors(startState, goalState, agentRadius_);
+  const auto startStateSuccessors = navmesh_.getSuccessors(startState, goalState, config_.agentRadius());
   for (const auto &successorState : startStateSuccessors) {
     handleStartStateSuccessor(successorState, startPoint, startState, goalPoint, intervalHeap, visited, pushed, previous, debugAStarInfo);
   }
 
   // Run the A* algorithm as defined by the Polyanya paper.
   while (!intervalHeap.empty()) {
-    if (timeoutMilliseconds_) {
-      if (std::chrono::high_resolution_clock::now() >= pathfindingStartTime+*timeoutMilliseconds_) {
-        const auto diff = std::chrono::high_resolution_clock::now() - pathfindingStartTime;
-        LOG(INFO) << "Pathfinder timed out after " << std::chrono::duration_cast<std::chrono::microseconds>(diff).count() << "us";
+    if (pathfindingDeadline) {
+      if (std::chrono::high_resolution_clock::now() >= *pathfindingDeadline) {
+        VLOG(1) << "Pathfinder timed out";
         return {};
       }
     }
@@ -573,12 +617,12 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
       VLOG(1) << "Right of interval is constraint and the right of the edge is a different point";
       // Check if the successor edge intersects with the right of the interval.
       Vector intersectionPoint1, intersectionPoint2;
-      int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.rightPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+      int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.rightPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
       VLOG(1) << "Checking if segment Segment(" << '(' << successorEdgeLeftPoint.x() << ',' << successorEdgeLeftPoint.y() << ')' << ',' << '(' << successorEdgeRightPoint.x() << ',' << successorEdgeRightPoint.y() << ')' << ") intersects with point at " << currentInterval.rightPoint.x() << ',' << currentInterval.rightPoint.y();
       if (intersectionCount > 0) {
         // Only use this intersection if it is not inside the right point of the successor edge (if that point is a constraint).
         VLOG(1) << "[bendThatMfRoundTheRight] Itersection count is " << intersectionCount;
-        if (!isAConstraintVertexForState(currentState, successorEdgeRightIndex) || math::distanceSquared(intersectionPoint1, successorEdgeRightPoint) > agentRadius_*agentRadius_) {
+        if (!isAConstraintVertexForState(currentState, successorEdgeRightIndex) || math::distanceSquared(intersectionPoint1, successorEdgeRightPoint) > config_.agentRadius()*config_.agentRadius()) {
           successorEdgeIntersectsWithRightOfInterval = true;
           // One interval will be
           //  root: same as current
@@ -624,15 +668,15 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
         if (!currentInterval.intervalRightIsConstraintVertex()) {
           // How do we create a temporary right interval if the right isnt a constraint?
           // Is there a root point and is this right interval on it?
-          if (currentInterval.rootIndex && math::equal(math::distanceSquared(currentInterval.rootPoint, rightInterval.first), agentRadius_*agentRadius_)) {
-            std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, agentRadius_, rightInterval.first);
+          if (currentInterval.rootIndex && math::equal(math::distanceSquared(currentInterval.rootPoint, rightInterval.first), config_.agentRadius()*config_.agentRadius())) {
+            std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, config_.agentRadius(), rightInterval.first);
           } else {
             VLOG(1) << "currentInterval.rootIndex: " << (bool)currentInterval.rootIndex;
             VLOG(1) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), rightInterval.first.x(), rightInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, rightInterval.first));
             throw std::runtime_error("Unseen case 1");
           }
         } else {
-          std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rightPoint, agentRadius_, rightInterval.first);
+          std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rightPoint, config_.agentRadius(), rightInterval.first);
           VLOG(1) << "Created tmp interval as Segment(" << '(' << tangentStart.x() << ',' << tangentStart.y() << ')' << ',' << '(' << tangentEnd.x() << ',' << tangentEnd.y() << ')' << ")";
         }
         intersectionResult = math::intersectForIntervals(tangentStart, tangentEnd, successorEdgeLeftPoint, successorEdgeRightPoint, &t1, &t2);
@@ -671,9 +715,9 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
         if (isAConstraintVertexForState(currentState, currentEdgeRightIndex)) {
           VLOG(1) << "Right of current edge is a constraint";
           Vector intersectionPoint1, intersectionPoint2;
-          auto intersectionResult2 = math::lineSegmentIntersectsWithCircle(rightInterval.first, rightIntervalIntersectionWithSuccessorEdge, currentEdgeRightPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+          auto intersectionResult2 = math::lineSegmentIntersectsWithCircle(rightInterval.first, rightIntervalIntersectionWithSuccessorEdge, currentEdgeRightPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
           // Weed out the tangential intersections.
-          const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, rightIntervalIntersectionWithSuccessorEdge, currentEdgeRightPoint, agentRadius_, intersectionResult2, intersectionPoint1, intersectionPoint2);
+          const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, rightIntervalIntersectionWithSuccessorEdge, currentEdgeRightPoint, config_.agentRadius(), intersectionResult2, intersectionPoint1, intersectionPoint2);
           if (actuallyIntersected) {
             VLOG(1) << "Augmented right interval Segment(" << '(' << rightInterval.first.x() << ',' << rightInterval.first.y() << "),(" << rightIntervalIntersectionWithSuccessorEdge.x() << ',' << rightIntervalIntersectionWithSuccessorEdge.y() << ')' << ") intersects with right of current edge point " << currentEdgeRightIndex;
             return {currentEdgeRightPoint, currentEdgeRightIndex, std::nullopt};
@@ -688,13 +732,13 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
   std::optional<std::pair<Vector, IndexType>> rightConstraint;
   if (!successorEdgeIntersectsWithRightOfInterval) {
     VLOG(1) << "Successor edge does not intersect with right of interval";
-    if (!currentInterval.rightIsRoot() && isAConstraintVertexForState(currentState, successorEdgeRightIndex) && math::lineSegmentIntersectsWithCircle(currentInterval.rightInterval()->first, projectedRightPoint, successorEdgeRightPoint, agentRadius_) == 2) {
+    if (!currentInterval.rightIsRoot() && isAConstraintVertexForState(currentState, successorEdgeRightIndex) && math::lineSegmentIntersectsWithCircle(currentInterval.rightInterval()->first, projectedRightPoint, successorEdgeRightPoint, config_.agentRadius()) == 2) {
       VLOG(1) << "Right interval to projected point intersects with successor right edge twice";
       // We will need to create two intervals. First create a tangent line to the right point of the successor edge. One interval will go straight to the projected point of that tangent. The other interval will bend around the right of that successor edge.
-      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rightInterval()->first, AngleDirection::kNoDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rightInterval()->first, AngleDirection::kNoDirection, successorEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
       double t1_2, t2_2;
-      const Vector pushedSuccessorRight = math::extendLineSegmentToLength(successorEdgeRightPoint, successorEdgeLeftPoint, agentRadius_);
-      const Vector pushedSuccessorLeft = isAConstraintVertexForState(currentState, successorEdgeLeftIndex) ? math::extendLineSegmentToLength(successorEdgeLeftPoint, successorEdgeRightPoint, agentRadius_) : successorEdgeLeftPoint;
+      const Vector pushedSuccessorRight = math::extendLineSegmentToLength(successorEdgeRightPoint, successorEdgeLeftPoint, config_.agentRadius());
+      const Vector pushedSuccessorLeft = isAConstraintVertexForState(currentState, successorEdgeLeftIndex) ? math::extendLineSegmentToLength(successorEdgeLeftPoint, successorEdgeRightPoint, config_.agentRadius()) : successorEdgeLeftPoint;
       auto intersectionResult2 = math::intersectForIntervals(lineStart, lineEnd, pushedSuccessorLeft, pushedSuccessorRight, &t1_2, &t2_2);
       // TODO: This line might not actually make it to the successor edge before hitting a constraint.
       VLOG(1) << "Intersection interval 1: " << t1_2 << ", 2: " << t2_2;
@@ -746,12 +790,12 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
       VLOG(1) << "Left of interval is constraint and the left of the edge is a different point";
       // Check if the successor edge intersects with the left of the interval.
       Vector intersectionPoint1, intersectionPoint2;
-      int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.leftPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+      int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.leftPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
       VLOG(1) << "Checking if segment Segment(" << '(' << successorEdgeLeftPoint.x() << ',' << successorEdgeLeftPoint.y() << ')' << ',' << '(' << successorEdgeRightPoint.x() << ',' << successorEdgeRightPoint.y() << ')' << ") intersects with point at " << currentInterval.leftPoint.x() << ',' << currentInterval.leftPoint.y();
       if (intersectionCount > 0) {
         // Only use this intersection if it is not inside the right point of the successor edge (if that point is a constraint).
         VLOG(1) << "[bendThatMfRoundTheLeft] Itersection count is " << intersectionCount;
-        if (!isAConstraintVertexForState(currentState, successorEdgeLeftIndex) || math::distanceSquared(intersectionPoint1, successorEdgeLeftPoint) > agentRadius_*agentRadius_) {
+        if (!isAConstraintVertexForState(currentState, successorEdgeLeftIndex) || math::distanceSquared(intersectionPoint1, successorEdgeLeftPoint) > config_.agentRadius()*config_.agentRadius()) {
           successorEdgeIntersectsWithLeftOfInterval = true;
           // One interval will be
           //  root: same as current
@@ -786,15 +830,15 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
         if (!currentInterval.intervalLeftIsConstraintVertex()) {
           // How do we create a temporary left interval if the left isnt a constraint?
           // Is there a root point and is this left interval on it?
-          if (currentInterval.rootIndex && math::equal(math::distanceSquared(currentInterval.rootPoint, leftInterval.first), agentRadius_*agentRadius_)) {
-            std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, agentRadius_, leftInterval.first);
+          if (currentInterval.rootIndex && math::equal(math::distanceSquared(currentInterval.rootPoint, leftInterval.first), config_.agentRadius()*config_.agentRadius())) {
+            std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, config_.agentRadius(), leftInterval.first);
           } else {
             VLOG(1) << "currentInterval.rootIndex: " << (bool)currentInterval.rootIndex;
-            VLOG(1) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f which==?:%v, diff=%.20f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), leftInterval.first.x(), leftInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, leftInterval.first), math::distanceSquared(currentInterval.rootPoint, leftInterval.first) == agentRadius_*agentRadius_, math::distanceSquared(currentInterval.rootPoint, leftInterval.first) - agentRadius_*agentRadius_);
+            VLOG(1) << absl::StreamFormat("Distance squared from %.5f,%.5f to %.5f,%.5f is %.10f which==?:%v, diff=%.20f", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), leftInterval.first.x(), leftInterval.first.y(), math::distanceSquared(currentInterval.rootPoint, leftInterval.first), math::distanceSquared(currentInterval.rootPoint, leftInterval.first) == config_.agentRadius()*config_.agentRadius(), math::distanceSquared(currentInterval.rootPoint, leftInterval.first) - config_.agentRadius()*config_.agentRadius());
             throw std::runtime_error("Unseen case 0");
           }
         } else {
-          std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.leftPoint, agentRadius_, leftInterval.first);
+          std::tie(tangentStart, tangentEnd) = math::createVectorTangentToPointOnCircle(currentInterval.leftPoint, config_.agentRadius(), leftInterval.first);
           VLOG(1) << "Created tmp interval as Segment(" << '(' << tangentStart.x() << ',' << tangentStart.y() << ')' << ',' << '(' << tangentEnd.x() << ',' << tangentEnd.y() << ')' << ")";
         }
         intersectionResult = math::intersectForIntervals(tangentStart, tangentEnd, successorEdgeLeftPoint, successorEdgeRightPoint, &t1, &t2);
@@ -831,9 +875,9 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
         if (isAConstraintVertexForState(currentState, currentEdgeLeftIndex)) {
           VLOG(1) << "Left of current edge is a constraint";
           Vector intersectionPoint1, intersectionPoint2;
-          auto intersectionResult2 = math::lineSegmentIntersectsWithCircle(leftInterval.first, leftIntervalIntersectionWithSuccessorEdge, currentEdgeLeftPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+          auto intersectionResult2 = math::lineSegmentIntersectsWithCircle(leftInterval.first, leftIntervalIntersectionWithSuccessorEdge, currentEdgeLeftPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
           // Weed out the tangential intersections.
-          const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, leftIntervalIntersectionWithSuccessorEdge, currentEdgeLeftPoint, agentRadius_, intersectionResult2, intersectionPoint1, intersectionPoint2);
+          const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, leftIntervalIntersectionWithSuccessorEdge, currentEdgeLeftPoint, config_.agentRadius(), intersectionResult2, intersectionPoint1, intersectionPoint2);
           if (actuallyIntersected) {
             VLOG(1) << "Augmented left interval Segment(" << '(' << leftInterval.first.x() << ',' << leftInterval.first.y() << "),(" << leftIntervalIntersectionWithSuccessorEdge.x() << ',' << leftIntervalIntersectionWithSuccessorEdge.y() << ')' << ") intersects with left of current edge point " << currentEdgeLeftIndex;
             return {currentEdgeLeftPoint, currentEdgeLeftIndex, std::nullopt};
@@ -846,8 +890,8 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
   // The right of the interval might not be a vertex, but the right interval extended out to the next edge might pass through the right vertex of the successor edge.
   std::optional<std::pair<Vector, IndexType>> leftConstraint;
   if (!successorEdgeIntersectsWithLeftOfInterval) {
-    if (!currentInterval.leftIsRoot() && isAConstraintVertexForState(currentState, successorEdgeLeftIndex) && math::lineSegmentIntersectsWithCircle(currentInterval.leftInterval()->first, projectedLeftPoint, successorEdgeLeftPoint, agentRadius_) == 2) {
-      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.leftInterval()->first, AngleDirection::kNoDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+    if (!currentInterval.leftIsRoot() && isAConstraintVertexForState(currentState, successorEdgeLeftIndex) && math::lineSegmentIntersectsWithCircle(currentInterval.leftInterval()->first, projectedLeftPoint, successorEdgeLeftPoint, config_.agentRadius()) == 2) {
+      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.leftInterval()->first, AngleDirection::kNoDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
       double t1_2, t2_2;
       auto intersectionResult2 = math::intersectForIntervals(lineStart, lineEnd, successorEdgeLeftPoint, successorEdgeRightPoint, &t1_2, &t2_2);
       (void)intersectionResult2;
@@ -860,7 +904,7 @@ typename Pathfinder<NavmeshType>::BendResult Pathfinder<NavmeshType>::bendThatMf
 
   // If the root of the interval is a constraint, the left of the interval is not a constraint, and the left of the interval is inside the root, return the root as a left constraint.
   if (!leftConstraint && currentInterval.rootIndex && currentInterval.rootDirection != AngleDirection::kNoDirection && !currentInterval.intervalLeftIsConstraintVertex()) {
-    if (math::distanceSquared(currentInterval.rootPoint, currentInterval.leftPoint) < agentRadius_*agentRadius_) {
+    if (math::distanceSquared(currentInterval.rootPoint, currentInterval.leftPoint) < config_.agentRadius()*config_.agentRadius()) {
       VLOG(1) << "Left is inside the root";
       leftConstraint.emplace(currentInterval.rootPoint, *currentInterval.rootIndex);
     }
@@ -1034,21 +1078,21 @@ double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &inter
     if (interval.leftIndex && *interval.rootIndex == *interval.leftIndex &&
         interval.rightIndex && *interval.rootIndex == *interval.rightIndex) {
       // Root, left, and right are all the same.
-      if (agentRadius_ > 0.0) {
+      if (config_.agentRadius() > 0.0) {
         throw std::runtime_error("Interval is weird");
       }
     }
     // If the root is one of the ends of the interval; simply find the distance to the goal.
     if (interval.leftIndex && *interval.rootIndex == *interval.leftIndex) {
       if (interval.intervalLeftIsConstraintVertex()) {
-        const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
+        const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, config_.agentRadius());
         return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
       } else {
         return interval.costToRoot + math::distance(interval.leftPoint, goalPoint);
       }
     } else if (interval.rightIndex && *interval.rootIndex == *interval.rightIndex) {
       if (interval.intervalRightIsConstraintVertex()) {
-        const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
+        const auto pointAwayFromConstraint = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, config_.agentRadius());
         return interval.costToRoot + math::distance(pointAwayFromConstraint, goalPoint);
       } else {
         return interval.costToRoot + math::distance(interval.rightPoint, goalPoint);
@@ -1074,13 +1118,13 @@ double Pathfinder<NavmeshType>::costFromIntervalToGoal(const IntervalType &inter
 
   Vector leftPointAwayFromConstraints, rightPointAwayFromConstraints;
   if (interval.intervalLeftIsConstraintVertex()) {
-    leftPointAwayFromConstraints = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, agentRadius_);
+    leftPointAwayFromConstraints = math::extendLineSegmentToLength(interval.leftPoint, interval.rightPoint, config_.agentRadius());
   } else {
     // TODO: It could be the case that some other constraint will push us away from this point.
     leftPointAwayFromConstraints = interval.leftPoint;
   }
   if (interval.intervalRightIsConstraintVertex()) {
-    rightPointAwayFromConstraints = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, agentRadius_);
+    rightPointAwayFromConstraints = math::extendLineSegmentToLength(interval.rightPoint, interval.leftPoint, config_.agentRadius());
   } else {
     // TODO: It could be the case that some other constraint will push us away from this point.
     rightPointAwayFromConstraints = interval.rightPoint;
@@ -1114,8 +1158,8 @@ void Pathfinder<NavmeshType>::pushSuccessor(const IntervalType *currentInterval,
                                             typename PathfindingResult::DebugAStarInfoType &debugAStarInfo) const {
   VLOG(1) << "Want to push " << successorInterval.toString();
   if (successorInterval.rootIndex &&
-      math::distanceSquared(successorInterval.leftPoint, successorInterval.rootPoint) <= agentRadius_*agentRadius_ &&
-      math::distanceSquared(successorInterval.rightPoint, successorInterval.rootPoint) <= agentRadius_*agentRadius_) {
+      math::distanceSquared(successorInterval.leftPoint, successorInterval.rootPoint) <= config_.agentRadius()*config_.agentRadius() &&
+      math::distanceSquared(successorInterval.rightPoint, successorInterval.rootPoint) <= config_.agentRadius()*config_.agentRadius()) {
     // Both the left and right of the interval are inside the root, which is a constraint.
     VLOG(1) << (bool)successorInterval.leftIndex << ',' << (bool)successorInterval.rightIndex;
     VLOG(1) << "Discarding invalid interval";
@@ -1126,7 +1170,7 @@ void Pathfinder<NavmeshType>::pushSuccessor(const IntervalType *currentInterval,
     // What if the left of the interval is not a constraint and is inside the root?
     bool leftIsConstraint = successorInterval.leftIndex && isAConstraintVertexForState(successorInterval.state, *successorInterval.leftIndex);
     if (!leftIsConstraint) {
-      if (math::distanceSquared(successorInterval.rootPoint, successorInterval.leftPoint) <= agentRadius_*agentRadius_) {
+      if (math::distanceSquared(successorInterval.rootPoint, successorInterval.leftPoint) <= config_.agentRadius()*config_.agentRadius()) {
         // Update left to be root.
         successorInterval.leftPoint = successorInterval.rootPoint;
         successorInterval.leftIndex = successorInterval.rootIndex;
@@ -1135,7 +1179,7 @@ void Pathfinder<NavmeshType>::pushSuccessor(const IntervalType *currentInterval,
     // What if the right of the interval is not a constraint and is inside the root?
     bool rightIsConstraint = successorInterval.rightIndex && isAConstraintVertexForState(successorInterval.state, *successorInterval.rightIndex);
     if (!rightIsConstraint) {
-      if (math::distanceSquared(successorInterval.rootPoint, successorInterval.rightPoint) <= agentRadius_*agentRadius_) {
+      if (math::distanceSquared(successorInterval.rootPoint, successorInterval.rightPoint) <= config_.agentRadius()*config_.agentRadius()) {
         // Update right to be root.
         successorInterval.rightPoint = successorInterval.rootPoint;
         successorInterval.rightIndex = successorInterval.rootIndex;
@@ -1193,11 +1237,11 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
   // Shorten the successor edge to within the constraints at the left and right.
   Vector leftOfEdge = leftPoint;
   if (leftIsConstraint) {
-    leftOfEdge = math::extendLineSegmentToLength(leftPoint, rightPoint, agentRadius_);
+    leftOfEdge = math::extendLineSegmentToLength(leftPoint, rightPoint, config_.agentRadius());
   }
   Vector rightOfEdge = rightPoint;
   if (rightIsConstraint) {
-    rightOfEdge = math::extendLineSegmentToLength(rightPoint, leftPoint, agentRadius_);
+    rightOfEdge = math::extendLineSegmentToLength(rightPoint, leftPoint, config_.agentRadius());
   }
   VLOG(1) << absl::StreamFormat("Adjusted edge: Segment((%.20f,%.20f),(%.20f,%.20f))", leftOfEdge.x(), leftOfEdge.y(), rightOfEdge.x(), rightOfEdge.y());
   bool turnedAroundAConstraint{false};
@@ -1217,7 +1261,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
       }
     } else {
       // Create a tangent line from the start point to the left point.
-      const auto [startToLeftCircleStart, startToLeftCircleEnd] = math::createCircleConsciousLine(startPoint, AngleDirection::kNoDirection, leftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+      const auto [startToLeftCircleStart, startToLeftCircleEnd] = math::createCircleConsciousLine(startPoint, AngleDirection::kNoDirection, leftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
       // Check if this tangent line eventually intersects with the adjusted edge.
       double i1, i2;
       const auto intersectionResult = math::intersectForIntervals(startToLeftCircleStart, startToLeftCircleEnd, leftOfEdge, rightOfEdge, &i1, &i2);
@@ -1231,13 +1275,13 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
         // Check if the tangent intersects with the right constraint (if it is a constraint) before hitting the left constraint.
         VLOG(1) << "Created tangent line (Segment(" << startToLeftCircleStart << ',' << startToLeftCircleEnd << ")) intersects with the adjusted edge; checking if we hit the right vertex first.";
         if (rightIsConstraint) {
-          const auto circleIntersectionCount = math::lineSegmentIntersectsWithCircle(startToLeftCircleStart, startToLeftCircleEnd, rightPoint, agentRadius_);
+          const auto circleIntersectionCount = math::lineSegmentIntersectsWithCircle(startToLeftCircleStart, startToLeftCircleEnd, rightPoint, config_.agentRadius());
           VLOG(1) << "Circle intersection count: " << circleIntersectionCount;
           if (circleIntersectionCount < 2) {
             // We did not hit the right vertex first; turn around the left vertex.
             if (circleIntersectionCount == 1) {
               // This can happen if we start inside the right constraint
-              if (math::greaterThanOrEqual(math::distanceSquared(startPoint, rightPoint), agentRadius_*agentRadius_)) {
+              if (math::greaterThanOrEqual(math::distanceSquared(startPoint, rightPoint), config_.agentRadius()*config_.agentRadius())) {
                 throw std::runtime_error("Circle intersection count == 1; not inside right constraint; curious to see this case");
               } else {
                 // Inside right constraint.
@@ -1285,7 +1329,7 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
       }
     } else {
       // Create a tangent line from the start point to the right point.
-      const auto [startToRightCircleStart, startToRightCircleEnd] = math::createCircleConsciousLine(startPoint, AngleDirection::kNoDirection, rightPoint, AngleDirection::kClockwise, agentRadius_);
+      const auto [startToRightCircleStart, startToRightCircleEnd] = math::createCircleConsciousLine(startPoint, AngleDirection::kNoDirection, rightPoint, AngleDirection::kClockwise, config_.agentRadius());
       // Check if this tangent line eventually intersects with the adjusted edge.
       double i1, i2;
       const auto intersectionResult = math::intersectForIntervals(startToRightCircleStart, startToRightCircleEnd, leftOfEdge, rightOfEdge, &i1, &i2);
@@ -1300,12 +1344,12 @@ void Pathfinder<NavmeshType>::handleStartStateSuccessor(const State &successorSt
         // Check if the tangent intersects with the left constraint (if it is a constraint) before hitting the right constraint.
         VLOG(1) << "Created tangent line intersects with the edge; checking if we hit the left vertex first.";
         if (leftIsConstraint) {
-          const auto circleIntersectionCount = math::lineSegmentIntersectsWithCircle(startToRightCircleStart, startToRightCircleEnd, leftPoint, agentRadius_);
+          const auto circleIntersectionCount = math::lineSegmentIntersectsWithCircle(startToRightCircleStart, startToRightCircleEnd, leftPoint, config_.agentRadius());
           VLOG(1) << "Circle intersection count: " << circleIntersectionCount;
           if (circleIntersectionCount < 2) {
             // We did not hit the left vertex first; turn around the right vertex.
             if (circleIntersectionCount == 1) {
-              if (math::greaterThanOrEqual(math::distanceSquared(startPoint, leftPoint), agentRadius_*agentRadius_)) {
+              if (math::greaterThanOrEqual(math::distanceSquared(startPoint, leftPoint), config_.agentRadius()*config_.agentRadius())) {
                 throw std::runtime_error("Circle intersection count == 1; not inside left constraint; curious to see this case");
               } else {
                 // Inside left constraint.
@@ -1370,7 +1414,7 @@ void Pathfinder<NavmeshType>::expandInterval(IntervalType &currentInterval,
   checkLeftAndRightConstraints(currentInterval);
 
   // Now, expand this interval and push all successors.
-  const auto successorStates = navmesh_.getSuccessors(currentState, goalState, agentRadius_); // TODO: I'm not sure I like the concept of the navmesh checking if we fit through the triangle.
+  const auto successorStates = navmesh_.getSuccessors(currentState, goalState, config_.agentRadius()); // TODO: I'm not sure I like the concept of the navmesh checking if we fit through the triangle.
   if (successorStates.empty()) {
     VLOG(1) << "No successor states. Nothing to do.";
   }
@@ -1457,18 +1501,18 @@ void Pathfinder<NavmeshType>::buildResultFromGoalInterval(const IntervalType &go
     VLOG(1) << verticesOnPath.size() << " vertices(s) on the path";
     {
       // Get the points for the line between the two vertices.
-      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(verticesOnPath.at(0).first, verticesOnPath.at(0).second, verticesOnPath.at(1).first, verticesOnPath.at(1).second, agentRadius_);
+      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(verticesOnPath.at(0).first, verticesOnPath.at(0).second, verticesOnPath.at(1).first, verticesOnPath.at(1).second, config_.agentRadius());
       // Create a straight segment from the start to the second point.
       result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new StraightPathSegment(lineStart, lineEnd)));
       // Start an arc at the end of this straight segment.
-      result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(verticesOnPath.at(1).first, agentRadius_, verticesOnPath.at(1).second)));
+      result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(verticesOnPath.at(1).first, config_.agentRadius(), verticesOnPath.at(1).second)));
       ArcPathSegment *arc = reinterpret_cast<ArcPathSegment*>(result.shortestPath.back().get());
       arc->startAngle = math::angle(verticesOnPath.at(1).first, lineEnd);
       VLOG(1) << "Arc " << (verticesOnPath.at(1).second == AngleDirection::kClockwise ? "cw" : "ccw") << " start at " << verticesOnPath.at(1).first.x() << ',' << verticesOnPath.at(1).first.y() << " has angle " << arc->startAngle << " (to point " << lineEnd.x() << "," << lineEnd.y() << ")";
     }
     for (int i=1; i<verticesOnPath.size()-1; ++i) {
       // Get the points for the line between the two vertices.
-      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(verticesOnPath.at(i).first, verticesOnPath.at(i).second, verticesOnPath.at(i+1).first, verticesOnPath.at(i+1).second, agentRadius_);
+      const auto [lineStart, lineEnd] = math::createCircleConsciousLine(verticesOnPath.at(i).first, verticesOnPath.at(i).second, verticesOnPath.at(i+1).first, verticesOnPath.at(i+1).second, config_.agentRadius());
       // Finish the previous arc.
       ArcPathSegment *previousArc = reinterpret_cast<ArcPathSegment*>(result.shortestPath.back().get());
       if (previousArc == nullptr) {
@@ -1483,7 +1527,7 @@ void Pathfinder<NavmeshType>::buildResultFromGoalInterval(const IntervalType &go
       if (i < verticesOnPath.size()-2) {
         // More segments are coming.
         // Start an arc at the end of this straight segment.
-        result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(verticesOnPath.at(i+1).first, agentRadius_, verticesOnPath.at(i+1).second)));
+        result.shortestPath.emplace_back(std::unique_ptr<PathSegment>(new ArcPathSegment(verticesOnPath.at(i+1).first, config_.agentRadius(), verticesOnPath.at(i+1).second)));
         ArcPathSegment *newArc = reinterpret_cast<ArcPathSegment*>(result.shortestPath.back().get());
         newArc->startAngle = math::angle(verticesOnPath.at(i+1).first, lineEnd);
         VLOG(1) << "Arc " << (verticesOnPath.at(i+1).second == AngleDirection::kClockwise ? "cw" : "ccw") << " start at " << verticesOnPath.at(i+1).first.x() << ',' << verticesOnPath.at(i+1).first.y() << " has angle " << newArc->startAngle << " (to point " << lineEnd.x() << "," << lineEnd.y() << ")";
@@ -1507,11 +1551,13 @@ void Pathfinder<NavmeshType>::checkLeftAndRightConstraints(IntervalType &current
   const State &currentState = currentInterval.state;
   if (currentInterval.leftIsRoot() && currentInterval.leftIndex && currentInterval.rootIndex && currentInterval.leftIndex != currentInterval.rootIndex) {
     // These are only possible when there's a shared vertex.
-    throw std::runtime_error("Left is root, but left does not have the same index as the root");
+    // TODO: This error can be thrown when multiple indices represent the same point. I'm not sure if this is actually an error.
+    // throw std::runtime_error("Left is root, but left does not have the same index as the root");
   }
   if (currentInterval.rightIsRoot() && currentInterval.rightIndex && currentInterval.rootIndex && currentInterval.rightIndex != currentInterval.rootIndex) {
     // These are only possible when there's a shared vertex.
-    throw std::runtime_error("Right is root, but right does not have the same index as the root");
+    // TODO: This error can be thrown when multiple indices represent the same point. I'm not sure if this is actually an error.
+    // throw std::runtime_error("Right is root, but right does not have the same index as the root");
   }
 }
 
@@ -1520,7 +1566,7 @@ bool Pathfinder<NavmeshType>::successorIsInsideIntervalConstraint(const Interval
   // If the successor state is a triangle that fits completely within the radius of one of the sides of our interval, and that side is a constraint, don't even consider this successor because it is impossible to visit.
   const auto triangleIndex = successorState.getTriangleIndex();
   const auto [v1, v2, v3] = navmesh_.getTriangleVertices(triangleIndex);
-  const double radiusSquared = agentRadius_*agentRadius_;
+  const double radiusSquared = config_.agentRadius()*config_.agentRadius();
   if (currentInterval.intervalLeftIsConstraintVertex()) {
     if (math::distanceSquared(currentInterval.leftPoint, v1) <= radiusSquared &&
         math::distanceSquared(currentInterval.leftPoint, v2) <= radiusSquared &&
@@ -1569,9 +1615,9 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
 
   // Do a quick check to see if we can fit through this edge.
   // TODO: This could be done way earlier.
-  //  ACTUALLY, getSuccessors can handle this. Currently we pass 0.0 as agent radius, instead we should pass agentRadius_
+  //  ACTUALLY, getSuccessors can handle this. Currently we pass 0.0 as agent radius, instead we should pass config_.agentRadius()
   if (successorLeftIsConstraintVertex && successorRightIsConstraintVertex) {
-    if (math::distanceSquared(successorEdgeLeftPoint, successorEdgeRightPoint) < (4*agentRadius_*agentRadius_)) {
+    if (math::distanceSquared(successorEdgeLeftPoint, successorEdgeRightPoint) < (4*config_.agentRadius()*config_.agentRadius())) {
       // Cannot fit.
       // Nothing else to do for this successor.
       return;
@@ -1685,7 +1731,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           successorInterval2.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         }
         // Updated root; update cost to get to root.
-        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, leftConstraint->first, AngleDirection::kCounterclockwise, agentRadius_);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, leftConstraint->first, AngleDirection::kCounterclockwise, config_.agentRadius());
         successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(&currentInterval, successorInterval2, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
       }
@@ -1708,7 +1754,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         const LineSegment &rightInterval = *currentInterval.rightInterval();
         const Vector extendedRightIntervalEnd = math::extendLineSegmentToLength(rightInterval.first, rightInterval.second, math::distance(rightInterval.first, successorEdgeRightPoint));
         Vector intersectionPoint;
-        const int intersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, extendedRightIntervalEnd, successorEdgeRightPoint, agentRadius_, &intersectionPoint);
+        const int intersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, extendedRightIntervalEnd, successorEdgeRightPoint, config_.agentRadius(), &intersectionPoint);
         if (intersectionCount == 0) {
           VLOG(1) << "No intersection";
           return false;
@@ -1746,7 +1792,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
         successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
         successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
       }
@@ -1800,7 +1846,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         }
         successorInterval2.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, rightConstraint->first, AngleDirection::kClockwise, agentRadius_);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, rightConstraint->first, AngleDirection::kClockwise, config_.agentRadius());
         successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(&currentInterval, successorInterval2, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
       }
@@ -1823,7 +1869,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         const LineSegment &leftInterval = *currentInterval.leftInterval();
         const Vector extendedLeftIntervalEnd = math::extendLineSegmentToLength(leftInterval.first, leftInterval.second, math::distance(leftInterval.first, successorEdgeLeftPoint));
         Vector intersectionPoint;
-        const int intersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, extendedLeftIntervalEnd, successorEdgeLeftPoint, agentRadius_, &intersectionPoint);
+        const int intersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, extendedLeftIntervalEnd, successorEdgeLeftPoint, config_.agentRadius(), &intersectionPoint);
         if (intersectionCount == 0) {
           VLOG(1) << "No intersection";
           return false;
@@ -1861,7 +1907,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
         successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
         // Updated root; update cost to get to root.
-        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+        const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
         successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
         pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
       }
@@ -1888,7 +1934,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         }
         const double distance = math::distance(currentInterval.rightInterval()->first, successorEdgeLeftPoint);
         const auto extendedRightIntervalEnd = math::extendLineSegmentToLength(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second, distance);
-        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.rightInterval()->first, extendedRightIntervalEnd, successorEdgeLeftPoint, agentRadius_);
+        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.rightInterval()->first, extendedRightIntervalEnd, successorEdgeLeftPoint, config_.agentRadius());
         return intersectionCount > 0;
       }();
       if (!hitBlockingIntersection) {
@@ -1901,8 +1947,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           if (currentInterval.intervalRightIsConstraintVertex()) {
             Vector intersectionPoint1, intersectionPoint2;
             VLOG(1) << "Checking intersection of Segment(" << '(' << leftInterval.first.x() << ',' << leftInterval.first.y() << ')' << ',' << '(' << leftInterval.second.x() << ',' << leftInterval.second.y() << ')' << ") against point " << '(' << currentInterval.rightPoint.x() << ',' << currentInterval.rightPoint.y() << ')';
-            const int intersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
-            const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, agentRadius_, intersectionCount, intersectionPoint1, intersectionPoint2);
+            const int intersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
+            const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, config_.agentRadius(), intersectionCount, intersectionPoint1, intersectionPoint2);
             if (actuallyIntersected) {
               VLOG(1) << "Impossible to get to left interval endpoint";
               // Nothing else to do for this successor.
@@ -1935,7 +1981,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             const auto newEnd = math::extendLineSegmentToLength(leftInterval.first, leftInterval.second, math::distance(leftInterval.first, currentEdgeLeftPoint));
             VLOG(1) << "Extended left interval is " << absl::StreamFormat("Segment((%.20f,%.20f),(%.20f,%.20f))", leftInterval.first.x(), leftInterval.first.y(), newEnd.x(), newEnd.y());
             Vector iPoint1, iPoint2;
-            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(leftInterval.first, newEnd, currentEdgeLeftPoint, agentRadius_, &iPoint1, &iPoint2);
+            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(leftInterval.first, newEnd, currentEdgeLeftPoint, config_.agentRadius(), &iPoint1, &iPoint2);
             if (vertexIntersectionResult > 0) {
               VLOG(1) << "Creating one non-observable successor.";
               // This creates a non-observable successor, which is the entire edge.
@@ -1944,7 +1990,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root.
-              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
               successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
               turnedAroundCurrentEntryEdgeLeft = true;
@@ -1956,7 +2002,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             const auto newEnd = math::extendLineSegmentToLength(leftInterval.first, leftInterval.second, math::distance(leftInterval.first, successorEdgeLeftPoint));
             VLOG(1) << "Extended left interval is " << absl::StreamFormat("Segment((%.20f,%.20f),(%.20f,%.20f))", leftInterval.first.x(), leftInterval.first.y(), newEnd.x(), newEnd.y());
             Vector iPoint1, iPoint2;
-            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(leftInterval.first, newEnd, successorEdgeLeftPoint, agentRadius_, &iPoint1, &iPoint2);
+            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(leftInterval.first, newEnd, successorEdgeLeftPoint, config_.agentRadius(), &iPoint1, &iPoint2);
             if (vertexIntersectionResult > 0) {
               VLOG(1) << "Creating one non-observable successor.";
               // This creates a non-observable successor, which is the entire edge.
@@ -1965,7 +2011,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root
-              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
               successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
             }
@@ -1993,7 +2039,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         }
         const double distance = math::distance(currentInterval.leftInterval()->first, successorEdgeRightPoint);
         const auto extendedLeftIntervalEnd = math::extendLineSegmentToLength(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second, distance);
-        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.leftInterval()->first, extendedLeftIntervalEnd, successorEdgeRightPoint, agentRadius_);
+        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.leftInterval()->first, extendedLeftIntervalEnd, successorEdgeRightPoint, config_.agentRadius());
         return intersectionCount > 0;
       }();
       if (!hitBlockingIntersection) { // TODO: Need a test for this case.
@@ -2006,8 +2052,8 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           // Make sure that we dont hit the left of the interval before getting to the right.
           if (currentInterval.intervalLeftIsConstraintVertex()) {
             Vector intersectionPoint1, intersectionPoint2;
-            const int intersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
-            const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, agentRadius_, intersectionCount, intersectionPoint1, intersectionPoint2);
+            const int intersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
+            const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, config_.agentRadius(), intersectionCount, intersectionPoint1, intersectionPoint2);
             if (actuallyIntersected) {
               VLOG(1) << "Impossible to get to right interval endpoint";
               // Nothing else to do for this successor.
@@ -2040,7 +2086,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             const auto newEnd = math::extendLineSegmentToLength(rightInterval.first, rightInterval.second, math::distance(rightInterval.first, currentEdgeRightPoint));
             VLOG(1) << "Extended right interval is " << absl::StreamFormat("Segment((%.20f,%.20f),(%.20f,%.20f))", rightInterval.first.x(), rightInterval.first.y(), newEnd.x(), newEnd.y());
             Vector iPoint1, iPoint2;
-            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(rightInterval.first, newEnd, currentEdgeRightPoint, agentRadius_, &iPoint1, &iPoint2);
+            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(rightInterval.first, newEnd, currentEdgeRightPoint, config_.agentRadius(), &iPoint1, &iPoint2);
             if (vertexIntersectionResult > 0) {
               VLOG(1) << "Creating one non-observable successor.";
               // This creates a non-observable successor, which is the entire edge.
@@ -2049,7 +2095,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root.
-              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
               successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
               turnedAroundCurrentEntryEdgeRight = true;
@@ -2061,7 +2107,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             const auto newEnd = math::extendLineSegmentToLength(rightInterval.first, rightInterval.second, math::distance(rightInterval.first, successorEdgeRightPoint));
             VLOG(1) << "Extended right interval is " << absl::StreamFormat("Segment((%.20f,%.20f),(%.20f,%.20f))", rightInterval.first.x(), rightInterval.first.y(), newEnd.x(), newEnd.y());
             Vector iPoint1, iPoint2;
-            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(rightInterval.first, newEnd, successorEdgeRightPoint, agentRadius_, &iPoint1, &iPoint2);
+            auto vertexIntersectionResult = math::lineSegmentIntersectsWithCircle(rightInterval.first, newEnd, successorEdgeRightPoint, config_.agentRadius(), &iPoint1, &iPoint2);
             if (vertexIntersectionResult > 0) {
               VLOG(1) << "Creating one non-observable successor.";
               // This creates a non-observable successor, which is the entire edge.
@@ -2070,7 +2116,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
               successorInterval.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
               successorInterval.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
               // Updated root; update cost to get to root.
-              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+              const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
               successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
               pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
             }
@@ -2193,7 +2239,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         if (distanceToRight < distanceToLeft) {
           VLOG(1) << "Right is closer, check for intersection";
           Vector leftIp0, leftIp1;
-          const int leftIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, agentRadius_, &leftIp0, &leftIp1);
+          const int leftIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, config_.agentRadius(), &leftIp0, &leftIp1);
           if (leftIntervalIntersectionCount == 0) {
             VLOG(1) << "No intersection";
             return false;
@@ -2202,7 +2248,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           if (leftIntervalIntersectionCount > 1) {
             VLOG(1) << "Intersection 2 at " << absl::StreamFormat("(%.20f,%.20f)", leftIp1.x(), leftIp1.y());
           }
-          const bool leftActuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, agentRadius_, leftIntervalIntersectionCount, leftIp0, leftIp1);
+          const bool leftActuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, leftInterval.second, currentInterval.rightPoint, config_.agentRadius(), leftIntervalIntersectionCount, leftIp0, leftIp1);
           VLOG(1) << absl::StreamFormat("Left actually intersected? %v", leftActuallyIntersected);
           if (!leftActuallyIntersected) {
             return false;
@@ -2216,7 +2262,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           }
           const Vector extendedRightIntervalEnd = rightInterval.first + (rightInterval.second - rightInterval.first) * iv0;
           Vector rightIp0, rightIp1;
-          const int rightIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, extendedRightIntervalEnd, currentInterval.leftPoint, agentRadius_, &rightIp0, &rightIp1);
+          const int rightIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, extendedRightIntervalEnd, currentInterval.leftPoint, config_.agentRadius(), &rightIp0, &rightIp1);
           if (rightIntervalIntersectionCount == 0) {
             VLOG(1) << "No intersection";
             return false;
@@ -2225,7 +2271,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           if (rightIntervalIntersectionCount > 1) {
             VLOG(1) << "Intersection 2 at " << absl::StreamFormat("(%.20f,%.20f)", rightIp1.x(), rightIp1.y());
           }
-          const bool rightActuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, extendedRightIntervalEnd, currentInterval.leftPoint, agentRadius_, rightIntervalIntersectionCount, rightIp0, rightIp1);
+          const bool rightActuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, extendedRightIntervalEnd, currentInterval.leftPoint, config_.agentRadius(), rightIntervalIntersectionCount, rightIp0, rightIp1);
           VLOG(1) << absl::StreamFormat("Right actually intersected? %v", rightActuallyIntersected);
           if (!rightActuallyIntersected) {
             return false;
@@ -2260,7 +2306,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
         if (distanceToLeft < distanceToRight) {
           VLOG(1) << "Left is closer, check for intersection";
           Vector rightIp0, rightIp1;
-          const int rightIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, agentRadius_, &rightIp0, &rightIp1);
+          const int rightIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, config_.agentRadius(), &rightIp0, &rightIp1);
           if (rightIntervalIntersectionCount == 0) {
             VLOG(1) << "No intersection";
             return false;
@@ -2269,7 +2315,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           if (rightIntervalIntersectionCount > 1) {
             VLOG(1) << "Intersection 2 at " << absl::StreamFormat("(%.20f,%.20f)", rightIp1.x(), rightIp1.y());
           }
-          const bool rightActuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, agentRadius_, rightIntervalIntersectionCount, rightIp0, rightIp1);
+          const bool rightActuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, rightInterval.second, currentInterval.leftPoint, config_.agentRadius(), rightIntervalIntersectionCount, rightIp0, rightIp1);
           VLOG(1) << absl::StreamFormat("Right actually intersected? %v", rightActuallyIntersected);
           if (!rightActuallyIntersected) {
             return false;
@@ -2283,7 +2329,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           }
           const Vector extendedLeftIntervalEnd = leftInterval.first + (leftInterval.second - leftInterval.first) * iv0;
           Vector leftIp0, leftIp1;
-          const int leftIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, extendedLeftIntervalEnd, currentInterval.rightPoint, agentRadius_, &leftIp0, &leftIp1);
+          const int leftIntervalIntersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, extendedLeftIntervalEnd, currentInterval.rightPoint, config_.agentRadius(), &leftIp0, &leftIp1);
           if (leftIntervalIntersectionCount == 0) {
             VLOG(1) << "No intersection";
             return false;
@@ -2292,7 +2338,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
           if (leftIntervalIntersectionCount > 1) {
             VLOG(1) << "Intersection 2 at " << absl::StreamFormat("(%.20f,%.20f)", leftIp1.x(), leftIp1.y());
           }
-          const bool leftActuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, extendedLeftIntervalEnd, currentInterval.rightPoint, agentRadius_, leftIntervalIntersectionCount, leftIp0, leftIp1);
+          const bool leftActuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, extendedLeftIntervalEnd, currentInterval.rightPoint, config_.agentRadius(), leftIntervalIntersectionCount, leftIp0, leftIp1);
           VLOG(1) << absl::StreamFormat("Left actually intersected? %v", leftActuallyIntersected);
           if (!leftActuallyIntersected) {
             return false;
@@ -2354,7 +2400,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             successorInterval2.setLeft(successorEdgeLeftPoint, successorEdgeLeftIndex);
             successorInterval2.setRight(projectedLeftPoint, projectedLeftIndex);
             // Updated root; update cost to get to root.
-            const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, leftConstraint->first, AngleDirection::kCounterclockwise, agentRadius_);
+            const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, leftConstraint->first, AngleDirection::kCounterclockwise, config_.agentRadius());
             successorInterval2.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
             pushSuccessor(&currentInterval, successorInterval2, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
           }
@@ -2367,7 +2413,7 @@ void Pathfinder<NavmeshType>::handleNormalSuccessor(const State &currentState,
             successorInterval3.setLeft(projectedRightPoint, projectedRightIndex);
             successorInterval3.setRight(successorEdgeRightPoint, successorEdgeRightIndex);
             // Updated root; update cost to get to root.
-            const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, rightConstraint->first, AngleDirection::kClockwise, agentRadius_);
+            const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, rightConstraint->first, AngleDirection::kClockwise, config_.agentRadius());
             successorInterval3.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
             pushSuccessor(&currentInterval, successorInterval3, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
           }
@@ -2400,24 +2446,24 @@ const Vector &successorEdgeRightPoint) const {
           const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
           if (*currentInterval.rootIndex == currentEdgeRightIndex) {
             throw std::runtime_error("Not expecting them to be flipped");
-            const auto point = math::extendLineSegmentToLength(currentEdgeRightPoint, currentEdgeLeftPoint, agentRadius_);
+            const auto point = math::extendLineSegmentToLength(currentEdgeRightPoint, currentEdgeLeftPoint, config_.agentRadius());
             if (!math::equal(point, rightInterval.first)) {
               throw std::runtime_error("0 Expecting interval to be on radius of the end of the entry edge");
             }
           } else if (*currentInterval.rootIndex == currentEdgeLeftIndex) {
             // We expect this point to be on the circle around the constraint vertex.
-            if (!math::equal(math::distance(rightInterval.first, currentInterval.rootPoint), agentRadius_)) {
+            if (!math::equal(math::distance(rightInterval.first, currentInterval.rootPoint), config_.agentRadius())) {
               throw std::runtime_error("Expecting point to be on root. Instead, distance is "+std::to_string(math::distance(rightInterval.first, currentInterval.rootPoint)));
             }
 
             // Turn the degenerate right interval into a real vector with a tangent.
-            const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, agentRadius_, rightInterval.first);
+            const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, config_.agentRadius(), rightInterval.first);
             VLOG(1) << "Created tangent is Segment(" << '(' << tangentStart.x() << ',' << tangentStart.y() << ')' << ',' << '(' << tangentEnd.x() << ',' << tangentEnd.y() << ')' << ')';
             endOfIntervalForIntersectionTest = tangentEnd;
           } else {
             const auto distanceFromRightIntervalToRoot = math::distance(currentInterval.rootPoint, rightInterval.first);
             if (distanceFromRightIntervalToRoot == math::distance(currentEdgeRightPoint, rightInterval.first)) {
-              const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentEdgeRightPoint, agentRadius_, rightInterval.first);
+              const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentEdgeRightPoint, config_.agentRadius(), rightInterval.first);
               VLOG(1) << "Created tangent is Segment(" << '(' << tangentStart.x() << ',' << tangentStart.y() << ')' << ',' << '(' << tangentEnd.x() << ',' << tangentEnd.y() << ')' << ')';
               endOfIntervalForIntersectionTest = tangentEnd;
             } else if (distanceFromRightIntervalToRoot == math::distance(currentEdgeLeftPoint, rightInterval.first)) {
@@ -2453,8 +2499,8 @@ const Vector &successorEdgeRightPoint) const {
         // Need to extend.
         if (i1 == std::numeric_limits<double>::infinity() && i2 == std::numeric_limits<double>::infinity()) {
           // Lines must be parallel but not overlapping.
-          // If the right of our interval and the endpoint of the successor edge are agentRadius_ apart, then there is no intersection with a constraint
-          if (math::lessThan(math::distance(*endOfIntervalForIntersectionTest, successorEdgeRightPoint), agentRadius_)) {
+          // If the right of our interval and the endpoint of the successor edge are config_.agentRadius() apart, then there is no intersection with a constraint
+          if (math::lessThan(math::distance(*endOfIntervalForIntersectionTest, successorEdgeRightPoint), config_.agentRadius())) {
             throw std::runtime_error("i1="+std::to_string(i1)+" or i2="+std::to_string(i2)+" is inf [0]");
           }
         } else if (i1 == std::numeric_limits<double>::infinity() || i2 == std::numeric_limits<double>::infinity()) {
@@ -2469,8 +2515,8 @@ const Vector &successorEdgeRightPoint) const {
       if (newEndOfInterval) {
         Vector intersectionPoint1, intersectionPoint2;
         VLOG(1) << absl::StreamFormat("Want to check if Segment((%.20f,%.20f),(%.20f,%.20f)) intersects with circle at (%.20f,%.20f)", rightInterval.first.x(), rightInterval.first.y(), newEndOfInterval->x(), newEndOfInterval->y(), successorEdgeLeftPoint.x(), successorEdgeLeftPoint.y());
-        const auto intersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, *newEndOfInterval, successorEdgeLeftPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
-        const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, *newEndOfInterval, successorEdgeLeftPoint, agentRadius_, intersectionCount, intersectionPoint1, intersectionPoint2);
+        const auto intersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, *newEndOfInterval, successorEdgeLeftPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
+        const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, *newEndOfInterval, successorEdgeLeftPoint, config_.agentRadius(), intersectionCount, intersectionPoint1, intersectionPoint2);
         if (actuallyIntersected) {
           // Right of interval intersects with the left vertex of the successor edge. Cannot only reach the edge if we can turn right around the constraint.
           if (!(currentInterval.rightIndex && isAConstraintVertexForState(currentState, *currentInterval.rightIndex))) {
@@ -2508,24 +2554,24 @@ const Vector &successorEdgeRightPoint) const {
           const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
           if (*currentInterval.rootIndex == currentEdgeLeftIndex) {
             throw std::runtime_error("Not expecting them to be flipped");
-            const auto point = math::extendLineSegmentToLength(currentEdgeLeftPoint, currentEdgeRightPoint, agentRadius_);
+            const auto point = math::extendLineSegmentToLength(currentEdgeLeftPoint, currentEdgeRightPoint, config_.agentRadius());
             if (!math::equal(point, leftInterval.first)) {
               throw std::runtime_error("2 Expecting interval to be on radius of the end of the entry edge");
             }
           } else if (*currentInterval.rootIndex == currentEdgeRightIndex) {
             // We expect this point to be on the circle around the constraint vertex.
-            if (!math::equal(math::distance(leftInterval.first, currentInterval.rootPoint), agentRadius_)) {
+            if (!math::equal(math::distance(leftInterval.first, currentInterval.rootPoint), config_.agentRadius())) {
               throw std::runtime_error("Expecting point to be on root. Instead, distance is "+std::to_string(math::distance(leftInterval.first, currentInterval.rootPoint)));
             }
 
             // Turn the degenerate left interval into a real vector with a tangent.
-            const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, agentRadius_, leftInterval.first);
+            const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentInterval.rootPoint, config_.agentRadius(), leftInterval.first);
             VLOG(1) << "Created tangent is Segment(" << '(' << tangentStart.x() << ',' << tangentStart.y() << ')' << ',' << '(' << tangentEnd.x() << ',' << tangentEnd.y() << ')' << ')';
             endOfIntervalForIntersectionTest = tangentEnd;
           } else {
             const auto distanceFromLeftIntervalToRoot = math::distance(currentInterval.rootPoint, leftInterval.first);
             if (distanceFromLeftIntervalToRoot == math::distance(currentEdgeLeftPoint, leftInterval.first)) {
-              const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentEdgeLeftPoint, agentRadius_, leftInterval.first);
+              const auto [tangentStart, tangentEnd] = math::createVectorTangentToPointOnCircle(currentEdgeLeftPoint, config_.agentRadius(), leftInterval.first);
               VLOG(1) << "Created tangent is Segment(" << '(' << tangentStart.x() << ',' << tangentStart.y() << ')' << ',' << '(' << tangentEnd.x() << ',' << tangentEnd.y() << ')' << ')';
               endOfIntervalForIntersectionTest = tangentEnd;
             } else if (distanceFromLeftIntervalToRoot == math::distance(currentEdgeRightPoint, leftInterval.first)) {
@@ -2560,9 +2606,9 @@ const Vector &successorEdgeRightPoint) const {
         // Need to extend.
         if (i1 == std::numeric_limits<double>::infinity() && i2 == std::numeric_limits<double>::infinity()) {
           // Lines must be parallel but not overlapping.
-          // If the left of our interval and the endpoint of the successor edge are agentRadius_ apart, then there is no intersection with a constraint
-          if (math::lessThan(math::distance(*endOfIntervalForIntersectionTest, successorEdgeLeftPoint), agentRadius_)) {
-            VLOG(1) << "End of left interval is not agentRadius_ away from the left of the successor edge";
+          // If the left of our interval and the endpoint of the successor edge are config_.agentRadius() apart, then there is no intersection with a constraint
+          if (math::lessThan(math::distance(*endOfIntervalForIntersectionTest, successorEdgeLeftPoint), config_.agentRadius())) {
+            VLOG(1) << "End of left interval is not config_.agentRadius() away from the left of the successor edge";
             throw std::runtime_error("i1="+std::to_string(i1)+" or i2="+std::to_string(i2)+" is inf [2]");
           }
           // if (!(currentInterval.leftIndex && *currentInterval.leftIndex == successorEdgeLeftIndex)) {
@@ -2577,8 +2623,8 @@ const Vector &successorEdgeRightPoint) const {
       }
       if (newEndOfInterval) {
         Vector intersectionPoint1, intersectionPoint2;
-        const auto intersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, *newEndOfInterval, successorEdgeRightPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
-        const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, *newEndOfInterval, successorEdgeRightPoint, agentRadius_, intersectionCount, intersectionPoint1, intersectionPoint2);
+        const auto intersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, *newEndOfInterval, successorEdgeRightPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
+        const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, *newEndOfInterval, successorEdgeRightPoint, config_.agentRadius(), intersectionCount, intersectionPoint1, intersectionPoint2);
         if (actuallyIntersected) {
           // Left of interval intersects with the right vertex of the successor edge. Cannot only reach the edge if we can turn left around the constraint.
           if (!(currentInterval.leftIndex && isAConstraintVertexForState(currentState, *currentInterval.leftIndex))) {
@@ -2616,7 +2662,7 @@ bool successorLeftIsConstraintVertex) const {
     // We shouldn't calculate this if the left is the root.
     Vector pushedPoint;
     if (isAConstraintVertexForState(currentInterval.state, successorEdgeLeftIndex)) {
-      pushedPoint = math::extendLineSegmentToLength(successorEdgeLeftPoint, successorEdgeRightPoint, agentRadius_);
+      pushedPoint = math::extendLineSegmentToLength(successorEdgeLeftPoint, successorEdgeRightPoint, config_.agentRadius());
     } else {
       pushedPoint = successorEdgeLeftPoint;
     }
@@ -2624,7 +2670,7 @@ bool successorLeftIsConstraintVertex) const {
     //  We differentiate between the two directions because we want to be able to use the first intersection point as the one that's relevant to our direction.
     if (currentInterval.rootDirection == AngleDirection::kCounterclockwise) {
       Vector intersectionPoint;
-      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeRightPoint, successorEdgeLeftPoint, currentInterval.rootPoint, agentRadius_, &intersectionPoint);
+      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeRightPoint, successorEdgeLeftPoint, currentInterval.rootPoint, config_.agentRadius(), &intersectionPoint);
       if (intersectionCount > 0) {
         // Only overwrite the `pushedPoint` if this new intersection is even more restrictive.
         if (math::distanceSquared(intersectionPoint, successorEdgeRightPoint) < math::distanceSquared(pushedPoint, successorEdgeRightPoint)) {
@@ -2634,7 +2680,7 @@ bool successorLeftIsConstraintVertex) const {
       }
     } else if (currentInterval.rootDirection == AngleDirection::kClockwise) {
       Vector intersectionPoint;
-      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.rootPoint, agentRadius_, &intersectionPoint);
+      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.rootPoint, config_.agentRadius(), &intersectionPoint);
       if (intersectionCount > 0) {
         // Only overwrite the `pushedPoint` if this new intersection is even more restrictive.
         if (math::distanceSquared(intersectionPoint, successorEdgeLeftPoint) < math::distanceSquared(pushedPoint, successorEdgeLeftPoint)) {
@@ -2645,11 +2691,11 @@ bool successorLeftIsConstraintVertex) const {
     }
     VLOG(1) << absl::StreamFormat("Pushed point is at (%.20f,%.20f)", pushedPoint.x(), pushedPoint.y());
     auto [leftIntervalToSuccessorEntryEdgeStart,
-          leftIntervalToSuccessorEntryEdgeEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, agentRadius_);
+          leftIntervalToSuccessorEntryEdgeEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, config_.agentRadius());
     // Check if given line intersects with the left vertex of the successor edge.
     if (!currentInterval.leftIndex && successorLeftIsConstraintVertex) {
       Vector intersectionPoint;
-      auto intersectionCount = math::lineSegmentIntersectsWithCircle(leftIntervalToSuccessorEntryEdgeStart, leftIntervalToSuccessorEntryEdgeEnd, successorEdgeLeftPoint, agentRadius_, &intersectionPoint);
+      auto intersectionCount = math::lineSegmentIntersectsWithCircle(leftIntervalToSuccessorEntryEdgeStart, leftIntervalToSuccessorEntryEdgeEnd, successorEdgeLeftPoint, config_.agentRadius(), &intersectionPoint);
       if (intersectionCount > 0 && leftIntervalToSuccessorEntryEdgeEnd != intersectionPoint) {
         if (!currentInterval.leftInterval()) {
           throw std::runtime_error("Expecting left interval");
@@ -2658,7 +2704,7 @@ bool successorLeftIsConstraintVertex) const {
         const double leftIntervalLengthSquared = math::distanceSquared(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second);
         const double leftIntervalToIntersectionLengthSquared = math::distanceSquared(currentInterval.leftInterval()->first, intersectionPoint);
         if (leftIntervalToIntersectionLengthSquared > leftIntervalLengthSquared) {
-          std::tie(leftIntervalToSuccessorEntryEdgeStart, leftIntervalToSuccessorEntryEdgeEnd) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+          std::tie(leftIntervalToSuccessorEntryEdgeStart, leftIntervalToSuccessorEntryEdgeEnd) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
         }
       }
     }
@@ -2680,7 +2726,7 @@ bool successorLeftIsConstraintVertex) const {
     }
     if (successorEdgeLeftIndex != currentInterval.rootIndex) {
       // Successor left is not root, it might be outside the interval. Use the edge from root to successor edge left as a vector to check if the point is outside of the interval.
-      if (math::distanceSquared(successorEdgeLeftPoint, currentInterval.rootPoint) < agentRadius_*agentRadius_) {
+      if (math::distanceSquared(successorEdgeLeftPoint, currentInterval.rootPoint) < config_.agentRadius()*config_.agentRadius()) {
         leftVertexIsLeftOf = true;
         leftVertexIsRightOf = false;
       } else {
@@ -2689,9 +2735,9 @@ bool successorLeftIsConstraintVertex) const {
         }
         Vector startOfSegment, endOfSegment;
         if (successorLeftIsConstraintVertex) {
-          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
         } else {
-          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kNoDirection, agentRadius_);
+          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeLeftPoint, AngleDirection::kNoDirection, config_.agentRadius());
         }
         VLOG(1) << "Calling booberGobblin";
         std::tie(leftVertexIsLeftOf, leftVertexIsRightOf) = booberGobblin(successorEdgeLeftIndex,
@@ -2763,7 +2809,7 @@ bool successorRightIsConstraintVertex) const {
     // We shouldn't calculate this if the right is the root.
     Vector pushedPoint;
     if (isAConstraintVertexForState(currentInterval.state, successorEdgeRightIndex)) {
-      pushedPoint = math::extendLineSegmentToLength(successorEdgeRightPoint, successorEdgeLeftPoint, agentRadius_);
+      pushedPoint = math::extendLineSegmentToLength(successorEdgeRightPoint, successorEdgeLeftPoint, config_.agentRadius());
     } else {
       pushedPoint = successorEdgeRightPoint;
     }
@@ -2771,7 +2817,7 @@ bool successorRightIsConstraintVertex) const {
     //  We differentiate between the two directions because we want to be able to use the first intersection point as the one that's relevant to our direction.
     if (currentInterval.rootDirection == AngleDirection::kCounterclockwise) {
       Vector intersectionPoint;
-      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeRightPoint, successorEdgeLeftPoint, currentInterval.rootPoint, agentRadius_, &intersectionPoint);
+      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeRightPoint, successorEdgeLeftPoint, currentInterval.rootPoint, config_.agentRadius(), &intersectionPoint);
       if (intersectionCount > 0) {
         // Only overwrite the `pushedPoint` if this new intersection is even more restrictive.
         if (math::distanceSquared(intersectionPoint, successorEdgeRightPoint) < math::distanceSquared(pushedPoint, successorEdgeRightPoint)) {
@@ -2781,7 +2827,7 @@ bool successorRightIsConstraintVertex) const {
       }
     } else if (currentInterval.rootDirection == AngleDirection::kClockwise) {
       Vector intersectionPoint;
-      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.rootPoint, agentRadius_, &intersectionPoint);
+      const int intersectionCount = math::lineSegmentIntersectsWithCircle(successorEdgeLeftPoint, successorEdgeRightPoint, currentInterval.rootPoint, config_.agentRadius(), &intersectionPoint);
       if (intersectionCount > 0) {
         // Only overwrite the `pushedPoint` if this new intersection is even more restrictive.
         if (math::distanceSquared(intersectionPoint, successorEdgeLeftPoint) < math::distanceSquared(pushedPoint, successorEdgeLeftPoint)) {
@@ -2791,11 +2837,11 @@ bool successorRightIsConstraintVertex) const {
       }
     }
     auto [rightIntervalToSuccessorEntryEdgeStart,
-          rightIntervalToSuccessorEntryEdgeEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, agentRadius_);
+          rightIntervalToSuccessorEntryEdgeEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, config_.agentRadius());
     // Check if given line intersects with the right vertex of the successor edge.
     if (!currentInterval.rightIndex && successorRightIsConstraintVertex) {
       Vector intersectionPoint;
-      auto intersectionCount = math::lineSegmentIntersectsWithCircle(rightIntervalToSuccessorEntryEdgeStart, rightIntervalToSuccessorEntryEdgeEnd, successorEdgeRightPoint, agentRadius_, &intersectionPoint);
+      auto intersectionCount = math::lineSegmentIntersectsWithCircle(rightIntervalToSuccessorEntryEdgeStart, rightIntervalToSuccessorEntryEdgeEnd, successorEdgeRightPoint, config_.agentRadius(), &intersectionPoint);
       if (intersectionCount > 0 && rightIntervalToSuccessorEntryEdgeEnd != intersectionPoint) {
         if (!currentInterval.rightInterval()) {
           throw std::runtime_error("Expecting right interval");
@@ -2804,7 +2850,7 @@ bool successorRightIsConstraintVertex) const {
         const double rightIntervalLengthSquared = math::distanceSquared(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second);
         const double rightIntervalToIntersectionLengthSquared = math::distanceSquared(currentInterval.rightInterval()->first, intersectionPoint);
         if (rightIntervalToIntersectionLengthSquared > rightIntervalLengthSquared) {
-          std::tie(rightIntervalToSuccessorEntryEdgeStart, rightIntervalToSuccessorEntryEdgeEnd) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+          std::tie(rightIntervalToSuccessorEntryEdgeStart, rightIntervalToSuccessorEntryEdgeEnd) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
         }
       }
     }
@@ -2818,7 +2864,7 @@ bool successorRightIsConstraintVertex) const {
   } else {
     if (successorEdgeRightIndex != currentInterval.rootIndex) {
       // Successor right is not root, it might be outside the interval. Use the edge from root to successor edge right as a vector to check if the point is outside of the interval.
-      if (math::distanceSquared(successorEdgeRightPoint, currentInterval.rootPoint) < agentRadius_*agentRadius_) {
+      if (math::distanceSquared(successorEdgeRightPoint, currentInterval.rootPoint) < config_.agentRadius()*config_.agentRadius()) {
         rightVertexIsLeftOf = false;
         rightVertexIsRightOf = true;
       } else {
@@ -2827,9 +2873,9 @@ bool successorRightIsConstraintVertex) const {
         }
         Vector startOfSegment, endOfSegment;
         if (successorRightIsConstraintVertex) {
-          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
         } else {
-          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kNoDirection, agentRadius_);
+          std::tie(startOfSegment, endOfSegment) = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, successorEdgeRightPoint, AngleDirection::kNoDirection, config_.agentRadius());
         }
         VLOG(1) << "Calling booberGobblin";
         std::tie(rightVertexIsLeftOf, rightVertexIsRightOf) = booberGobblin(successorEdgeLeftIndex,
@@ -2879,9 +2925,9 @@ bool Pathfinder<NavmeshType>::intervalIsClosed(const IntervalType &currentInterv
     // If the start of the right interval is inside the radius of the left interval
     VLOG(1) << "Extended right interval is Segment(" << '(' << rightInterval.first.x() << ',' << rightInterval.first.y() << ')' << ',' << '(' << newRightIntervalEnd.x() << ',' << newRightIntervalEnd.y() << ')' << ")";
     Vector intersectionPoint1, intersectionPoint2;
-    const int circleIntersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, newRightIntervalEnd, currentInterval.leftPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+    const int circleIntersectionCount = math::lineSegmentIntersectsWithCircle(rightInterval.first, newRightIntervalEnd, currentInterval.leftPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
     // Check if the segment intersects with the circle, and isnt only a tangential intersection.
-    const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, newRightIntervalEnd, currentInterval.leftPoint, agentRadius_, circleIntersectionCount, intersectionPoint1, intersectionPoint2);
+    const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(rightInterval.first, newRightIntervalEnd, currentInterval.leftPoint, config_.agentRadius(), circleIntersectionCount, intersectionPoint1, intersectionPoint2);
     if (actuallyIntersected) {
       std::stringstream ss;
       ss << "Right interval intersects with left interval constraint vertex (" << *currentInterval.leftIndex << ") " << circleIntersectionCount << " time" << (circleIntersectionCount == 1 ? "" : "s") << "!";
@@ -2921,10 +2967,10 @@ bool Pathfinder<NavmeshType>::intervalIsClosed(const IntervalType &currentInterv
     const LineSegment &leftInterval = *currentInterval.leftInterval();
     auto newLeftIntervalEnd = math::extendLineSegmentToLength(leftInterval.first, leftInterval.second, math::distance(leftInterval.first, currentInterval.rightPoint));
     Vector intersectionPoint1, intersectionPoint2;
-    const int circleIntersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, newLeftIntervalEnd, currentInterval.rightPoint, agentRadius_, &intersectionPoint1, &intersectionPoint2);
+    const int circleIntersectionCount = math::lineSegmentIntersectsWithCircle(leftInterval.first, newLeftIntervalEnd, currentInterval.rightPoint, config_.agentRadius(), &intersectionPoint1, &intersectionPoint2);
     VLOG(1) << "Extended left interval is Segment(" << '(' << leftInterval.first.x() << ',' << leftInterval.first.y() << ')' << ',' << '(' << newLeftIntervalEnd.x() << ',' << newLeftIntervalEnd.y() << ')' << ")";
     // Check if the segment intersects with the circle, and isnt only a tangential intersection.
-    const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, newLeftIntervalEnd, currentInterval.rightPoint, agentRadius_, circleIntersectionCount, intersectionPoint1, intersectionPoint2);
+    const bool actuallyIntersected = internal::lineActuallyIntersectedWithCircle(leftInterval.first, newLeftIntervalEnd, currentInterval.rightPoint, config_.agentRadius(), circleIntersectionCount, intersectionPoint1, intersectionPoint2);
     if (actuallyIntersected) {
       VLOG(1) << "Left interval intersects with right interval constraint vertex (" << circleIntersectionCount << " time(s))!";
       // If this line does not intersect with the successor edge before intersecting with the circle, then the successor cannot be reached.
@@ -2961,14 +3007,14 @@ bool Pathfinder<NavmeshType>::canFitThroughEdge(const State &currentState, Index
   if (v1IsConstraint && v2IsConstraint) {
     // Both vertices are constraints.
     const auto [v1, v2] = navmesh_.getEdge(edgeIndex);
-    if (math::distanceSquared(v1, v2) < 4*agentRadius_*agentRadius_) {
+    if (math::distanceSquared(v1, v2) < 4*config_.agentRadius()*config_.agentRadius()) {
       // We cannot fit through the edge.
       return false;
     }
   } else if (v1IsConstraint || v2IsConstraint) {
     // One of the vertices is a constraint.
     const auto [v1, v2] = navmesh_.getEdge(edgeIndex);
-    if (math::distanceSquared(v1, v2) < agentRadius_*agentRadius_) {
+    if (math::distanceSquared(v1, v2) < config_.agentRadius()*config_.agentRadius()) {
       // We cannot fit through the edge.
       return false;
     }
@@ -2982,12 +3028,12 @@ void Pathfinder<NavmeshType>::buildLeftIntervals(IntervalType &currentInterval) 
   std::optional<LineSegment> leftIntervalToCurrentEntryEdge;
   if (!currentInterval.leftIsRoot()) {
     const State &currentState = currentInterval.state;
-    if (currentInterval.rootIndex && !currentInterval.intervalLeftIsConstraintVertex() && math::distanceSquared(currentInterval.rootPoint, currentInterval.leftPoint) < agentRadius_*agentRadius_) {
+    if (currentInterval.rootIndex && !currentInterval.intervalLeftIsConstraintVertex() && math::distanceSquared(currentInterval.rootPoint, currentInterval.leftPoint) < config_.agentRadius()*config_.agentRadius()) {
       // Probably should make the intersection of the current interval's root and the current entry edge a 0-length interval
       if (currentState.hasEntryEdgeIndex()) {
         const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
         Vector ip0;
-        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeLeftPoint, currentEdgeRightPoint, currentInterval.rootPoint, agentRadius_, &ip0);
+        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeLeftPoint, currentEdgeRightPoint, currentInterval.rootPoint, config_.agentRadius(), &ip0);
         if (intersectionCount == 0) {
           throw std::runtime_error("Expecting an intersection");
         }
@@ -2997,18 +3043,18 @@ void Pathfinder<NavmeshType>::buildLeftIntervals(IntervalType &currentInterval) 
       }
     } else {
       VLOG(1) << absl::StreamFormat("Creating circle conscious line from (%.12f,%.12f) with direction %s to (%.12f,%.12f) with direction %s", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), toString(currentInterval.rootDirection), currentInterval.leftPoint.x(), currentInterval.leftPoint.y(), toString(currentInterval.leftDirection()));
-      leftInterval = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentInterval.leftPoint, currentInterval.leftDirection(), agentRadius_);
+      leftInterval = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentInterval.leftPoint, currentInterval.leftDirection(), config_.agentRadius());
       if (currentState.hasEntryEdgeIndex()) {
         const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
         Vector pushedPoint;
         if (isAConstraintVertexForState(currentState, currentEdgeLeftIndex)) {
-          pushedPoint = math::extendLineSegmentToLength(currentEdgeLeftPoint, currentEdgeRightPoint, agentRadius_);
-          if (currentInterval.rootDirection != AngleDirection::kNoDirection && math::distance(pushedPoint, currentInterval.rootPoint) < agentRadius_) {
+          pushedPoint = math::extendLineSegmentToLength(currentEdgeLeftPoint, currentEdgeRightPoint, config_.agentRadius());
+          if (currentInterval.rootDirection != AngleDirection::kNoDirection && math::distance(pushedPoint, currentInterval.rootPoint) < config_.agentRadius()) {
             VLOG(1) << "Pushed point is inside of our radius!";
             // Instead, lets move the pushed point to the point where this edge intersects with our circle.
             Vector i0, i1;
             // We intentionally choose the edge direction right->left for intersection. If there are two intersection points, we will use the right one (since that one happens first).
-            const auto intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeRightPoint, currentEdgeLeftPoint, currentInterval.rootPoint, agentRadius_, &i0, &i1);
+            const auto intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeRightPoint, currentEdgeLeftPoint, currentInterval.rootPoint, config_.agentRadius(), &i0, &i1);
             VLOG(1) << "Moving intersection point from " << absl::StreamFormat("(%.12f,%.12f) to (%.12f,%.12f)",pushedPoint.x(), pushedPoint.y(), i0.x(), i0.y());
             pushedPoint = i0;
             // TODO: At this point, the following call of createCircleConsciousLine is wasteful, since the point is on the circumference of the circle by definition.
@@ -3017,7 +3063,7 @@ void Pathfinder<NavmeshType>::buildLeftIntervals(IntervalType &currentInterval) 
           pushedPoint = currentEdgeLeftPoint;
         }
         VLOG(1) << absl::StreamFormat("Creating circle conscious line from (%.12f,%.12f) with direction %s to (%.12f,%.12f) with direction %s", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), toString(currentInterval.rootDirection), pushedPoint.x(), pushedPoint.y(), toString(AngleDirection::kNoDirection));
-        leftIntervalToCurrentEntryEdge = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, agentRadius_);
+        leftIntervalToCurrentEntryEdge = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, config_.agentRadius());
       }
     }
   }
@@ -3040,12 +3086,12 @@ void Pathfinder<NavmeshType>::buildRightIntervals(IntervalType &currentInterval)
   std::optional<LineSegment> rightIntervalToCurrentEntryEdge;
   if (!currentInterval.rightIsRoot()) {
     const State &currentState = currentInterval.state;
-    if (currentInterval.rootIndex && !currentInterval.intervalRightIsConstraintVertex() && math::distanceSquared(currentInterval.rootPoint, currentInterval.rightPoint) < agentRadius_*agentRadius_) {
+    if (currentInterval.rootIndex && !currentInterval.intervalRightIsConstraintVertex() && math::distanceSquared(currentInterval.rootPoint, currentInterval.rightPoint) < config_.agentRadius()*config_.agentRadius()) {
       // Probably should make the intersection of the current interval's root and the current entry edge a 0-length interval
       if (currentState.hasEntryEdgeIndex()) {
         const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
         Vector ip0;
-        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeRightPoint, currentEdgeLeftPoint, currentInterval.rootPoint, agentRadius_, &ip0);
+        int intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeRightPoint, currentEdgeLeftPoint, currentInterval.rootPoint, config_.agentRadius(), &ip0);
         if (intersectionCount == 0) {
           throw std::runtime_error("Expecting an intersection");
         }
@@ -3056,18 +3102,18 @@ void Pathfinder<NavmeshType>::buildRightIntervals(IntervalType &currentInterval)
     } else {
       // We shouldn't calculate this if the right is the root.
       VLOG(1) << absl::StreamFormat("Creating circle conscious line from (%.12f,%.12f) with direction %s to (%.12f,%.12f) with direction %s", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), toString(currentInterval.rootDirection), currentInterval.rightPoint.x(), currentInterval.rightPoint.y(), toString(currentInterval.rightDirection()));
-      rightInterval = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentInterval.rightPoint, currentInterval.rightDirection(), agentRadius_);
+      rightInterval = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentInterval.rightPoint, currentInterval.rightDirection(), config_.agentRadius());
       if (currentState.hasEntryEdgeIndex()) {
         const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
         Vector pushedPoint;
         if (isAConstraintVertexForState(currentState, currentEdgeRightIndex)) {
-          pushedPoint = math::extendLineSegmentToLength(currentEdgeRightPoint, currentEdgeLeftPoint, agentRadius_);
-          if (currentInterval.rootDirection != AngleDirection::kNoDirection && math::distance(pushedPoint, currentInterval.rootPoint) < agentRadius_) {
+          pushedPoint = math::extendLineSegmentToLength(currentEdgeRightPoint, currentEdgeLeftPoint, config_.agentRadius());
+          if (currentInterval.rootDirection != AngleDirection::kNoDirection && math::distance(pushedPoint, currentInterval.rootPoint) < config_.agentRadius()) {
             VLOG(1) << "Pushed point is inside of our radius!";
             // Instead, lets move the pushed point to the point where this edge intersects with our circle.
             Vector i0, i1;
             // We intentionally choose the edge direction left->right for intersection. If there are two intersection points, we will use the left one (since that one happens first).
-            const auto intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeLeftPoint, currentEdgeRightPoint, currentInterval.rootPoint, agentRadius_, &i0, &i1);
+            const auto intersectionCount = math::lineSegmentIntersectsWithCircle(currentEdgeLeftPoint, currentEdgeRightPoint, currentInterval.rootPoint, config_.agentRadius(), &i0, &i1);
             VLOG(1) << "Moving intersection point from " << absl::StreamFormat("(%.12f,%.12f) to (%.12f,%.12f)",pushedPoint.x(), pushedPoint.y(), i0.x(), i0.y());
             pushedPoint = i0;
             // TODO: At this point, the following call of createCircleConsciousLine is wasteful, since the point is on the circumference of the circle by definition.
@@ -3076,7 +3122,7 @@ void Pathfinder<NavmeshType>::buildRightIntervals(IntervalType &currentInterval)
           pushedPoint = currentEdgeRightPoint;
         }
         VLOG(1) << absl::StreamFormat("Creating circle conscious line from (%.12f,%.12f) with direction %s to (%.12f,%.12f) with direction %s", currentInterval.rootPoint.x(), currentInterval.rootPoint.y(), toString(currentInterval.rootDirection), pushedPoint.x(), pushedPoint.y(), toString(AngleDirection::kNoDirection));
-        rightIntervalToCurrentEntryEdge = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, agentRadius_);
+        rightIntervalToCurrentEntryEdge = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, pushedPoint, AngleDirection::kNoDirection, config_.agentRadius());
       }
     }
   }
@@ -3104,7 +3150,7 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
                                                   typename PathfindingResult::DebugAStarInfoType &debugAStarInfo) const {
   const State &currentState = currentInterval.state;
   VLOG(1) << "Is goal";
-  const auto [rootToGoalLineStart, rootToGoalLineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, goalPoint, AngleDirection::kNoDirection, agentRadius_);
+  const auto [rootToGoalLineStart, rootToGoalLineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, goalPoint, AngleDirection::kNoDirection, config_.agentRadius());
   VLOG(1) << "Line to goal is Segment(" <<'(' << rootToGoalLineStart.x() << ',' << rootToGoalLineStart.y() << ')' <<  ',' <<'(' << rootToGoalLineEnd.x() << ',' << rootToGoalLineEnd.y() << ')' <<  ')';
   (void)rootToGoalLineEnd; // This point is the goal point.
 
@@ -3113,8 +3159,8 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
     // Does the line to the goal intersect with the left of the interval
     if (currentInterval.intervalLeftIsConstraintVertex()) {
       Vector ip0, ip1;
-      const auto intersectResult = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.leftPoint, agentRadius_, &ip0, &ip1);
-      if (internal::lineActuallyIntersectedWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.leftPoint, agentRadius_, intersectResult, ip0, ip1)) {
+      const auto intersectResult = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.leftPoint, config_.agentRadius(), &ip0, &ip1);
+      if (internal::lineActuallyIntersectedWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.leftPoint, config_.agentRadius(), intersectResult, ip0, ip1)) {
         VLOG(1) << "Whoa! Line-to-goal intersects with left of interval";
         // Goal cannot be reached directly. Need to create a successor interval.
         IntervalType successorInterval(currentState);
@@ -3162,8 +3208,8 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
     // Does the line to the goal intersect with the right of the interval
     if (currentInterval.intervalRightIsConstraintVertex()) {
       Vector ip0, ip1;
-      const auto intersectResult = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.rightPoint, agentRadius_, &ip0, &ip1);
-      if (internal::lineActuallyIntersectedWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.rightPoint, agentRadius_, intersectResult, ip0, ip1)) {
+      const auto intersectResult = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.rightPoint, config_.agentRadius(), &ip0, &ip1);
+      if (internal::lineActuallyIntersectedWithCircle(rootToGoalLineStart, rootToGoalLineEnd, currentInterval.rightPoint, config_.agentRadius(), intersectResult, ip0, ip1)) {
         VLOG(1) << "Whoa! Line-to-goal intersects with right of interval";
         // Goal cannot be reached directly. Need to create a successor interval.
         IntervalType successorInterval(currentState);
@@ -3234,8 +3280,8 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
           // What if we hit the right of the interval on our way to this left point?
           if (currentInterval.intervalRightIsConstraintVertex() && currentInterval.leftInterval() && currentInterval.rightInterval()) {
             Vector ip0, ip1;
-            const int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second, currentInterval.rightPoint, agentRadius_, &ip0, &ip1);
-            if (internal::lineActuallyIntersectedWithCircle(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second, currentInterval.rightPoint, agentRadius_, intersectionCount, ip0, ip1)) {
+            const int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second, currentInterval.rightPoint, config_.agentRadius(), &ip0, &ip1);
+            if (internal::lineActuallyIntersectedWithCircle(currentInterval.leftInterval()->first, currentInterval.leftInterval()->second, currentInterval.rightPoint, config_.agentRadius(), intersectionCount, ip0, ip1)) {
               // On the way to the left, we hit the right. We cannot reach the goal in one step. Push a new interval going to just the right of this interval.
               IntervalType successorInterval(currentState);
               successorInterval.setRoot(currentInterval.rightPoint, currentInterval.rightIndex, AngleDirection::kClockwise);
@@ -3264,10 +3310,10 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
         } else if (currentState.hasEntryEdgeIndex()) {
           const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
           if (isAConstraintVertexForState(currentState, currentEdgeLeftIndex)) {
-            const auto [startOfRootToLeftOfEntryEdge, endOfRootToLeftOfEntryEdge] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeLeftPoint, AngleDirection::kCounterclockwise, agentRadius_);
+            const auto [startOfRootToLeftOfEntryEdge, endOfRootToLeftOfEntryEdge] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeLeftPoint, AngleDirection::kCounterclockwise, config_.agentRadius());
             if (!math::lessThan(math::crossProductForSign(startOfRootToLeftOfEntryEdge, endOfRootToLeftOfEntryEdge, currentInterval.leftInterval()->first, currentInterval.leftInterval()->second), 0.0)) {
               // Check if the path to the goal intersects with the left vertex of this edge.
-              const auto intersectionCount = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, goalPoint, currentEdgeLeftPoint, agentRadius_);
+              const auto intersectionCount = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, goalPoint, currentEdgeLeftPoint, config_.agentRadius());
               if (intersectionCount == 2) {
                 VLOG(1) << "Ic=2";
                 // The goal is on the other side of this entry edge's left vertex. We can turn around that.
@@ -3285,8 +3331,8 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
           if (currentInterval.intervalLeftIsConstraintVertex() && currentInterval.leftInterval() && currentInterval.rightInterval()) {
             Vector ip0, ip1;
             VLOG(1) << "Checking intersection of " << absl::StreamFormat("Segment((%.20f,%.20f),(%.20f,%.20f)) against (%.20f,%.20f)", currentInterval.rightInterval()->first.x(), currentInterval.rightInterval()->first.y(), currentInterval.rightInterval()->second.x(), currentInterval.rightInterval()->second.y(), currentInterval.leftPoint.x(), currentInterval.leftPoint.y());
-            const int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second, currentInterval.leftPoint, agentRadius_, &ip0, &ip1);
-            if (internal::lineActuallyIntersectedWithCircle(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second, currentInterval.leftPoint, agentRadius_, intersectionCount, ip0, ip1)) {
+            const int intersectionCount = math::lineSegmentIntersectsWithCircle(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second, currentInterval.leftPoint, config_.agentRadius(), &ip0, &ip1);
+            if (internal::lineActuallyIntersectedWithCircle(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second, currentInterval.leftPoint, config_.agentRadius(), intersectionCount, ip0, ip1)) {
               // On the way to the right, we hit the left. We cannot reach the goal in one step. Push a new interval going to just the left of this interval.
               IntervalType successorInterval(currentState);
               successorInterval.setRoot(currentInterval.leftPoint, currentInterval.leftIndex, AngleDirection::kCounterclockwise);
@@ -3315,10 +3361,10 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
         } else if (currentState.hasEntryEdgeIndex()) {
           const auto [currentEdgeLeftPoint, currentEdgeLeftIndex, currentEdgeRightPoint, currentEdgeRightIndex] = getLeftAndRight(currentState);
           if (isAConstraintVertexForState(currentState, currentEdgeRightIndex)) {
-            const auto [startOfRootToRightOfEntryEdge, endOfRootToRightOfEntryEdge] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeRightPoint, AngleDirection::kClockwise, agentRadius_);
+            const auto [startOfRootToRightOfEntryEdge, endOfRootToRightOfEntryEdge] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, currentEdgeRightPoint, AngleDirection::kClockwise, config_.agentRadius());
             if (!math::lessThan(math::crossProductForSign(currentInterval.rightInterval()->first, currentInterval.rightInterval()->second, startOfRootToRightOfEntryEdge, endOfRootToRightOfEntryEdge), 0.0)) {
               // Check if the path to the goal intersects with the right vertex of this edge.
-              const auto intersectionCount = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, goalPoint, currentEdgeRightPoint, agentRadius_);
+              const auto intersectionCount = math::lineSegmentIntersectsWithCircle(rootToGoalLineStart, goalPoint, currentEdgeRightPoint, config_.agentRadius());
               if (intersectionCount == 2) {
                 VLOG(1) << "Ic=2";
                 // The goal is on the other side of this entry edge's right vertex. We can turn around that.
@@ -3354,7 +3400,7 @@ void Pathfinder<NavmeshType>::handleGoalSuccessor(const IntervalType &currentInt
     VLOG(1) << "Have a constraint to turn around";
     IntervalType successorInterval(successorState);
     successorInterval.setRoot(std::get<0>(*constraintToTurnAround), std::get<1>(*constraintToTurnAround), std::get<2>(*constraintToTurnAround));
-    const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, std::get<0>(*constraintToTurnAround), std::get<2>(*constraintToTurnAround), agentRadius_);
+    const auto [lineStart, lineEnd] = math::createCircleConsciousLine(currentInterval.rootPoint, currentInterval.rootDirection, std::get<0>(*constraintToTurnAround), std::get<2>(*constraintToTurnAround), config_.agentRadius());
     successorInterval.costToRoot = currentInterval.costToRoot + math::distance(lineStart, lineEnd); // TODO(cost): Add (estimate of) distance traveled around the currentInterval.root, if any.
     successorInterval.isGoal = true;
     pushSuccessor(&currentInterval, successorInterval, intervalHeap, visited, pushed, previous, goalPoint, debugAStarInfo);
