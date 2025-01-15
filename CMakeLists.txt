@@ -66,7 +66,7 @@ file(COPY ${POLY_FILES}
 # =================================== Tests ====================================
 # ==============================================================================
 
-find_package(GTest CONFIG)
+find_package(GTest REQUIRED)
 
 enable_testing()
 
@@ -80,7 +80,7 @@ PUBLIC
   absl::log
   absl::log_initialize
   ${PROJECT_NAME}
-  gtest_main
+  GTest::Main
 )
 
 include(GoogleTest)
