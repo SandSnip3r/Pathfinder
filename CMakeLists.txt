@@ -66,7 +66,7 @@ file(COPY ${POLY_FILES}
 # =================================== Tests ====================================
 # ==============================================================================
 
-find_package(GTest REQUIRED)
+find_package(GTest CONFIG REQUIRED)
 
 enable_testing()
 
