@@ -43,7 +43,6 @@ add_library(${PROJECT_NAME} STATIC
 target_link_libraries(${PROJECT_NAME}
 PRIVATE
   Triangle
-PUBLIC
   absl::log
   absl::log_initialize
 )
@@ -76,7 +75,7 @@ add_executable(pathfinder_test
 )
 
 target_link_libraries(pathfinder_test
-PUBLIC
+PRIVATE
   absl::log
   absl::log_initialize
   ${PROJECT_NAME}
